@@ -1,0 +1,41 @@
+﻿# Default behavior
+* text=auto eol=lf
+
+# Source code
+*.rs text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.asm text eol=lf
+*.s text eol=lf
+*.S text eol=lf
+
+# Configuration and documentation
+*.md text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.txt text eol=lf
+Makefile text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+
+# Windows specific
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.iso binary
+*.img binary
+*.bin binary
+*.elf binary
+*.o binary
+*.a binary

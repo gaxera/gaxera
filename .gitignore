@@ -1,0 +1,17 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# OS Build Artifacts
+build/
+*.iso
+*.img
+sysroot/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+logs/ # Transient QEMU boot logs (GITIGNORED)
