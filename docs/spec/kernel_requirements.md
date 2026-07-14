@@ -118,7 +118,7 @@ The scheduler must support multiple workload classes simultaneously, because the
 | INT-01 | Minimal kernel interrupt handler → immediate dispatch to user-space driver thread. | |
 | INT-02 | InterruptObject delivers hardware IRQs to user-space via Notification objects. | [Technical Specification](technical_spec.md) KRN-02 |
 | INT-03 | Per-device DMA domains via IOMMU. | |
-| INT-04 | APIC support (for SMP timer and inter-processor interrupts). | Roadmap §4, Phase 3 |
+| INT-04 | APIC support (for SMP timer and inter-processor interrupts). | Roadmap §4, Phase 5 |
 
 ---
 

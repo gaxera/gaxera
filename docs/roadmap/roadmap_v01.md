@@ -106,18 +106,16 @@ When implementation reveals that an existing design decision may be wrong:
   - *Machine Evidence:* Captured serial boot log outputting a deterministic marker (e.g., `Gaxera: KERNEL_ENTRY_OK`).
   - *Human Evidence:* A QEMU screenshot showing the framebuffer test pattern.
 
-### Phase 3: CPU Exceptions & Interrupt Architecture
+### Phase 3: Robust Exceptions
 
 **Dependencies:** Phase 2.
-**Objective:** Prove controlled exception handling and implement a foundational hardware interrupt (timer).
+**Objective:** The kernel catches CPU exceptions cleanly and survives a Double Fault on a dedicated stack.
 
 **Architecture & Subproblems:**
 
 - **GDT/TSS:** Set up the Global Descriptor Table and Task State Segment. The TSS is necessary to provide a known-good stack for double faults.
-- **Exception Handling:** Configure the Interrupt Descriptor Table (IDT) with handlers for Page Fault, General Protection Fault, and Double Fault.
-- **PIC vs APIC:**
-  - **🛑 RESEARCH GATE 3A:** Evaluate the 8259 PIC vs the APIC. Determine the migration implications for multi-core (SMP) support later. Decide on the v0.1 timer source (PIT vs LAPIC timer). Output: ADR on interrupt controller strategy.
-- **Keyboard Input vs Timer:** The timer interrupt is sufficient to prove interrupt delivery, masking, and acknowledgement for v0.1. PS/2 keyboard input introduces additional driver overhead not strictly necessary for the foundational boot proof. Keyboard input is deferred to a post-v0.1 stretch goal or early v0.5 milestone.
+- **Exception Handling:** Configure the Interrupt Descriptor Table (IDT) with handlers for Page Fault, General Protection Fault, Division Error, Breakpoint, and Double Fault.
+- **IST Stack:** Allocate a static stack in `.bss` for the double fault Interrupt Stack Table (IST).
 
 **Validation Strategy for Unsafe Code:**
 Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot emulate hardware registers or inline assembly.
@@ -126,15 +124,15 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 - Use QEMU integration tests with deliberate fault injection.
 - Conduct strict code reviews of unsafe invariants.
 
-#### 🚩 Checkpoint 3: Interrupts Working
+#### 🚩 Checkpoint 3: Exceptions Working
 
 - **Evidence:**
-  - *Machine Evidence:* A QEMU serial log proving a deliberate exception was caught by the handler, and log entries demonstrating successful timer interrupt acknowledgement.
+  - *Machine Evidence:* A QEMU serial log proving a deliberate breakpoint exception was caught by the handler, and log entries demonstrating a successful Double Fault catch on the IST stack (not a triple fault).
 
-### Phase 4: Physical & Virtual Memory Management
+### Phase 4: Physical & Virtual Memory Foundations
 
 **Dependencies:** Phase 3.
-**Objective:** Parse the memory map, manage physical frames, and establish virtual memory mapping.
+**Objective:** Parse the memory map, manage physical frames, establish virtual memory mapping, and bootstrap a kernel heap.
 
 **Architecture & Subproblems:**
 
@@ -151,17 +149,35 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 - **Evidence:**
   - *Machine/CI Evidence:* Deterministic test output from QEMU integration tests showing successful dynamic allocation (`Box`, `Vec`) and correct page translation.
 
-### Phase 5: Polish & v0.1 Release
+### Phase 5: ACPI Discovery & APIC Timer Proof
 
 **Dependencies:** Phase 4.
-**Objective:** Stabilize the kernel, ensure automated testing, and release v0.1.
+**Objective:** Discover the Local APIC via ACPI tables, map it with Uncacheable attributes, and prove timer interrupt delivery.
+
+**Architecture & Subproblems:**
+
+- **ACPI Discovery:** Locate the RSDP (via Limine), walk RSDP -> XSDT -> MADT to extract the Local APIC base physical address.
+- **MMIO Caching & Aliasing:**
+  - **🛑 RESEARCH GATE 5A:** Evaluate APIC implementation choices, including ACPI parsing (lightweight crate vs custom), MMIO mapping attributes to prevent HHDM WB cache attribute aliasing, and timer calibration. Output: ADR on APIC implementation strategy.
+- **APIC Timer Setup:** Configure the APIC Timer in periodic mode and route it to a custom IDT vector.
+- **Interrupt Handler:** Write a timer interrupt handler that increments a ticks counter and sends EOI.
+
+#### 🚩 Checkpoint 5: Interrupts & Timer Working
+
+- **Evidence:**
+  - *Machine Evidence:* Serial log showing ACPI MADT parsed, Local APIC base address printed, and ticks counter incrementing correctly on periodic timer interrupts.
+
+### Phase 6: Stabilization & v0.1 Release
+
+**Dependencies:** Phase 5.
+**Objective:** Harden the kernel, ensure automated testing, and release v0.1.
 
 **Architecture & Subproblems:**
 
 - **QEMU Test Automation:** Use `isa-debug-exit` to allow the kernel to exit QEMU with a success code for CI integration.
 - **Failure Diagnosis:** Ensure panics output a readable stack trace and register dump to the serial port.
 
-#### 🚩 Checkpoint 5: v0.1 MILESTONE
+#### 🚩 Checkpoint 6: v0.1 MILESTONE
 
 - **Evidence:**
   - *CI Evidence:* A green CI artifact demonstrating a clean build and automated QEMU boot test pass.
