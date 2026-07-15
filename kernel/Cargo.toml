@@ -3,5 +3,8 @@ name = "kernel"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[features]
+panic-test = []
 
+[dependencies]
+limine = "0.6.5"

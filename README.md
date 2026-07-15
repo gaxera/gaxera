@@ -55,31 +55,15 @@ leak simply don't exist, because they were never built.
 
 🚧 **v0.1 — early development.**
 
-Right now I'm building the foundation: a Rust microkernel that boots
-on bare metal, manages memory, handles interrupts, and proves every
-step before moving to the next. The architecture above it exists as
-[design and specification](docs/spec/technical_spec.md) — not code.
-Yet.
+* **Phase 1 (Toolchain & Scaffolding):** Completed.
+* **Phase 2 (Boot Contract & Observability):** Completed.
+* **Phase 3 (Robust Exceptions):** Active planning.
 
-[Here's where things stand.](docs/roadmap/roadmap_v01.md)
+Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
 
-## How This Started
+## Getting Started
 
-This project didn't begin with code. It began with seven design
-sessions — pulling apart what operating systems are, why they work
-the way they do, and what they'd look like if we weren't carrying
-their history.
-
-Every decision, every rejected idea, every argument is documented
-and public.
-
-→ [Read the documentation](docs/README.md)
-→ [Explore the design sessions](docs/history/sessions/)
-→ [See what was rejected and why](docs/history/graveyard.md)
-
-## Building
-
-The project is currently in the foundational documentation and governance phase. Code scaffolding and build instructions will be published when Phase 1 implementation begins.
+Refer to the [Developer Workflow Guide](docs/development/workflow.md) for instructions on bootstrapping the toolchain, building the kernel hybrid ISO, running Gaxera in QEMU, and executing the verification test suite.
 
 ## Contributing
 

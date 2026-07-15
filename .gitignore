@@ -1,6 +1,5 @@
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
 
 # OS Build Artifacts
@@ -14,6 +13,6 @@ sysroot/
 .idea/
 .DS_Store
 *.swp
-logs/ # Transient QEMU boot logs (GITIGNORED)
+logs/
 .internal/ 
 

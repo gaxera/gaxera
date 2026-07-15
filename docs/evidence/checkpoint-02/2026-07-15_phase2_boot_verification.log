@@ -1,0 +1,158 @@
+   Compiling xtask v0.1.0 (/home/nyx/gaxera/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running `target/debug/xtask test`
+=== Running Verification Tests ===
+Local target checking validation...
+    Checking kernel v0.1.0 (/home/nyx/gaxera/kernel)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+Executing entry marker integration check...
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+   Compiling kernel v0.1.0 (/home/nyx/gaxera/kernel)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  949g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 3645 sectors
+Written to medium : 3645 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x38f3.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+Booting in legacy BIOS mode.
+Headless mode selected.
+limine: Loading executable `boot():/boot/gaxera.elf`...
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: FRAMEBUFFER_OK (1280x800, 32bpp, pitch: 5120)
+GAXERA: TEST_PATTERN_DRAWN
+Success marker detected! Terminating emulation session.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  949g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 3645 sectors
+Written to medium : 3645 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x38f3.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: KERNEL_ENTRY_OK
+GAXERA: FRAMEBUFFER_OK (1280x800, 32bpp, pitch: 5120)
+GAXERA: TEST_PATTERN_DRAWN
+Success marker detected! Terminating emulation session.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+   Compiling kernel v0.1.0 (/home/nyx/gaxera/kernel)
+warning: unreachable statement
+  --> kernel/src/serial.rs:97:9
+   |
+97 |         $crate::serial::_print(format_args!($($arg)*))
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unreachable statement
+   |
+  ::: kernel/src/main.rs:60:5
+   |
+60 |     panic!("intentional Phase 2 panic proof");
+   |     ----------------------------------------- any code following this expression is unreachable
+61 |
+62 |     println!("GAXERA: KERNEL_ENTRY_OK");
+   |     ----------------------------------- in this macro invocation
+   |
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
+   = note: this warning originates in the macro `$crate::print` which comes from the expansion of the macro `println` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `kernel` (bin "kernel") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.18s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  949g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 3623 sectors
+Written to medium : 3623 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x389b.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA KERNEL PANIC at kernel/src/main.rs:60:5: intentional Phase 2 panic proof
+Success marker detected! Terminating emulation session.
+All verification checks passed successfully!
