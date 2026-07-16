@@ -9,7 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The action defaults RUSTFLAGS to `-D warnings`. An environment RUSTFLAGS
+      # overrides .cargo/config.toml, which would drop the kernel linker script.
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --package xtask -- -D warnings
       - run: cargo clippy --locked --package kernel --target x86_64-unknown-none -Z build-std=core,compiler_builtins,alloc -Z build-std-features=compiler-builtins-mem -- -D warnings
