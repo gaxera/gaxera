@@ -42,6 +42,6 @@ Evidence should map directly to the checkpoints defined in `roadmap_v01.md`:
 | **Phase 1** | CI build output proving compilation on `x86_64-unknown-none`. |
 | **Phase 2** | Serial log of kernel entry; Framebuffer screenshot. |
 | **Phase 3** | UEFI serial log of caught Breakpoint and processor-delivered Double Fault, including an RSP-in-IST-stack assertion and guest-confirmed exit. |
-| **Phase 4** | Serial log of page translation and dynamic heap allocation success. |
+| **Phase 4** | UEFI serial log of owned CR3, page translation, `Box`/`Vec` allocation, and a lower heap guard-page fault with exact CR2. |
 | **Phase 5** | Serial log of APIC discovery and timer interrupt ticks. |
 | **Phase 6** | Full CI workflow artifact for v0.1 completion. |

@@ -7,6 +7,8 @@ use x86_64::structures::idt::PageFaultErrorCode;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 use crate::arch::x86_64::descriptors::{self, DOUBLE_FAULT_IST_INDEX, StaticCell};
+#[cfg(feature = "test-heap-guard")]
+use crate::memory::mapping::HEAP_LOWER_GUARD;
 use crate::println;
 #[cfg(not(feature = "qemu-test"))]
 use crate::serial;
@@ -78,12 +80,32 @@ extern "x86-interrupt" fn page_fault_handler(
     frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
+    #[cfg(feature = "test-heap-guard")]
+    {
+        let _ = frame;
+        let accessed = Cr2::read_raw();
+        if accessed != HEAP_LOWER_GUARD {
+            println!(
+                "GAXERA ERROR: HEAP_GUARD_PAGE_FAULT_WRONG_ADDRESS expected={:#018x} actual={:#018x}",
+                HEAP_LOWER_GUARD, accessed
+            );
+            terminal_test_failure();
+        }
+        println!(
+            "GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT cr2={:#018x} error={:?}",
+            accessed, error_code
+        );
+        terminal_test_exit();
+    }
+
+    #[cfg(not(feature = "test-heap-guard"))]
     println!(
         "GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT ip={:#018x} cr2={:#018x} error={:?}",
         frame.instruction_pointer.as_u64(),
         Cr2::read_raw(),
         error_code
     );
+    #[cfg(not(feature = "test-heap-guard"))]
     terminal_test_exit();
 }
 

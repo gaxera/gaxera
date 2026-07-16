@@ -58,7 +58,10 @@ leak simply don't exist, because they were never built.
 * **Phase 1 (Toolchain & Scaffolding):** Completed.
 * **Phase 2 (Boot Contract & Observability):** Completed.
 * **Phase 3 (Robust Exceptions):** Completed and verified under UEFI QEMU.
-* **Phase 4 (Physical & Virtual Memory Foundations):** Next research gate.
+* **Phase 4 (Physical & Virtual Memory Foundations):** Completed and verified
+  under UEFI QEMU. Gaxera owns its CR3 and four-level page tables, captures an
+  immutable protocol-neutral boot context, allocates physical frames, and
+  proves a guarded kernel heap.
 
 Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
 

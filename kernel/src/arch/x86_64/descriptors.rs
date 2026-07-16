@@ -47,6 +47,8 @@ impl DescriptorTables {
 }
 
 static TABLES: StaticCell<DescriptorTables> = StaticCell::new(DescriptorTables::new());
+#[unsafe(link_section = ".ist_stack")]
+#[used]
 static DOUBLE_FAULT_STACK: StaticCell<Stack> = StaticCell::new(Stack([0; DOUBLE_FAULT_STACK_SIZE]));
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 

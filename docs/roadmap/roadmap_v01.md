@@ -136,24 +136,34 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 
 ### Phase 4: Physical & Virtual Memory Foundations
 
-**Status:** Next research gate.
+**Status:** Complete. Research Gates 4A-4C are closed. The immutable boot
+context, physical-frame allocator, owned four-level CR3 transition, RAM-only
+HHDM, guarded heap, and deterministic memory/guard-page proofs are verified
+under UEFI QEMU. See `PHASE_4_ENGINEERING_HANDOFF.md` for the implementation
+record and Phase 5 constraints.
 **Dependencies:** Phase 3.
 **Objective:** Parse the memory map, manage physical frames, establish virtual memory mapping, and bootstrap a kernel heap.
 
 **Architecture & Subproblems:**
 
 - **Memory Map Interpretation:** Parse the Limine memory map to identify usable RAM.
+- **Boot Context and Memory Map:** Capture Limine input into a Gaxera-owned immutable `BootContext` and emit a canonical classified memory-map diagnostic before allocation.
 - **Frame Allocator Design:**
-  - **🛑 RESEARCH GATE 4A:** Evaluate bitmap vs linked-list frame allocators. Consider performance and initialization complexity. Output: ADR on frame allocator design.
+  - **🛑 RESEARCH GATE 4A:** Closed by ADR 0003. Use a bootstrap range allocator followed by a segmented bitmap allocator over validated usable memory.
 - **Virtual Memory Model:** Understand x86_64 4-level paging.
 - **Page-Table API:** Build abstractions to map, unmap, and translate virtual addresses to physical frames.
+  - **🛑 RESEARCH GATE 4B:** Closed by ADR 0004. Request exact four-level paging; use `MappedPageTable`, a RAM-only HHDM, W^X/NX mapping policy, and a reviewed CR3 continuity transition.
 - **Heap Bootstrap:** Map a dedicated virtual region for the kernel heap and initialize a basic allocator to enable the `alloc` crate.
+  - **🛑 RESEARCH GATE 4C:** Closed by ADR 0004. Use a guarded fixed heap and an exact-pinned reviewed allocator; define allocation failure explicitly.
 - **Allocator Testing:** Write host-testable unit tests for the allocator logic.
 
 #### 🚩 Checkpoint 4: Memory Working
 
 - **Evidence:**
-  - *Machine/CI Evidence:* Deterministic test output from QEMU integration tests showing successful dynamic allocation (`Box`, `Vec`) and correct page translation.
+  - *Machine/CI Evidence:* Deterministic UEFI QEMU output from `cargo xtask test`
+    showing successful post-CR3 dynamic allocation (`Box`, `Vec`), correct
+    first-heap-page translation, and a deliberate lower-heap-guard page fault
+    whose CR2 value matches the unmapped guard address.
 
 ### Phase 5: ACPI Discovery & APIC Timer Proof
 

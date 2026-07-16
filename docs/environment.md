@@ -38,7 +38,8 @@ cargo xtask test
 
 ## Support Matrix
 
-Gaxera's Phase 3 boot and exception contract is verified specifically under:
+Gaxera's Phase 3 exception and completed Phase 4 memory contract is verified
+specifically under:
 
 * QEMU emulated standard VGA adapter (`-vga std`).
 * OVMF UEFI firmware, which is the required development, CI, and release target.
@@ -51,3 +52,11 @@ The COM1 serial output writes directly to register ports without transmit status
 The exception matrix deliberately exercises breakpoint, division error, invalid
 opcode, general protection fault, page fault, and a processor-escalated double
 fault. It is QEMU/OVMF evidence, not a claim of physical-hardware validation.
+
+The Phase 4 matrix additionally proves a Gaxera-owned CR3 transition, a
+RAM-only higher-half direct map, a segmented physical-frame allocator, a fixed
+2 MiB kernel heap, and the lower heap guard page. It verifies allocation with
+`Box` and `Vec`, validates the first heap-page translation, and requires the
+guard-page fault to report its exact address in CR2. These checks do not yet
+validate SMP behavior, physical hardware, arbitrary MMIO mappings, huge pages,
+or user address spaces.

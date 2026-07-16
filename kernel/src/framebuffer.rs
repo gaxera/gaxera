@@ -1,6 +1,7 @@
 use core::fmt;
 use core::ptr::write_volatile;
-use limine::framebuffer::{FRAMEBUFFER_RGB, Framebuffer as LimineFramebuffer};
+
+use crate::memory::boot::FramebufferInfo;
 
 pub struct Framebuffer {
     addr: *mut u8,
@@ -30,50 +31,27 @@ impl fmt::Display for FramebufferError {
 }
 
 impl Framebuffer {
-    /// Create a bounded wrapper for the framebuffer Limine mapped at handoff.
+    /// Create a bounded wrapper for a Gaxera-owned framebuffer description.
     ///
     /// # Safety
-    /// `framebuffer` must remain mapped and writable for `height * pitch` bytes.
-    /// Limine guarantees this while its initial page tables remain active.
-    pub unsafe fn from_limine(framebuffer: &LimineFramebuffer) -> Result<Self, FramebufferError> {
-        if framebuffer.address().is_null()
-            || framebuffer.width == 0
-            || framebuffer.height == 0
-            || framebuffer.bpp != 32
-            || framebuffer.memory_model != FRAMEBUFFER_RGB
-            || framebuffer.red_mask_size != 8
-            || framebuffer.green_mask_size != 8
-            || framebuffer.blue_mask_size != 8
-            || !framebuffer.red_mask_shift.is_multiple_of(8)
-            || !framebuffer.green_mask_shift.is_multiple_of(8)
-            || !framebuffer.blue_mask_shift.is_multiple_of(8)
-            || framebuffer.red_mask_shift >= 32
-            || framebuffer.green_mask_shift >= 32
-            || framebuffer.blue_mask_shift >= 32
-        {
-            return Err(FramebufferError::UnsupportedPixelFormat);
-        }
-
-        let row_bytes = framebuffer
-            .width
-            .checked_mul(4)
-            .ok_or(FramebufferError::InvalidLayout)?;
-        let size = framebuffer
-            .height
-            .checked_mul(framebuffer.pitch)
-            .ok_or(FramebufferError::InvalidLayout)?;
-        if framebuffer.pitch < row_bytes || usize::try_from(size).is_err() {
+    /// `virtual_address` must map `info.size` writable bytes using the exact
+    /// framebuffer physical range captured in `BootContext`.
+    pub unsafe fn from_boot_context(
+        info: FramebufferInfo,
+        virtual_address: u64,
+    ) -> Result<Self, FramebufferError> {
+        if virtual_address == 0 || usize::try_from(info.size).is_err() {
             return Err(FramebufferError::InvalidLayout);
         }
 
         Ok(Self {
-            addr: framebuffer.address().cast(),
-            width: framebuffer.width,
-            height: framebuffer.height,
-            pitch: framebuffer.pitch,
-            red_byte: usize::from(framebuffer.red_mask_shift / 8),
-            green_byte: usize::from(framebuffer.green_mask_shift / 8),
-            blue_byte: usize::from(framebuffer.blue_mask_shift / 8),
+            addr: virtual_address as *mut u8,
+            width: info.width,
+            height: info.height,
+            pitch: info.pitch,
+            red_byte: info.red_byte,
+            green_byte: info.green_byte,
+            blue_byte: info.blue_byte,
         })
     }
 
@@ -85,8 +63,8 @@ impl Framebuffer {
         }
 
         let offset = (y * self.pitch + x * 4) as usize;
-        // SAFETY: `from_limine` validates the row layout and this method bounds
-        // x/y, so every byte written is within Limine's mapped framebuffer.
+        // SAFETY: `from_boot_context` accepts only metadata captured and
+        // validated at handoff, and this method bounds x/y within that layout.
         unsafe {
             write_volatile(self.addr.add(offset + self.red_byte), r);
             write_volatile(self.addr.add(offset + self.green_byte), g);

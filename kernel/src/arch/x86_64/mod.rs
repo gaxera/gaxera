@@ -1,4 +1,7 @@
+pub mod boot;
 pub mod descriptors;
+pub mod entry;
 pub mod exceptions;
+pub mod paging;
 pub mod qemu;
 pub mod test;

@@ -27,6 +27,8 @@ enum KernelProfile {
     Normal,
     PanicTest,
     BootTest,
+    MemoryFoundation,
+    HeapGuard,
     Exception(ExceptionTest),
 }
 
@@ -36,6 +38,8 @@ impl KernelProfile {
             Self::Normal => None,
             Self::PanicTest => Some("panic-test"),
             Self::BootTest => Some("test-boot"),
+            Self::MemoryFoundation => Some("test-memory"),
+            Self::HeapGuard => Some("test-heap-guard"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -49,6 +53,8 @@ impl KernelProfile {
         match self {
             Self::Normal | Self::BootTest => "GAXERA: TEST_PATTERN_DRAWN",
             Self::PanicTest => "GAXERA KERNEL PANIC at kernel/src/main.rs",
+            Self::MemoryFoundation => "GAXERA: MEMORY_FOUNDATION_OK",
+            Self::HeapGuard => "GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT",
             Self::Exception(ExceptionTest::Breakpoint) => "GAXERA: EXCEPTION_BREAKPOINT_RESUMED",
             Self::Exception(ExceptionTest::DivideError) => "GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT",
             Self::Exception(ExceptionTest::InvalidOpcode) => {
@@ -73,6 +79,8 @@ impl KernelProfile {
             Self::Normal => "normal",
             Self::PanicTest => "panic",
             Self::BootTest => "boot",
+            Self::MemoryFoundation => "memory",
+            Self::HeapGuard => "heap-guard",
             Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -130,8 +138,10 @@ fn print_help() {
     println!("\nOptions:");
     println!("  --headless   Run QEMU without graphical display output");
     println!("  --firmware   Select uefi, or bios for an optional packaging diagnostic");
-    println!("  --test       Run one exception proof: breakpoint, divide-error, invalid-opcode,");
-    println!("               general-protection, page-fault, or double-fault");
+    println!("  --test       Run one deterministic proof: memory, heap-guard, breakpoint,");
+    println!(
+        "               divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
+    );
 }
 
 fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
@@ -140,13 +150,15 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
     };
     let value = args.get(index + 1).ok_or("--test requires a test name")?;
     match value.as_str() {
+        "memory" => Ok(KernelProfile::MemoryFoundation),
+        "heap-guard" => Ok(KernelProfile::HeapGuard),
         "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
         "general-protection" => Ok(KernelProfile::Exception(ExceptionTest::GeneralProtection)),
         "page-fault" => Ok(KernelProfile::Exception(ExceptionTest::PageFault)),
         "double-fault" => Ok(KernelProfile::Exception(ExceptionTest::DoubleFault)),
-        _ => Err("unknown exception test name"),
+        _ => Err("unknown deterministic test name"),
     }
 }
 
@@ -652,11 +664,22 @@ fn handle_test() -> Result<(), &'static str> {
         return Err("compilation checks failed");
     }
 
+    println!("Running host-testable memory unit tests...");
+    let status = Command::new("cargo")
+        .args(["test", "--locked", "--package", "kernel", "--lib"])
+        .status()
+        .map_err(|_| "failed to execute host memory unit tests")?;
+    if !status.success() {
+        return Err("host memory unit tests failed");
+    }
+
     println!("Strictly linting every guest test profile...");
     for profile in [
         KernelProfile::Normal,
         KernelProfile::BootTest,
         KernelProfile::PanicTest,
+        KernelProfile::MemoryFoundation,
+        KernelProfile::HeapGuard,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -670,6 +693,8 @@ fn handle_test() -> Result<(), &'static str> {
     println!("Executing UEFI guest-confirmed integration checks...");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::HeapGuard)?;
     handle_run(
         true,
         Some(Firmware::Uefi),

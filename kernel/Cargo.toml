@@ -13,7 +13,10 @@ test-invalid-opcode = ["qemu-test"]
 test-general-protection = ["qemu-test"]
 test-page-fault = ["qemu-test"]
 test-double-fault = ["qemu-test"]
+test-memory = ["qemu-test"]
+test-heap-guard = ["qemu-test"]
 
 [dependencies]
 limine = "0.6.5"
 x86_64 = { version = "=0.15.5", default-features = false, features = ["instructions", "abi_x86_interrupt"] }
+linked_list_allocator = { version = "=0.10.6", default-features = false, features = ["use_spin"] }

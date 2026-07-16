@@ -74,6 +74,28 @@ SECTIONS
         __bss_end = .;
     } :data
 
+    /* These stacks get lower guard pages once Gaxera owns CR3. The pages are
+     * allocated by the ELF image today but deliberately left unmapped later. */
+    . = ALIGN(4K);
+    __bootstrap_stack_guard_start = .;
+    . += 4K;
+    __bootstrap_stack_guard_end = .;
+    .bootstrap_stack : {
+        __bootstrap_stack_start = .;
+        KEEP(*(.bootstrap_stack))
+        __bootstrap_stack_end = .;
+    } :data
+
+    . = ALIGN(4K);
+    __ist_stack_guard_start = .;
+    . += 4K;
+    __ist_stack_guard_end = .;
+    .ist_stack : {
+        __ist_stack_start = .;
+        KEEP(*(.ist_stack))
+        __ist_stack_end = .;
+    } :data
+
     __kernel_end = .;
 
     /* Discard compiler-generated stack unwinding metadata */

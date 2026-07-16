@@ -71,8 +71,10 @@ cargo xtask run -- --firmware bios
 # Run headless (outputs serial diagnostics directly to your shell):
 cargo xtask run -- --headless
 
-# Run one guest-confirmed Phase 3 exception proof:
+# Run one guest-confirmed deterministic proof:
 cargo xtask run -- --headless --test double-fault
+cargo xtask run -- --headless --test memory
+cargo xtask run -- --headless --test heap-guard
 ```
 
 ### D. Running Verification Tests
@@ -85,13 +87,19 @@ cargo xtask test
 
 This command runs:
 
-1. Locked compiler checks plus strict Clippy validation for the normal kernel
-   and every feature-gated guest-test profile.
-2. Headless UEFI normal boot validation with a guest-confirmed QEMU exit.
+1. Locked compiler checks, host-testable kernel unit tests, and strict Clippy
+   validation for the normal kernel and every feature-gated guest-test profile.
+2. Headless UEFI normal boot validation with a guest-confirmed QEMU exit after
+   Gaxera captures its immutable boot context, switches to its own CR3,
+   initializes its physical allocator, and initializes the guarded kernel heap.
 3. Headless UEFI panic telemetry probe with a guest-confirmed QEMU exit.
-4. UEFI breakpoint, divide error, invalid opcode, general protection fault,
+4. A Phase 4 memory proof that requires successful `Box` and `Vec` allocation
+   plus virtual-to-physical heap translation after the CR3 transition.
+5. A Phase 4 heap-guard proof that deliberately faults on the unmapped lower
+   guard page and confirms the exact address through CR2.
+6. UEFI breakpoint, divide error, invalid opcode, general protection fault,
    page fault, and double-fault probes.
-5. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+7. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
    never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real
@@ -99,4 +107,10 @@ page fault, and relies on processor escalation during exception delivery. The
 handler reports success only after it confirms that RSP lies inside the static
 IST stack; a stack mismatch exits QEMU with a failure status.
 
-Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. Phase 3 extends this command with deterministic exception proofs.
+Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the memory and heap-guard profiles are part of CI rather than local-only checks.
+
+The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
+After it copies and publishes `&'static BootContext`, later setup consumes only
+Gaxera-owned metadata; no allocator, framebuffer, paging, or entry code reads
+a Limine response pointer. The closeout tag also triggers this CI workflow, so
+the tagged Phase 4 source revision receives the same verification matrix.

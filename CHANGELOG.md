@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [Phase 4 Complete] - 2026-07-16
+
+### Added
+
+- Immutable Gaxera-owned `BootContext` capture, a classified deterministic
+  memory-map diagnostic, and a strict architecture-only Limine boundary.
+- Bootstrap reservations, a bootstrap range allocator, and a segmented bitmap
+  physical-frame allocator over `MEMMAP_USABLE` memory only.
+- Gaxera-owned four-level tables, a RAM-only HHDM, W^X/NX page policy, guarded
+  bootstrap/IST stacks, a 2 MiB guarded heap, and exact-pinned
+  `linked_list_allocator = "=0.10.6"`.
+- UEFI `memory` and `heap-guard` deterministic QEMU profiles, added to the
+  complete `cargo xtask test` matrix and CI.
+- ADRs 0003 and 0004 plus `PHASE_4_ENGINEERING_HANDOFF.md`.
+
+### Changed
+
+- The kernel moves to a 64 KiB static bootstrap stack before Rust entry;
+  previous 32 KiB storage was insufficient for debug-build allocator setup.
+- Limine request metadata is R+NX after CR3, arbitrary mapping is not exposed,
+  and RSDP capture handles Limine's base-revision-specific address semantics.
+
 ## [Phase 3 Complete] - 2026-07-16
 
 ### Added
