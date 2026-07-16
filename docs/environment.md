@@ -38,11 +38,16 @@ cargo xtask test
 
 ## Support Matrix
 
-Gaxera's Phase 2 early boot contract is verified specifically under:
+Gaxera's Phase 3 boot and exception contract is verified specifically under:
 
 * QEMU emulated standard VGA adapter (`-vga std`).
-* OVMF UEFI firmware or legacy SeaBIOS.
+* OVMF UEFI firmware, which is the required development, CI, and release target.
+* The hybrid ISO's SeaBIOS path only as an optional packaging diagnostic.
 
 The early framebuffer driver assumes 32-bit linear RGB format with byte-aligned 8-bit masks. It does not support physical hardware graphics cards, palette-indexed layouts, or non-byte-aligned Shift patterns.
 
 The COM1 serial output writes directly to register ports without transmit status polling (`LSR`), which is designed for emulator console routing and can drop characters or overflow buffers on slower physical UART interfaces.
+
+The exception matrix deliberately exercises breakpoint, division error, invalid
+opcode, general protection fault, page fault, and a processor-escalated double
+fault. It is QEMU/OVMF evidence, not a claim of physical-hardware validation.

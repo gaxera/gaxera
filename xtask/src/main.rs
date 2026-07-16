@@ -1,13 +1,90 @@
 use std::env;
 use std::fs;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::Command;
+use std::sync::mpsc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy)]
 enum Firmware {
     Bios,
     Uefi,
 }
+
+#[derive(Clone, Copy)]
+enum ExceptionTest {
+    Breakpoint,
+    DivideError,
+    InvalidOpcode,
+    GeneralProtection,
+    PageFault,
+    DoubleFault,
+}
+
+#[derive(Clone, Copy)]
+enum KernelProfile {
+    Normal,
+    PanicTest,
+    BootTest,
+    Exception(ExceptionTest),
+}
+
+impl KernelProfile {
+    fn features(self) -> Option<&'static str> {
+        match self {
+            Self::Normal => None,
+            Self::PanicTest => Some("panic-test"),
+            Self::BootTest => Some("test-boot"),
+            Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
+            Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
+            Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
+            Self::Exception(ExceptionTest::GeneralProtection) => Some("test-general-protection"),
+            Self::Exception(ExceptionTest::PageFault) => Some("test-page-fault"),
+            Self::Exception(ExceptionTest::DoubleFault) => Some("test-double-fault"),
+        }
+    }
+
+    fn expected_marker(self) -> &'static str {
+        match self {
+            Self::Normal | Self::BootTest => "GAXERA: TEST_PATTERN_DRAWN",
+            Self::PanicTest => "GAXERA KERNEL PANIC at kernel/src/main.rs",
+            Self::Exception(ExceptionTest::Breakpoint) => "GAXERA: EXCEPTION_BREAKPOINT_RESUMED",
+            Self::Exception(ExceptionTest::DivideError) => "GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT",
+            Self::Exception(ExceptionTest::InvalidOpcode) => {
+                "GAXERA: EXCEPTION_INVALID_OPCODE_CAUGHT"
+            }
+            Self::Exception(ExceptionTest::GeneralProtection) => {
+                "GAXERA: EXCEPTION_GENERAL_PROTECTION_CAUGHT"
+            }
+            Self::Exception(ExceptionTest::PageFault) => "GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT",
+            Self::Exception(ExceptionTest::DoubleFault) => {
+                "GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT"
+            }
+        }
+    }
+
+    fn requires_guest_exit(self) -> bool {
+        !matches!(self, Self::Normal)
+    }
+
+    fn log_name(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::PanicTest => "panic",
+            Self::BootTest => "boot",
+            Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
+            Self::Exception(ExceptionTest::DivideError) => "divide-error",
+            Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
+            Self::Exception(ExceptionTest::GeneralProtection) => "general-protection",
+            Self::Exception(ExceptionTest::PageFault) => "page-fault",
+            Self::Exception(ExceptionTest::DoubleFault) => "double-fault",
+        }
+    }
+}
+
+const TEST_TIMEOUT: Duration = Duration::from_secs(20);
+const QEMU_DEBUG_EXIT_SUCCESS: i32 = 33;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -22,7 +99,9 @@ fn main() {
         "build" => handle_build(),
         "run" => {
             let headless = args.contains(&"--headless".to_string());
-            parse_firmware(&args).and_then(|firmware| handle_run(headless, firmware, false))
+            parse_firmware(&args)
+                .and_then(|firmware| parse_profile(&args).map(|profile| (firmware, profile)))
+                .and_then(|(firmware, profile)| handle_run(headless, firmware, profile))
         }
         "clean" => handle_clean(),
         "test" => handle_test(),
@@ -47,10 +126,28 @@ fn print_help() {
     println!("  build        Compile kernel and package as bootable ISO");
     println!("  run          Build and launch QEMU emulator");
     println!("  clean        Remove build directories and toolchain caches");
-    println!("  test         Run verification test suites");
+    println!("  test         Run deterministic UEFI verification suite");
     println!("\nOptions:");
     println!("  --headless   Run QEMU without graphical display output");
-    println!("  --firmware   Select bios or uefi (defaults to UEFI when OVMF is installed)");
+    println!("  --firmware   Select uefi, or bios for an optional packaging diagnostic");
+    println!("  --test       Run one exception proof: breakpoint, divide-error, invalid-opcode,");
+    println!("               general-protection, page-fault, or double-fault");
+}
+
+fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
+    let Some(index) = args.iter().position(|arg| arg == "--test") else {
+        return Ok(KernelProfile::Normal);
+    };
+    let value = args.get(index + 1).ok_or("--test requires a test name")?;
+    match value.as_str() {
+        "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
+        "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
+        "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
+        "general-protection" => Ok(KernelProfile::Exception(ExceptionTest::GeneralProtection)),
+        "page-fault" => Ok(KernelProfile::Exception(ExceptionTest::PageFault)),
+        "double-fault" => Ok(KernelProfile::Exception(ExceptionTest::DoubleFault)),
+        _ => Err("unknown exception test name"),
+    }
 }
 
 fn parse_firmware(args: &[String]) -> Result<Option<Firmware>, &'static str> {
@@ -170,10 +267,10 @@ fn handle_bootstrap() -> Result<(), &'static str> {
 }
 
 fn handle_build() -> Result<(), &'static str> {
-    handle_build_with_features(None)
+    handle_build_with_features(KernelProfile::Normal)
 }
 
-fn handle_build_with_features(features: Option<&str>) -> Result<(), &'static str> {
+fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str> {
     println!("=== Building Gaxera Kernel ISO ===");
     let limine_dir = Path::new("target/limine");
     if !limine_dir.join("limine").exists() {
@@ -184,6 +281,7 @@ fn handle_build_with_features(features: Option<&str>) -> Result<(), &'static str
     println!("Compiling kernel binary...");
     let mut build_args = vec![
         "build",
+        "--locked",
         "--package",
         "kernel",
         "--target",
@@ -193,7 +291,7 @@ fn handle_build_with_features(features: Option<&str>) -> Result<(), &'static str
         "-Z",
         "build-std-features=compiler-builtins-mem",
     ];
-    if let Some(features) = features {
+    if let Some(features) = profile.features() {
         build_args.extend(["--features", features]);
     }
     let status = Command::new("cargo")
@@ -307,9 +405,9 @@ fn handle_build_with_features(features: Option<&str>) -> Result<(), &'static str
 fn handle_run(
     headless: bool,
     requested_firmware: Option<Firmware>,
-    panic_test: bool,
+    profile: KernelProfile,
 ) -> Result<(), &'static str> {
-    handle_build_with_features(panic_test.then_some("panic-test"))?;
+    handle_build_with_features(profile)?;
 
     println!("=== Launching QEMU Virtual Machine ===");
 
@@ -321,7 +419,7 @@ fn handle_run(
         }
         Some(firmware) => firmware,
         None if Path::new(ovmf_path).exists() => Firmware::Uefi,
-        None => Firmware::Bios,
+        None => return Err("OVMF UEFI firmware not found at /usr/share/ovmf/OVMF.fd"),
     };
 
     let mut args = vec![];
@@ -353,6 +451,14 @@ fn handle_run(
     args.push("-cpu");
     args.push("max");
 
+    if profile.requires_guest_exit() {
+        // A triple fault must terminate the process rather than rebooting into
+        // another firmware session; otherwise it can conceal a failed test.
+        args.push("-no-reboot");
+        args.push("-device");
+        args.push("isa-debug-exit,iobase=0xf4,iosize=0x04");
+    }
+
     if headless {
         println!("Headless mode selected.");
         args.push("-display");
@@ -383,23 +489,57 @@ fn handle_run(
         .stdout
         .take()
         .ok_or("failed to open QEMU stdout stream")?;
-    use std::io::{BufRead, BufReader, Write};
-    let reader = BufReader::new(stdout);
+
+    let (line_sender, line_receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if line_sender.send(line).is_err() {
+                break;
+            }
+        }
+    });
 
     // Setup local serial logging to a gitignored file
     let logs_dir = Path::new("logs");
     if !logs_dir.exists() {
         fs::create_dir_all(logs_dir).ok();
     }
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "system clock predates Unix epoch")?
+        .as_secs();
     let mut log_file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(logs_dir.join("qemu_run.log"))
+        .open(logs_dir.join(format!("qemu-{}-{timestamp}.log", profile.log_name())))
         .ok();
 
-    // Read QEMU output stream line-by-line and write it to host terminal directly
-    for line in reader.lines().map_while(Result::ok) {
+    let mut marker_seen = false;
+    let started = Instant::now();
+    loop {
+        let line = if profile.requires_guest_exit() {
+            let Some(remaining) = TEST_TIMEOUT.checked_sub(started.elapsed()) else {
+                child.kill().ok();
+                child.wait().ok();
+                return Err("QEMU test timed out before producing the expected result");
+            };
+            match line_receiver.recv_timeout(remaining) {
+                Ok(line) => Some(line),
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    child.kill().ok();
+                    child.wait().ok();
+                    return Err("QEMU test timed out before producing the expected result");
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => None,
+            }
+        } else {
+            line_receiver.recv().ok()
+        };
+
+        let Some(line) = line else {
+            break;
+        };
         println!("{}", line);
         std::io::stdout().flush().ok();
 
@@ -408,13 +548,11 @@ fn handle_run(
             file.flush().ok();
         }
 
-        // If running in headless/test mode, we can automatically exit QEMU once the entry is checked.
-        let success_marker = if panic_test {
-            "GAXERA KERNEL PANIC at kernel/src/main.rs"
-        } else {
-            "GAXERA: TEST_PATTERN_DRAWN"
-        };
-        if headless && line.contains(success_marker) {
+        if line.contains(profile.expected_marker()) {
+            marker_seen = true;
+        }
+
+        if headless && marker_seen && !profile.requires_guest_exit() {
             println!("Success marker detected! Terminating emulation session.");
             child.kill().ok();
             child.wait().ok();
@@ -422,8 +560,18 @@ fn handle_run(
         }
     }
 
-    // Wait for the emulator process to terminate
     let status = child.wait().map_err(|_| "failed to wait on QEMU process")?;
+    if profile.requires_guest_exit() {
+        if !marker_seen {
+            return Err("QEMU exited without the expected kernel test marker");
+        }
+        if status.code() != Some(QEMU_DEBUG_EXIT_SUCCESS) {
+            return Err("QEMU test did not report the expected isa-debug-exit success code");
+        }
+        println!("Guest-confirmed QEMU test passed.");
+        return Ok(());
+    }
+
     if !status.success() {
         return Err("QEMU session exited with error code");
     }
@@ -451,12 +599,43 @@ fn handle_clean() -> Result<(), &'static str> {
     Ok(())
 }
 
+fn lint_kernel_profile(profile: KernelProfile) -> Result<(), &'static str> {
+    let mut lint_args = vec![
+        "clippy",
+        "--locked",
+        "--package",
+        "kernel",
+        "--target",
+        "x86_64-unknown-none",
+        "-Z",
+        "build-std=core,compiler_builtins,alloc",
+        "-Z",
+        "build-std-features=compiler-builtins-mem",
+    ];
+    if let Some(features) = profile.features() {
+        lint_args.extend(["--features", features]);
+    }
+    lint_args.extend(["--", "-D", "warnings"]);
+
+    println!("Linting kernel profile: {}", profile.log_name());
+    let status = Command::new("cargo")
+        .args(lint_args)
+        .status()
+        .map_err(|_| "failed to execute kernel clippy validation")?;
+    if !status.success() {
+        return Err("kernel clippy validation failed");
+    }
+
+    Ok(())
+}
+
 fn handle_test() -> Result<(), &'static str> {
     println!("=== Running Verification Tests ===");
     println!("Local target checking validation...");
     let status = Command::new("cargo")
         .args([
             "check",
+            "--locked",
             "--package",
             "kernel",
             "--target",
@@ -473,10 +652,57 @@ fn handle_test() -> Result<(), &'static str> {
         return Err("compilation checks failed");
     }
 
-    println!("Executing entry marker integration check...");
-    handle_run(true, Some(Firmware::Bios), false)?;
-    handle_run(true, Some(Firmware::Uefi), false)?;
-    handle_run(true, Some(Firmware::Uefi), true)?;
+    println!("Strictly linting every guest test profile...");
+    for profile in [
+        KernelProfile::Normal,
+        KernelProfile::BootTest,
+        KernelProfile::PanicTest,
+        KernelProfile::Exception(ExceptionTest::Breakpoint),
+        KernelProfile::Exception(ExceptionTest::DivideError),
+        KernelProfile::Exception(ExceptionTest::InvalidOpcode),
+        KernelProfile::Exception(ExceptionTest::GeneralProtection),
+        KernelProfile::Exception(ExceptionTest::PageFault),
+        KernelProfile::Exception(ExceptionTest::DoubleFault),
+    ] {
+        lint_kernel_profile(profile)?;
+    }
+
+    println!("Executing UEFI guest-confirmed integration checks...");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::Breakpoint),
+    )?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::DivideError),
+    )?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::InvalidOpcode),
+    )?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::GeneralProtection),
+    )?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::PageFault),
+    )?;
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::Exception(ExceptionTest::DoubleFault),
+    )?;
+
+    println!("Restoring the normal kernel ISO after test-only builds...");
+    handle_build()?;
 
     println!("All verification checks passed successfully!");
     Ok(())

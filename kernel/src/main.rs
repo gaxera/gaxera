@@ -1,8 +1,37 @@
 #![no_std]
 #![no_main]
+#![feature(abi_x86_interrupt)]
 
+pub mod arch;
 pub mod framebuffer;
 pub mod serial;
+
+#[cfg(any(
+    all(feature = "panic-test", feature = "test-boot"),
+    all(
+        feature = "panic-test",
+        any(
+            feature = "test-breakpoint",
+            feature = "test-divide-error",
+            feature = "test-invalid-opcode",
+            feature = "test-general-protection",
+            feature = "test-page-fault",
+            feature = "test-double-fault",
+        )
+    ),
+    all(
+        feature = "test-boot",
+        any(
+            feature = "test-breakpoint",
+            feature = "test-divide-error",
+            feature = "test-invalid-opcode",
+            feature = "test-general-protection",
+            feature = "test-page-fault",
+            feature = "test-double-fault",
+        )
+    ),
+))]
+compile_error!("exactly one Gaxera QEMU test profile may be enabled");
 
 use core::panic::PanicInfo;
 use limine::BaseRevision;
@@ -57,10 +86,29 @@ pub unsafe extern "C" fn _start() -> ! {
         serial::halt();
     }
 
+    // SAFETY: Limine enters with a valid temporary GDT and stack, interrupts
+    // disabled, and no concurrent CPU work. Phase 3 replaces that temporary
+    // descriptor state exactly once before loading the IDT.
+    unsafe {
+        arch::x86_64::descriptors::init();
+        arch::x86_64::exceptions::init();
+    }
+    println!("GAXERA: DESCRIPTORS_AND_IDT_READY");
+
     #[cfg(feature = "panic-test")]
     panic!("intentional Phase 2 panic proof");
 
     println!("GAXERA: KERNEL_ENTRY_OK");
+
+    #[cfg(any(
+        feature = "test-breakpoint",
+        feature = "test-divide-error",
+        feature = "test-invalid-opcode",
+        feature = "test-general-protection",
+        feature = "test-page-fault",
+        feature = "test-double-fault",
+    ))]
+    arch::x86_64::test::run();
 
     if let Some(response) = FRAMEBUFFER_REQUEST.response() {
         if let Some(&fb) = response.framebuffers().first() {
@@ -85,6 +133,13 @@ pub unsafe extern "C" fn _start() -> ! {
         println!("GAXERA ERROR: Framebuffer request failed");
     }
 
+    #[cfg(feature = "test-boot")]
+    // SAFETY: test-boot is only launched by xtask with isa-debug-exit attached.
+    unsafe {
+        arch::x86_64::qemu::exit_success();
+    }
+
+    #[cfg(not(feature = "test-boot"))]
     serial::halt();
 }
 
@@ -101,5 +156,13 @@ fn panic(info: &PanicInfo) -> ! {
     } else {
         println!("GAXERA KERNEL PANIC: {info}");
     }
+
+    #[cfg(feature = "panic-test")]
+    // SAFETY: panic-test is only launched by xtask with isa-debug-exit attached.
+    unsafe {
+        arch::x86_64::qemu::exit_success();
+    }
+
+    #[cfg(not(feature = "panic-test"))]
     serial::halt();
 }

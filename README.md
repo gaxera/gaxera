@@ -57,7 +57,8 @@ leak simply don't exist, because they were never built.
 
 * **Phase 1 (Toolchain & Scaffolding):** Completed.
 * **Phase 2 (Boot Contract & Observability):** Completed.
-* **Phase 3 (Robust Exceptions):** Active planning.
+* **Phase 3 (Robust Exceptions):** Completed and verified under UEFI QEMU.
+* **Phase 4 (Physical & Virtual Memory Foundations):** Next research gate.
 
 Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
 

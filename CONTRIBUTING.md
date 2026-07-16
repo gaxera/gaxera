@@ -10,7 +10,8 @@ welcome, but please open an issue to discuss before submitting large changes.
 ## Development Setup
 
 See [docs/roadmap/roadmap_v01.md](docs/roadmap/roadmap_v01.md)
-for the high-level phases. Environment setup documentation is currently internal while the project is in early development.
+for the high-level phases and [docs/development/workflow.md](docs/development/workflow.md)
+for public environment setup, build, and verification instructions.
 
 ## Workflow
 
@@ -20,8 +21,8 @@ for the high-level phases. Environment setup documentation is currently internal
    commit messages.
 4. All checks must pass before merge:
    - `cargo fmt --all -- --check`
-   - `cargo clippy -- -D warnings`
-   - `cargo build` (kernel target)
+   - `cargo clippy --locked -- -D warnings`
+   - `cargo xtask test`
    - CI green
 
 ## Code Standards

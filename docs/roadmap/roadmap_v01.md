@@ -1,6 +1,6 @@
 # Execution Roadmap — Zero to v0.1 (with v0.5 Checkpoints)
 
-> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-12
+> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-16
 > **Related:** [Roadmap](../roadmap/roadmap_v01.md), [Constitution](../governance/constitution.md)
 
 **Purpose:** A dependency-driven map of the path to v0.1.
@@ -8,8 +8,8 @@ This document explains the architecture of the work, the research gates, and the
 
 ## 1. Project Preconditions
 
-**Status:** [RESEARCH REQUIRED]
-Phase 1 implementation must not begin until the project has resolved or verified:
+**Status:** Complete for the implemented v0.1 bootstrap.
+Phase 1 began only after the project resolved or verified:
 
 1. Rust nightly/toolchain version and target strategy.
 2. QEMU version and invocation behavior.
@@ -70,10 +70,11 @@ When implementation reveals that an existing design decision may be wrong:
 
 ### Phase 1: Toolchain & Repository Bootstrap
 
+**Status:** Complete.
 **Dependencies:** Preconditions Met.
 **Objective:** Establish a reproducible, pinned build environment and continuous integration.
 
-- **UEFI-Only Focus:** The architecture commits to UEFI. The build pipeline must produce a UEFI-compatible ISO. Omit legacy BIOS boot instructions.
+- **UEFI-Only Focus:** The architecture commits to UEFI. The build pipeline must produce a UEFI-compatible ISO. Hybrid ISO packaging may retain BIOS data only as an optional diagnostic path; it is never a supported architecture or release target.
 - **xtask Pattern:** Implement a Rust-based build runner (`cargo xtask`) to manage building the kernel, creating the ISO, and launching QEMU.
 
 #### 🚩 Checkpoint 1: Skeleton Kernel Built
@@ -84,6 +85,7 @@ When implementation reveals that an existing design decision may be wrong:
 
 ### Phase 2: Limine Handoff & Boot to Screen
 
+**Status:** Complete.
 **Dependencies:** Phase 1.
 **Objective:** QEMU reaches the Rust kernel entry through Limine, proving the boot contract.
 
@@ -108,8 +110,9 @@ When implementation reveals that an existing design decision may be wrong:
 
 ### Phase 3: Robust Exceptions
 
+**Status:** Complete.
 **Dependencies:** Phase 2.
-**Objective:** The kernel catches CPU exceptions cleanly and survives a Double Fault on a dedicated stack.
+**Objective:** The kernel catches CPU exceptions cleanly and reaches a terminal Double Fault handler on a dedicated stack without triple-faulting.
 
 **Architecture & Subproblems:**
 
@@ -124,13 +127,16 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 - Use QEMU integration tests with deliberate fault injection.
 - Conduct strict code reviews of unsafe invariants.
 
+**Firmware policy:** UEFI is the required validation target. BIOS may remain an optional diagnostics path while the hybrid ISO exists, but it is not an architectural or release requirement.
+
 #### 🚩 Checkpoint 3: Exceptions Working
 
 - **Evidence:**
-  - *Machine Evidence:* A QEMU serial log proving a deliberate breakpoint exception was caught by the handler, and log entries demonstrating a successful Double Fault catch on the IST stack (not a triple fault).
+  - *Machine Evidence:* A UEFI QEMU serial log proving a deliberate breakpoint exception was caught by the handler, and log entries demonstrating processor-delivered Double Fault entry on the IST stack, including an RSP-in-IST-stack assertion (not a triple fault or `int $8`).
 
 ### Phase 4: Physical & Virtual Memory Foundations
 
+**Status:** Next research gate.
 **Dependencies:** Phase 3.
 **Objective:** Parse the memory map, manage physical frames, establish virtual memory mapping, and bootstrap a kernel heap.
 
@@ -174,13 +180,13 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 
 **Architecture & Subproblems:**
 
-- **QEMU Test Automation:** Use `isa-debug-exit` to allow the kernel to exit QEMU with a success code for CI integration.
+- **QEMU Test Automation:** Preserve and broaden the existing `isa-debug-exit`-based QEMU verification as memory and timer proofs are added.
 - **Failure Diagnosis:** Ensure panics output a readable stack trace and register dump to the serial port.
 
 #### 🚩 Checkpoint 6: v0.1 MILESTONE
 
 - **Evidence:**
-  - *CI Evidence:* A green CI artifact demonstrating a clean build and automated QEMU boot test pass.
+  - *CI Evidence:* A green CI artifact demonstrating a clean build and automated UEFI QEMU boot test pass.
   - *Human Evidence:* A tagged v0.1 release in the repository.
 
 ## 5. v0.5 Horizon (Dependency Graph)

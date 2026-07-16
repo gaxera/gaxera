@@ -4,7 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-panic-test = []
+panic-test = ["qemu-test"]
+qemu-test = []
+test-boot = ["qemu-test"]
+test-breakpoint = ["qemu-test"]
+test-divide-error = ["qemu-test"]
+test-invalid-opcode = ["qemu-test"]
+test-general-protection = ["qemu-test"]
+test-page-fault = ["qemu-test"]
+test-double-fault = ["qemu-test"]
 
 [dependencies]
 limine = "0.6.5"
+x86_64 = { version = "=0.15.5", default-features = false, features = ["instructions", "abi_x86_interrupt"] }

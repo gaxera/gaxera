@@ -23,7 +23,10 @@ This directory contains the public documentation, architectural specifications, 
 ### If you want to build or contribute
 
 1. [Roadmap](roadmap/roadmap_v01.md) — Milestone structure
-2. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution workflow
+2. [Developer Workflow](development/workflow.md) — Build, run, and verification commands
+3. [Environment](environment.md) — Tested host and emulator boundary
+4. [Evidence](evidence/) — Checkpoint proof and provenance
+5. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution workflow
 
 ## Document Taxonomy
 
