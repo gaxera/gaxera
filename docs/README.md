@@ -27,8 +27,6 @@ This directory contains the public documentation, architectural specifications, 
 3. [Environment](environment.md) — Tested host and emulator boundary
 4. [Evidence](evidence/) — Checkpoint proof and provenance
 5. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution workflow
-6. [Phase 4 Engineering Handoff](../PHASE_4_ENGINEERING_HANDOFF.md) — Current
-   memory-foundation implementation record and Phase 5 constraints
 
 ## Document Taxonomy
 

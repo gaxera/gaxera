@@ -1,0 +1,62 @@
+Gaxera Phase 4 exact-commit verification record
+Date: 2026-07-16
+Target commit: ff0c7245ece63956b7b773c6b255f40c56833de8
+Command: cargo xtask test
+Working tree before and after command: clean
+Exit status: 0
+
+Environment
+-----------
+Host: Ubuntu 26.04 LTS under WSL2
+Rust: nightly-2026-07-13
+Target: x86_64-unknown-none
+Emulator: QEMU 10.2.1 with OVMF UEFI firmware
+Bootloader: Limine 12.4.2
+
+Static and host checks
+----------------------
+PASS locked x86_64-unknown-none compiler check
+PASS kernel host unit tests: 4 passed, 0 failed
+  PASS memory::boot::tests::only_usable_memory_is_allocator_eligible
+  PASS memory::boot::tests::sorts_regions_by_start_then_type_then_length
+  PASS memory::physical::tests::bitmap_skips_reserved_bootstrap_frames
+  PASS memory::physical::tests::bitmap_deallocation_makes_frame_available_again
+PASS strict target Clippy for all 11 build profiles:
+  normal, boot, panic, memory, heap-guard, breakpoint, divide-error,
+  invalid-opcode, general-protection, page-fault, double-fault
+
+UEFI guest-confirmed profiles
+-----------------------------
+PASS boot: normal kernel reaches TEST_PATTERN_DRAWN and exits through
+     isa-debug-exit.
+PASS panic: panic telemetry includes kernel/src/main.rs and intentional panic
+     message, then exits through isa-debug-exit.
+PASS memory: copied BootContext diagnostic emitted before allocation;
+     CR3_GAXERA_OWNED; PHYSICAL_FRAME_ALLOCATOR_READY;
+     MEMORY_FOUNDATION_OK after Box/Vec allocation and heap translation check.
+PASS heap-guard: MEMORY_FOUNDATION_OK followed by
+     HEAP_GUARD_PAGE_FAULT_CAUGHT with
+     cr2=0xfffffe8000000000, exactly the unmapped lower heap guard page.
+PASS breakpoint: EXCEPTION_BREAKPOINT_RESUMED.
+PASS divide-error: EXCEPTION_DIVIDE_ERROR_CAUGHT.
+PASS invalid-opcode: EXCEPTION_INVALID_OPCODE_CAUGHT.
+PASS general-protection: EXCEPTION_GENERAL_PROTECTION_CAUGHT.
+PASS page-fault: EXCEPTION_PAGE_FAULT_CAUGHT.
+PASS double-fault: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT only after the handler's
+     RSP-in-IST-stack assertion.
+
+Runner guarantees exercised
+----------------------------
+Each test-only image ran headlessly under UEFI with `isa-debug-exit`,
+`-no-reboot`, a bounded timeout, expected serial marker matching, and the
+expected QEMU exit status. `cargo xtask test` rebuilt the normal ISO after the
+test-only images. Therefore a timeout, triple fault/reboot, missing marker, or
+host-only success would fail the command rather than become evidence.
+
+Result
+------
+PASS. This record proves the complete Phase 4 verification matrix on the exact
+implementation source commit named above. The separately committed evidence
+registration names this source commit; the annotated `phase-4-complete` tag is
+applied to this verified implementation commit, not to the later evidence-only
+documentation commit.

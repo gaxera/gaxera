@@ -139,8 +139,7 @@ Do not rely solely on `cargo miri test` for bare-metal validation. Miri cannot e
 **Status:** Complete. Research Gates 4A-4C are closed. The immutable boot
 context, physical-frame allocator, owned four-level CR3 transition, RAM-only
 HHDM, guarded heap, and deterministic memory/guard-page proofs are verified
-under UEFI QEMU. See `PHASE_4_ENGINEERING_HANDOFF.md` for the implementation
-record and Phase 5 constraints.
+under UEFI QEMU. The Phase 5 constraints are recorded in ADRs 0003 and 0004.
 **Dependencies:** Phase 3.
 **Objective:** Parse the memory map, manage physical frames, establish virtual memory mapping, and bootstrap a kernel heap.
 
