@@ -1,0 +1,30 @@
+Gaxera Phase 4 final tagged-source verification record
+Date: 2026-07-16
+Target commit: f7a8f53686b894620a803157d1dd3f1c0b742645
+Command: cargo xtask test
+Working tree before and after command: clean
+Exit status: 0
+
+Environment: Ubuntu 26.04 LTS under WSL2; Rust nightly-2026-07-13;
+x86_64-unknown-none; QEMU 10.2.1 with OVMF UEFI; Limine 12.4.2.
+
+PASS locked target compiler check.
+PASS four host kernel unit tests.
+PASS strict Clippy for normal, boot, panic, memory, heap-guard, breakpoint,
+divide-error, invalid-opcode, general-protection, page-fault, and double-fault
+profiles.
+PASS ten UEFI isa-debug-exit integration profiles: boot, panic, memory,
+heap-guard, breakpoint, divide error, invalid opcode, general protection,
+page fault, and processor-escalated double fault.
+PASS memory marker sequence included `CR3_GAXERA_OWNED`,
+`PHYSICAL_FRAME_ALLOCATOR_READY`, and `MEMORY_FOUNDATION_OK` after the
+`Box`/`Vec` and first-heap-page translation checks.
+PASS heap guard reported `HEAP_GUARD_PAGE_FAULT_CAUGHT` with
+`cr2=0xfffffe8000000000`, the deliberately unmapped lower guard page.
+PASS double-fault success remained contingent on the handler's IST-stack RSP
+assertion.
+PASS runner restored a normal ISO after test-only images.
+
+This is the final local verification of the exact source revision targeted by
+the annotated `phase-4-complete` tag. The next commit only registers this
+immutable evidence and does not change the tagged implementation source.
