@@ -225,8 +225,22 @@ fn handle_bootstrap() -> Result<(), &'static str> {
     }
     println!("Checksum verified successfully.");
 
-    // Step 2: Extract tarball
-    if !src_dir.exists() {
+    // Step 2: Extract a complete source bundle. The CI cache can retain a
+    // partially extracted target/ directory after an interrupted bootstrap.
+    let source_is_complete =
+        src_dir.join("Makefile").is_file() && src_dir.join("limine.c").is_file();
+    if !source_is_complete {
+        if src_dir.exists() {
+            println!("Removing incomplete Limine source bundle...");
+            if src_dir.is_dir() {
+                fs::remove_dir_all(&src_dir)
+                    .map_err(|_| "failed to remove incomplete Limine source bundle")?;
+            } else {
+                fs::remove_file(&src_dir)
+                    .map_err(|_| "failed to remove invalid Limine source path")?;
+            }
+        }
+
         println!("Extracting Limine binary distribution...");
         let status = Command::new("tar")
             .args(["-xf", tarball_path.to_str().unwrap(), "-C", "target"])
@@ -235,6 +249,10 @@ fn handle_bootstrap() -> Result<(), &'static str> {
 
         if !status.success() {
             return Err("failed to extract Limine binaries");
+        }
+
+        if !src_dir.join("Makefile").is_file() || !src_dir.join("limine.c").is_file() {
+            return Err("Limine binary distribution is missing host-tool build inputs");
         }
     }
 
