@@ -66,3 +66,9 @@ MADT discovery, a read-only page-at-a-time firmware mapping, a permanent UC
 Local APIC mapping, masked 8259 PICs, and an exact three-delivery periodic
 timer test. It does not claim timer calibration, physical-hardware coverage,
 x2APIC, SMP, IOAPIC, MSI, AML, or a general MMIO facility.
+
+The Phase 6 panic proof forces frame pointers in every bare-metal kernel
+profile and verifies serial source location, `RSP`/`RBP`/`RFLAGS`/`CR2`/`CR3`,
+at least one bounded raw return-address frame, an explicit backtrace stopping
+reason, and guest-confirmed exit. It does not provide source symbolization,
+DWARF unwinding, crash persistence, or physical-hardware crash validation.

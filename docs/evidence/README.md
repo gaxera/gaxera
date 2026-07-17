@@ -44,4 +44,4 @@ Evidence should map directly to the checkpoints defined in `roadmap_v01.md`:
 | **Phase 3** | UEFI serial log of caught Breakpoint and processor-delivered Double Fault, including an RSP-in-IST-stack assertion and guest-confirmed exit. |
 | **Phase 4** | UEFI serial log of owned CR3, page translation, `Box`/`Vec` allocation, and a lower heap guard-page fault with exact CR2. |
 | **Phase 5** | UEFI serial log of ACPI/MADT discovery, temporary firmware-window release, Local APIC setup, and exact timer-delivery ticks. |
-| **Phase 6** | Full CI workflow artifact for v0.1 completion. |
+| **Phase 6** | Exact-commit UEFI serial log proving bounded panic telemetry and the full deterministic matrix, plus a green CI run on the final `v0.1.0` tag. |

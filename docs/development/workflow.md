@@ -72,6 +72,7 @@ cargo xtask run -- --firmware bios
 cargo xtask run -- --headless
 
 # Run one guest-confirmed deterministic proof:
+cargo xtask run -- --headless --test panic
 cargo xtask run -- --headless --test double-fault
 cargo xtask run -- --headless --test memory
 cargo xtask run -- --headless --test heap-guard
@@ -93,7 +94,9 @@ This command runs:
 2. Headless UEFI normal boot validation with a guest-confirmed QEMU exit after
    Gaxera captures its immutable boot context, switches to its own CR3,
    initializes its physical allocator, and initializes the guarded kernel heap.
-3. Headless UEFI panic telemetry probe with a guest-confirmed QEMU exit.
+3. A headless UEFI panic telemetry probe that requires the source location,
+   CPU-state snapshot, a bounded frame-pointer backtrace, diagnostic
+   completion, and a guest-confirmed QEMU exit.
 4. A Phase 4 memory proof that requires successful `Box` and `Vec` allocation
    plus virtual-to-physical heap translation after the CR3 transition.
 5. A Phase 4 heap-guard proof that deliberately faults on the unmapped lower
@@ -111,7 +114,7 @@ page fault, and relies on processor escalation during exception delivery. The
 handler reports success only after it confirms that RSP lies inside the static
 IST stack; a stack mismatch exits QEMU with a failure status.
 
-Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the memory and heap-guard profiles are part of CI rather than local-only checks.
+Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, and exception matrix is part of CI rather than local-only checks.
 
 The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
 After it copies and publishes `&'static BootContext`, later setup consumes only

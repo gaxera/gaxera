@@ -412,6 +412,8 @@ fn panic(info: &PanicInfo) -> ! {
         println!("GAXERA KERNEL PANIC: {info}");
     }
 
+    arch::x86_64::diagnostics::emit_panic_telemetry();
+
     #[cfg(feature = "panic-test")]
     unsafe {
         arch::x86_64::qemu::exit_success();

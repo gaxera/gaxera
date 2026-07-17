@@ -190,13 +190,17 @@ delivery without introducing timer calibration or scheduler semantics.
 
 ### Phase 6: Stabilization & v0.1 Release
 
+**Status:** Implementation complete; final release closeout pending exact-commit
+verification, immutable Checkpoint 6 evidence, `v0.1.0` tagging, and remote CI.
 **Dependencies:** Phase 5.
 **Objective:** Harden the kernel, ensure automated testing, and release v0.1.
 
 **Architecture & Subproblems:**
 
 - **QEMU Test Automation:** Preserve and broaden the existing `isa-debug-exit`-based QEMU verification as memory and timer proofs are added.
-- **Failure Diagnosis:** Ensure panics output a readable stack trace and register dump to the serial port.
+- **Failure Diagnosis:** Complete. Panics emit source location, an
+  allocation-free `RSP`/`RBP`/`RFLAGS`/`CR2`/`CR3` snapshot, and a bounded raw
+  frame-pointer backtrace over owned static stacks. See ADR 0006.
 
 #### 🚩 Checkpoint 6: v0.1 MILESTONE
 

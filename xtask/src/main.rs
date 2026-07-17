@@ -51,24 +51,34 @@ impl KernelProfile {
         }
     }
 
-    fn expected_marker(self) -> &'static str {
+    fn expected_markers(self) -> &'static [&'static str] {
         match self {
-            Self::Normal | Self::BootTest => "GAXERA: TEST_PATTERN_DRAWN",
-            Self::PanicTest => "GAXERA KERNEL PANIC at kernel/src/main.rs",
-            Self::MemoryFoundation => "GAXERA: MEMORY_FOUNDATION_OK",
-            Self::HeapGuard => "GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT",
-            Self::ApicTimer => "GAXERA: APIC_TIMER_DELIVERY_OK",
-            Self::Exception(ExceptionTest::Breakpoint) => "GAXERA: EXCEPTION_BREAKPOINT_RESUMED",
-            Self::Exception(ExceptionTest::DivideError) => "GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT",
+            Self::Normal | Self::BootTest => &["GAXERA: TEST_PATTERN_DRAWN"],
+            Self::PanicTest => &[
+                "GAXERA KERNEL PANIC at kernel/src/main.rs",
+                "GAXERA: PANIC_DIAGNOSTICS_BEGIN",
+                "GAXERA: PANIC_CPU_STATE",
+                "GAXERA: PANIC_BACKTRACE_BEGIN",
+                "GAXERA: PANIC_BACKTRACE_FRAME",
+                "GAXERA: PANIC_BACKTRACE_END",
+                "GAXERA: PANIC_DIAGNOSTICS_COMPLETE",
+            ],
+            Self::MemoryFoundation => &["GAXERA: MEMORY_FOUNDATION_OK"],
+            Self::HeapGuard => &["GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT"],
+            Self::ApicTimer => &["GAXERA: APIC_TIMER_DELIVERY_OK"],
+            Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
+            Self::Exception(ExceptionTest::DivideError) => {
+                &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
+            }
             Self::Exception(ExceptionTest::InvalidOpcode) => {
-                "GAXERA: EXCEPTION_INVALID_OPCODE_CAUGHT"
+                &["GAXERA: EXCEPTION_INVALID_OPCODE_CAUGHT"]
             }
             Self::Exception(ExceptionTest::GeneralProtection) => {
-                "GAXERA: EXCEPTION_GENERAL_PROTECTION_CAUGHT"
+                &["GAXERA: EXCEPTION_GENERAL_PROTECTION_CAUGHT"]
             }
-            Self::Exception(ExceptionTest::PageFault) => "GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT",
+            Self::Exception(ExceptionTest::PageFault) => &["GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT"],
             Self::Exception(ExceptionTest::DoubleFault) => {
-                "GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT"
+                &["GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT"]
             }
         }
     }
@@ -142,7 +152,7 @@ fn print_help() {
     println!("\nOptions:");
     println!("  --headless   Run QEMU without graphical display output");
     println!("  --firmware   Select uefi, or bios for an optional packaging diagnostic");
-    println!("  --test       Run one deterministic proof: memory, heap-guard, breakpoint,");
+    println!("  --test       Run one deterministic proof: panic, memory, heap-guard, breakpoint,");
     println!(
         "               apic-timer, divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
     );
@@ -154,6 +164,7 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
     };
     let value = args.get(index + 1).ok_or("--test requires a test name")?;
     match value.as_str() {
+        "panic" => Ok(KernelProfile::PanicTest),
         "memory" => Ok(KernelProfile::MemoryFoundation),
         "heap-guard" => Ok(KernelProfile::HeapGuard),
         "apic-timer" => Ok(KernelProfile::ApicTimer),
@@ -550,7 +561,8 @@ fn handle_run(
         .open(logs_dir.join(format!("qemu-{}-{timestamp}.log", profile.log_name())))
         .ok();
 
-    let mut marker_seen = false;
+    let expected_markers = profile.expected_markers();
+    let mut markers_seen = vec![false; expected_markers.len()];
     let started = Instant::now();
     loop {
         let line = if profile.requires_guest_exit() {
@@ -583,9 +595,12 @@ fn handle_run(
             file.flush().ok();
         }
 
-        if line.contains(profile.expected_marker()) {
-            marker_seen = true;
+        for (index, marker) in expected_markers.iter().enumerate() {
+            if line.contains(marker) {
+                markers_seen[index] = true;
+            }
         }
+        let marker_seen = markers_seen.iter().all(|seen| *seen);
 
         if headless && marker_seen && !profile.requires_guest_exit() {
             println!("Success marker detected! Terminating emulation session.");
@@ -596,6 +611,7 @@ fn handle_run(
     }
 
     let status = child.wait().map_err(|_| "failed to wait on QEMU process")?;
+    let marker_seen = markers_seen.iter().all(|seen| *seen);
     if profile.requires_guest_exit() {
         if !marker_seen {
             return Err("QEMU exited without the expected kernel test marker");

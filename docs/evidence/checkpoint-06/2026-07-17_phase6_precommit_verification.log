@@ -1,0 +1,1057 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/xtask test`
+=== Running Verification Tests ===
+Local target checking validation...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+Running host-testable memory unit tests...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/kernel-b4c5de7d120f5cb6)
+
+running 11 tests
+test arch::x86_64::acpi::tests::discovers_local_apic_from_madt_header ... ok
+test arch::x86_64::acpi::tests::rejects_invalid_rsdp_checksum ... ok
+test arch::x86_64::acpi::tests::rejects_malformed_madt_subtable ... ok
+test arch::x86_64::acpi::tests::local_apic_override_supersedes_madt_header ... ok
+test arch::x86_64::acpi::tests::rejects_misaligned_xsdt_entry_array ... ok
+test arch::x86_64::apic::tests::extracts_pat_entry_three ... ok
+test arch::x86_64::diagnostics::tests::stack_bounds_require_an_aligned_complete_frame ... ok
+test memory::boot::tests::only_usable_memory_is_allocator_eligible ... ok
+test memory::boot::tests::sorts_regions_by_start_then_type_then_length ... ok
+test memory::physical::tests::bitmap_deallocation_makes_frame_available_again ... ok
+test memory::physical::tests::bitmap_skips_reserved_bootstrap_frames ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Strictly linting every guest test profile...
+Linting kernel profile: normal
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
+Linting kernel profile: boot
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Linting kernel profile: panic
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Linting kernel profile: memory
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Linting kernel profile: heap-guard
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Linting kernel profile: apic-timer
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Linting kernel profile: breakpoint
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Linting kernel profile: divide-error
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Linting kernel profile: invalid-opcode
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Linting kernel profile: general-protection
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+Linting kernel profile: page-fault
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Linting kernel profile: double-fault
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Executing UEFI guest-confirmed integration checks...
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4795 sectors
+Written to medium : 4795 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4aeb.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a106000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a100000 len=0x0000000018980000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a100000 end=0x000000001a106000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a106000 end=0x000000001a163000 len=0x000000000005d000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a163000 end=0x000000001a66c000 len=0x0000000000509000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119068 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: FRAMEBUFFER_OK (1280x800, pitch: 5120)
+GAXERA: TEST_PATTERN_DRAWN
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4789 sectors
+Written to medium : 4789 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad3.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA KERNEL PANIC at kernel/src/main.rs:292:5: intentional Phase 2 panic proof
+GAXERA: PANIC_DIAGNOSTICS_BEGIN
+GAXERA: PANIC_CPU_STATE rsp=0xffffffff8004ec10 rbp=0xffffffff8004ec80 rflags=0x0000000000000082 cr2=0x0000000000000000 cr3=0x0000000000000000
+GAXERA: PANIC_BACKTRACE_BEGIN
+GAXERA: PANIC_BACKTRACE_FRAME index=0 ip=0xffffffff80010a41
+GAXERA: PANIC_BACKTRACE_FRAME index=1 ip=0xffffffff80002398
+GAXERA: PANIC_BACKTRACE_FRAME index=2 ip=0xffffffff80022393
+GAXERA: PANIC_BACKTRACE_FRAME index=3 ip=0xffffffff8000337b
+GAXERA: PANIC_BACKTRACE_FRAME index=4 ip=0xffffffff800167cd
+GAXERA: PANIC_BACKTRACE_END frames=5 reason=chain-end
+GAXERA: PANIC_DIAGNOSTICS_COMPLETE frames=5
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4789 sectors
+Written to medium : 4789 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad3.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4873 sectors
+Written to medium : 4873 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4c23.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a0d5000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a0cf000 len=0x000000001894f000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a0cf000 end=0x000000001a0d5000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a0d5000 end=0x000000001a13c000 len=0x0000000000067000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a13c000 end=0x000000001a66c000 len=0x0000000000530000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119019 bitmap_words=1860
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT cr2=0xfffffe8000000000 error=PageFaultErrorCode(0x0)
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4874 sectors
+Written to medium : 4874 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4c27.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a0d5000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a0cf000 len=0x000000001894f000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a0cf000 end=0x000000001a0d5000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a0d5000 end=0x000000001a13c000 len=0x0000000000067000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a13c000 end=0x000000001a66c000 len=0x0000000000530000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119019 bitmap_words=1860
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: FRAMEBUFFER_OK (1280x800, pitch: 5120)
+GAXERA: TEST_PATTERN_DRAWN
+GAXERA: ACPI_MADT_READY local_apic_phys=0x00000000fee00000 override=false
+GAXERA: ACPI_TEMPORARY_WINDOW_RELEASED
+GAXERA: LOCAL_APIC_READY phys=0x00000000fee00000 vector=0xe0
+GAXERA: APIC_TIMER_DELIVERY_OK ticks=3
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4790 sectors
+Written to medium : 4790 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad7.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_BREAKPOINT_CAUGHT ip=0xffffffff8000e765
+GAXERA: EXCEPTION_BREAKPOINT_RESUMED
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4790 sectors
+Written to medium : 4790 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad7.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT ip=0xffffffff8000a0ad
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4790 sectors
+Written to medium : 4790 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad7.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_INVALID_OPCODE_CAUGHT ip=0xffffffff80004b24
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4790 sectors
+Written to medium : 4790 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad7.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_GENERAL_PROTECTION_CAUGHT ip=0xffffffff8000e1f8 error=0xfffc
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4790 sectors
+Written to medium : 4790 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4ad7.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a10a000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a104000 len=0x0000000018984000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a104000 end=0x000000001a10a000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a10a000 end=0x000000001a166000 len=0x000000000005c000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a166000 end=0x000000001a66c000 len=0x0000000000506000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119072 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT ip=0xffffffff80006fbe cr2=0x0000400000000000 error=PageFaultErrorCode(0x0)
+Guest-confirmed QEMU test passed.
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4780 sectors
+Written to medium : 4780 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4aaf.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+=== Launching QEMU Virtual Machine ===
+OVMF UEFI firmware detected. Booting in UEFI mode.
+Headless mode selected.
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[001;001H[001;001H[001;001Hl[001;002Hi[001;003Hm[001;004Hi[001;005Hn[001;006He[001;007H:[001;008H [001;009HL[001;010Ho[001;011Ha[001;012Hd[001;013Hi[001;014Hn[001;015Hg[001;016H [001;017He[001;018Hx[001;019He[001;020Hc[001;021Hu[001;022Ht[001;023Ha[001;024Hb[001;025Hl[001;026He[001;027H [001;028H`[001;029Hb[001;030Ho[001;031Ho[001;032Ht[001;033H([001;034H)[001;035H:[001;036H/[001;037Hb[001;038Ho[001;039Ho[001;040Ht[001;041H/[001;042Hg[001;043Ha[001;044Hx[001;045He[001;046Hr[001;047Ha[001;048H.[001;049He[001;050Hl[001;051Hf[001;052H`[001;053H.[001;054H.[001;055H.[001;056H[001;001H[002;001HGAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x000000001a111000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=31
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x000000001a10b000 len=0x000000001898b000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x000000001a10b000 end=0x000000001a111000 len=0x0000000000006000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001a111000 end=0x000000001a16b000 len=0x000000000005a000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x000000001a16b000 end=0x000000001a66c000 len=0x0000000000501000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x000000001bf6c000 end=0x000000001bf8c000 len=0x0000000000020000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x000000001bf8c000 end=0x000000001bf8d000 len=0x0000000000001000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001bf8d000 end=0x000000001bfaf000 len=0x0000000000022000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=9
+GAXERA: PAGING_HHDM_MAPPED
+GAXERA: PAGING_TEXT_MAPPED
+GAXERA: PAGING_FRAMEBUFFER_MAPPED
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=119079 bitmap_words=1861
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT ip=0xffffffff8000eede error=0x0 rsp=0xffffffff80059ea0
+Guest-confirmed QEMU test passed.
+Restoring the normal kernel ISO after test-only builds...
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  948g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      12 files added in 1 seconds
+xorriso : UPDATE :      12 files added in 1 seconds
+ISO image produced: 4869 sectors
+Written to medium : 4869 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x4c13.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+All verification checks passed successfully!

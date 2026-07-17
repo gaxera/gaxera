@@ -2,6 +2,7 @@ pub mod acpi;
 pub mod apic;
 pub mod boot;
 pub mod descriptors;
+pub mod diagnostics;
 pub mod entry;
 pub mod exceptions;
 pub mod paging;

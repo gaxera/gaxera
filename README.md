@@ -66,6 +66,10 @@ leak simply don't exist, because they were never built.
   UEFI QEMU at commit `18e4c98`. Research Gate 5A is closed by ADR 0005; the
   ACPI/MADT discovery path, temporary firmware mapping, xAPIC setup, and
   deterministic timer proof are covered by the exact-commit matrix.
+* **Phase 6 (Stabilization & v0.1 Release):** Implementation complete; release
+  closeout is pending. ADR 0006 adds bounded, allocation-free serial panic
+  telemetry with CPU state and a frame-pointer backtrace. The full deterministic
+  UEFI matrix verifies every required panic diagnostic marker.
 
 Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
 

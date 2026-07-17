@@ -16,6 +16,16 @@ struct Stack([u8; BOOTSTRAP_STACK_SIZE]);
 #[used]
 static BOOTSTRAP_STACK: Stack = Stack([0; BOOTSTRAP_STACK_SIZE]);
 
+/// Return the static bootstrap stack's inclusive/exclusive address range.
+///
+/// The range is used only for bounded panic backtraces. Gaxera does not expose
+/// the stack storage itself or permit callers to mutate it through this API.
+pub(crate) fn bootstrap_stack_bounds() -> (u64, u64) {
+    let start = core::ptr::addr_of!(BOOTSTRAP_STACK) as u64;
+    let end = start + BOOTSTRAP_STACK_SIZE as u64;
+    (start, end)
+}
+
 #[cfg(target_os = "none")]
 global_asm!(
     r#"

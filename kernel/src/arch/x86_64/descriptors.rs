@@ -98,6 +98,19 @@ pub(crate) fn is_on_double_fault_stack(stack_pointer: u64) -> bool {
     (start..end).contains(&stack_pointer)
 }
 
+/// Return the static double-fault IST stack's inclusive/exclusive address range.
+///
+/// Panic telemetry uses this range only to constrain frame-pointer traversal;
+/// it never exposes a mutable reference to the active IST allocation.
+pub(crate) fn double_fault_stack_bounds() -> (u64, u64) {
+    // SAFETY: `DOUBLE_FAULT_STACK` has static storage and remains at a fixed
+    // address after descriptor initialization. Address calculation does not
+    // create an alias to mutable descriptor state.
+    let start = unsafe { (*DOUBLE_FAULT_STACK.get()).0.as_ptr() as u64 };
+    let end = start + DOUBLE_FAULT_STACK_SIZE as u64;
+    (start, end)
+}
+
 fn load_gdt_and_segments(
     tables: &DescriptorTables,
     code_selector: SegmentSelector,

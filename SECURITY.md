@@ -2,7 +2,9 @@
 
 ## Current Status
 
-Gaxera is pre-v0.1 and **not yet suitable for any real workload**.
+Gaxera is in v0.1 release closeout and **not yet suitable for any real
+workload**. The Foundation v0.1 milestone is an emulator-verified architectural
+baseline, not a security-hardened production operating system.
 
 ## Reporting Vulnerabilities
 

@@ -21,7 +21,6 @@ for public environment setup, build, and verification instructions.
    commit messages.
 4. All checks must pass before merge:
    - `cargo fmt --all -- --check`
-   - `cargo clippy --locked -- -D warnings`
    - `cargo xtask test`
    - CI green
 

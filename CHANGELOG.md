@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Bounded, allocation-free serial panic telemetry with source location, CPU
+  state, and a validated frame-pointer backtrace over Gaxera-owned stacks.
+- Exact bare-metal frame-pointer policy and a focused
+  `cargo xtask run -- --headless --test panic` workflow.
+- ADR 0006, defining panic-diagnostic ownership, unsafe invariants, and the
+  deliberately limited raw-address backtrace contract.
+
+### Changed
+
+- The deterministic QEMU runner now verifies every required marker for a
+  profile across the serial stream. The panic profile requires the location,
+  CPU snapshot, frame output, bounded-walk completion, and guest exit.
+
 ## [Phase 5 Complete] - 2026-07-17
 
 ### Added
