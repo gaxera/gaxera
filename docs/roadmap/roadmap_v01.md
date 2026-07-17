@@ -166,10 +166,10 @@ under UEFI QEMU. The Phase 5 constraints are recorded in ADRs 0003 and 0004.
 
 ### Phase 5: ACPI Discovery & APIC Timer Proof
 
-**Status:** Implementation in progress. Research Gate 5A is closed by
-[ADR 0005](../adr/0005-acpi-local-apic-and-timer-delivery.md). The current
-implementation and complete pre-commit UEFI matrix are complete; exact
-commit/tag provenance remains part of Phase 5 closeout.
+**Status:** Complete at implementation commit `18e4c98`. Research Gate 5A is
+closed by [ADR 0005](../adr/0005-acpi-local-apic-and-timer-delivery.md). The
+exact-commit UEFI matrix and immutable Checkpoint 5 evidence are registered in
+`docs/evidence/checkpoint-05/`.
 **Dependencies:** Phase 4.
 **Objective:** Discover the BSP Local APIC via ACPI tables, map it with
 verified Uncacheable attributes, and prove deterministic timer interrupt

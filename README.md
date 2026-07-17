@@ -62,10 +62,10 @@ leak simply don't exist, because they were never built.
   under UEFI QEMU. Gaxera owns its CR3 and four-level page tables, captures an
   immutable protocol-neutral boot context, allocates physical frames, and
   proves a guarded kernel heap.
-* **Phase 5 (ACPI Discovery & APIC Timer Proof):** Implementation in progress.
-  Research Gate 5A is closed by ADR 0005; the ACPI/MADT discovery path,
-  temporary firmware mapping, xAPIC setup, and deterministic timer proof are
-  implemented and verified by the complete pre-commit UEFI QEMU matrix.
+* **Phase 5 (ACPI Discovery & APIC Timer Proof):** Completed and verified under
+  UEFI QEMU at commit `18e4c98`. Research Gate 5A is closed by ADR 0005; the
+  ACPI/MADT discovery path, temporary firmware mapping, xAPIC setup, and
+  deterministic timer proof are covered by the exact-commit matrix.
 
 Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [Phase 5 Complete] - 2026-07-17
+
+### Added
+
+- Minimal Gaxera-owned ACPI revision 2+ RSDP, XSDT, and MADT parser with
+  Local APIC address-override handling and copied-table ownership.
+- Page-at-a-time ACPI-reclaimable temporary mappings and a typed uncached
+  Local APIC mapping outside the RAM-only HHDM.
+- BSP xAPIC initialization, legacy PIC masking, spurious-vector handling, and
+  deterministic periodic timer delivery at vector `0xe0`.
+- The `apic-timer` QEMU profile, expanded locked verification matrix, ADR 0005,
+  and Checkpoint 5 exact-commit evidence.
+
+### Changed
+
+- The kernel now enters an interrupt-enabled idle path after APIC initialization
+  in the normal production profile; timer calibration, scheduling, SMP, and
+  general ACPI services remain explicitly deferred.
+
 ## [Phase 4 Complete] - 2026-07-16
 
 ### Added

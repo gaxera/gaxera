@@ -1,0 +1,55 @@
+Gaxera Checkpoint 5 Exact-Commit Verification
+==============================================
+
+Date: 2026-07-17
+Target commit: 18e4c98 (feat: complete Phase 5 ACPI and APIC foundation)
+Working tree: exact committed source revision before evidence-registration changes
+Host: Ubuntu 26.04 under WSL2
+Rust: nightly-2026-07-13
+Target: x86_64-unknown-none
+QEMU: 10.2.1
+Firmware: OVMF UEFI
+Bootloader: Limine 12.4.2
+Cargo resolution: --locked; Cargo.lock unchanged
+
+Command:
+  cargo xtask test
+
+Result: PASS (exit code 0)
+
+Static verification:
+  - Target checking completed with core, compiler_builtins, and alloc.
+  - Host unit tests: 10 passed, 0 failed.
+  - Strict Clippy: 12 guest profiles passed with -D warnings.
+
+UEFI guest verification:
+  - 11 guest-confirmed profiles passed.
+  - Normal boot and framebuffer path passed.
+  - Panic telemetry passed.
+  - Physical memory and guarded heap proofs passed.
+  - Breakpoint, divide-error, invalid-opcode, general-protection,
+    page-fault, and processor-delivered double-fault/IST proofs passed.
+  - ACPI/APIC profile emitted all required markers:
+
+      GAXERA: ACPI_MADT_READY local_apic_phys=0x00000000fee00000 override=false
+      GAXERA: ACPI_TEMPORARY_WINDOW_RELEASED
+      GAXERA: LOCAL_APIC_READY phys=0x00000000fee00000 vector=0xe0
+      GAXERA: APIC_TIMER_DELIVERY_OK ticks=3
+
+  - The normal ISO was rebuilt after test-only profiles and restored
+    successfully.
+
+What this proves:
+  - ACPI revision 2+ RSDP/XSDT/MADT discovery is exercised under UEFI.
+  - Firmware table bytes are read through a temporary page mapping and the
+    mapping is released before Local APIC initialization.
+  - The BSP Local APIC is initialized in xAPIC mode through the typed UC
+    mapping, with the legacy PIC masked.
+  - The timer interrupt reaches vector 0xe0, sends EOI, and completes at the
+    exact deterministic target of three deliveries.
+  - Phase 3 and Phase 4 regression profiles remain green in the unified matrix.
+
+Related records:
+  - docs/adr/0005-acpi-local-apic-and-timer-delivery.md
+  - .internal/phase5_engineering_handoff.md
+  - docs/evidence/checkpoint-05/2026-07-17_phase5_precommit_verification.log
