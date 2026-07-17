@@ -210,9 +210,9 @@ tagged `phase-6-complete` & `v0.1.0`; remote CI pipeline verified green.
 
 ## 5. v0.5 Horizon (Dependency Graph)
 
-After v0.1, the architecture progresses to basic OS functionality. This is a dependency map, not a scheduled plan.
-
-- **Processes & Scheduler:** Context switching -> Preemptive timer -> EEVDF scheduler implementation.
-- **IPC & Capabilities:** Endpoints -> Synchronous IPC -> Capability tokens.
-- **User-Space & Services:** Syscall interface -> Init process -> Service Directory.
-- **Basic Input & Shell:** PS/2 Keyboard Input -> In-memory filesystem -> basic command execution (`echo`, `cat`).
+After v0.1, the architecture progresses to basic OS functionality. This legacy
+horizon is superseded as an implementation plan by the canonical proposed
+[v0.5 Engineering Program](roadmap_v05.md). In particular, the dependency
+order is corrected: object/capability semantics and the user-mode boundary
+precede scheduler policy and IPC, while EEVDF, PS/2 input, and broad device
+authority remain deliberate deferrals rather than v0.5 prerequisites.

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-07-17
+
 ### Added
 
 - Bounded, allocation-free serial panic telemetry with source location, CPU

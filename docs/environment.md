@@ -38,8 +38,8 @@ cargo xtask test
 
 ## Support Matrix
 
-Gaxera's Phase 3 exception, Phase 4 memory contract, and current Phase 5
-ACPI/xAPIC timer proof are verified specifically under:
+Gaxera's released v0.1 foundation (Phases 3 through 6: exceptions, memory,
+ACPI/xAPIC timer delivery, and panic telemetry) is verified specifically under:
 
 * QEMU emulated standard VGA adapter (`-vga std`).
 * OVMF UEFI firmware, which is the required development, CI, and release target.

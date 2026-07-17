@@ -53,7 +53,8 @@ leak simply don't exist, because they were never built.
 
 ## Status
 
-🚧 **v0.1 — early development.**
+**v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
+`f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
 * **Phase 1 (Toolchain & Scaffolding):** Completed.
 * **Phase 2 (Boot Contract & Observability):** Completed.
@@ -73,6 +74,9 @@ leak simply don't exist, because they were never built.
   diagnostic marker.
 
 Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
+The exact released architecture and proposed post-v0.1 program are documented
+in the [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md) and
+[v0.5 Engineering Program](docs/roadmap/roadmap_v05.md).
 
 ## Getting Started
 
