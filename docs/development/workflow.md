@@ -89,8 +89,9 @@ cargo xtask test
 
 This command runs:
 
-1. Locked compiler checks, host-testable kernel unit tests, and strict Clippy
-   validation for the normal kernel and every feature-gated guest-test profile.
+1. Locked compiler checks, host-testable kernel, ABI, and capability-core unit
+   tests, plus strict Clippy validation for those crates, the normal kernel,
+   and every feature-gated guest-test profile.
 2. Headless UEFI normal boot validation with a guest-confirmed QEMU exit after
    Gaxera captures its immutable boot context, switches to its own CR3,
    initializes its physical allocator, and initializes the guarded kernel heap.

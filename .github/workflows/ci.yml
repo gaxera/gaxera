@@ -8,10 +8,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       # The action defaults RUSTFLAGS to `-D warnings`. An environment RUSTFLAGS
       # overrides .cargo/config.toml, which would drop the kernel linker script.
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           rustflags: ""
       - run: cargo fmt --all -- --check

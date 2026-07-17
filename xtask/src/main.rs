@@ -703,13 +703,47 @@ fn handle_test() -> Result<(), &'static str> {
         return Err("compilation checks failed");
     }
 
-    println!("Running host-testable memory unit tests...");
+    println!("Running host-testable kernel, ABI, and core unit tests...");
     let status = Command::new("cargo")
         .args(["test", "--locked", "--package", "kernel", "--lib"])
         .status()
         .map_err(|_| "failed to execute host memory unit tests")?;
     if !status.success() {
         return Err("host memory unit tests failed");
+    }
+
+    let status = Command::new("cargo")
+        .args([
+            "test",
+            "--locked",
+            "--package",
+            "gaxera-abi",
+            "--package",
+            "kernel-core",
+        ])
+        .status()
+        .map_err(|_| "failed to execute host ABI and core unit tests")?;
+    if !status.success() {
+        return Err("host ABI and core unit tests failed");
+    }
+
+    println!("Strictly linting host ABI and core crates...");
+    let status = Command::new("cargo")
+        .args([
+            "clippy",
+            "--locked",
+            "--package",
+            "gaxera-abi",
+            "--package",
+            "kernel-core",
+            "--",
+            "-D",
+            "warnings",
+        ])
+        .status()
+        .map_err(|_| "failed to execute host ABI and core clippy validation")?;
+    if !status.success() {
+        return Err("host ABI and core clippy validation failed");
     }
 
     println!("Strictly linting every guest test profile...");

@@ -21,12 +21,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413d67b29ef1021b4d60f4aa1e925ca031751e213832b4b1d588fae623c05c60"
 
 [[package]]
+name = "gaxera-abi"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
  "limine",
  "linked_list_allocator",
  "x86_64",
+]
+
+[[package]]
+name = "kernel-core"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
 ]
 
 [[package]]
