@@ -15,6 +15,7 @@ test-page-fault = ["qemu-test"]
 test-double-fault = ["qemu-test"]
 test-memory = ["qemu-test"]
 test-heap-guard = ["qemu-test"]
+test-apic-timer = ["qemu-test"]
 
 [dependencies]
 limine = "0.6.5"

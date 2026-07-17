@@ -58,10 +58,27 @@ impl SerialPort {
 }
 
 pub fn halt() -> ! {
+    // SAFETY: terminal paths must not resume timer-driven execution after
+    // Phase 5 enables interrupts. `cli` also preserves the Phase 1-4 behavior.
+    unsafe {
+        asm!("cli", options(nomem, nostack, preserves_flags));
+    }
     loop {
-        // SAFETY: Limine enters with interrupts disabled. Halting is therefore
-        // a terminal low-power state until an external reset, which is exactly
-        // the intended post-proof behavior before an interrupt subsystem exists.
+        // SAFETY: interrupts were disabled above, so this terminal path cannot
+        // return through an asynchronous hardware interrupt.
+        unsafe {
+            asm!("hlt", options(nomem, nostack));
+        }
+    }
+}
+
+/// Idle while hardware interrupts are enabled.
+///
+/// This is the normal post-Phase-5 execution state. Callers must install all
+/// required gates and fully configure interrupt sources before entering it.
+pub fn idle() -> ! {
+    loop {
+        // SAFETY: the caller established an interrupt-enabled idle policy.
         unsafe {
             asm!("hlt", options(nomem, nostack));
         }

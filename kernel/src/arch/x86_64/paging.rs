@@ -8,9 +8,10 @@ use x86_64::structures::paging::{
 };
 use x86_64::{PhysAddr, VirtAddr};
 
-use crate::memory::boot::{BootContext, FramebufferInfo};
+use crate::memory::boot::{BootContext, FramebufferInfo, MemoryKind};
 use crate::memory::mapping::{
-    FRAMEBUFFER_BASE, HEAP_SIZE, HEAP_START, HHDM_BASE, HHDM_PHYSICAL_LIMIT, KERNEL_VIRTUAL_BASE,
+    ACPI_TABLE_WINDOW, FRAMEBUFFER_BASE, HEAP_SIZE, HEAP_START, HHDM_BASE, HHDM_PHYSICAL_LIMIT,
+    KERNEL_VIRTUAL_BASE, LOCAL_APIC_WINDOW,
 };
 use crate::memory::physical::{BootstrapFrameAllocator, PAGE_SIZE, PhysicalAllocatorError};
 use crate::println;
@@ -29,6 +30,13 @@ pub enum PagingError {
     PcidEnabled,
     NoExecuteUnavailable,
     HeapAddressOutsideRegion,
+    AcpiTableAddressOutsideReclaimableMemory,
+    LocalApicAddressUnaligned,
+    LocalApicAddressAliasesRam,
+    LocalApicAddressAliasesFramebuffer,
+    PageUnmappingFailed {
+        virtual_address: u64,
+    },
     Physical(PhysicalAllocatorError),
 }
 
@@ -61,6 +69,21 @@ impl fmt::Display for PagingError {
             Self::NoExecuteUnavailable => f.write_str("NXE could not be enabled"),
             Self::HeapAddressOutsideRegion => {
                 f.write_str("virtual address is outside the fixed Phase 4 heap")
+            }
+            Self::AcpiTableAddressOutsideReclaimableMemory => {
+                f.write_str("ACPI table address is outside ACPI reclaimable memory")
+            }
+            Self::LocalApicAddressUnaligned => {
+                f.write_str("Local APIC physical address is not page aligned")
+            }
+            Self::LocalApicAddressAliasesRam => {
+                f.write_str("Local APIC physical address aliases Gaxera's RAM-only HHDM")
+            }
+            Self::LocalApicAddressAliasesFramebuffer => {
+                f.write_str("Local APIC physical address aliases the framebuffer")
+            }
+            Self::PageUnmappingFailed { virtual_address } => {
+                write!(f, "failed to unmap virtual page {virtual_address:#018x}")
             }
             Self::Physical(error) => error.fmt(f),
         }
@@ -273,6 +296,96 @@ impl KernelPageTables {
         }
     }
 
+    /// Map one ACPI-reclaimable page into the fixed temporary firmware window.
+    ///
+    /// # Safety
+    /// Interrupts must be disabled and the caller must unmap this window before
+    /// mapping another physical page. `allocator` must satisfy the active HHDM
+    /// frame-mapping invariant documented by `map_page`.
+    pub(crate) unsafe fn map_acpi_table_page<A>(
+        &mut self,
+        context: &BootContext,
+        physical_address: u64,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        if !physical_address.is_multiple_of(PAGE_SIZE)
+            || !physical_range_has_kind(
+                context,
+                physical_address,
+                PAGE_SIZE,
+                MemoryKind::AcpiReclaimable,
+            )
+        {
+            return Err(PagingError::AcpiTableAddressOutsideReclaimableMemory);
+        }
+        let frame = frame_from_physical(physical_address)?;
+        // SAFETY: this maps the single fixed firmware window read-only and NX.
+        // The caller proves the window is currently unmapped and exclusively used.
+        unsafe {
+            self.map_page(
+                ACPI_TABLE_WINDOW,
+                frame,
+                PageTableFlags::PRESENT | PageTableFlags::NO_EXECUTE,
+                allocator,
+            )
+        }
+    }
+
+    /// Remove the current temporary firmware-table mapping and flush its TLB entry.
+    ///
+    /// # Safety
+    /// The caller must ensure no reference derived from `ACPI_TABLE_WINDOW`
+    /// remains live. Interrupts must stay disabled throughout the operation.
+    pub(crate) unsafe fn unmap_acpi_table_page(&mut self) -> Result<(), PagingError> {
+        // SAFETY: the active HHDM maps `root`, and the sole temporary window is
+        // not concurrently accessed while this mapper mutably borrows the hierarchy.
+        unsafe { self.unmap_page(ACPI_TABLE_WINDOW) }
+    }
+
+    /// Permanently map the validated Local APIC page at Gaxera's dedicated UC window.
+    ///
+    /// # Safety
+    /// The caller must have validated the CPU's PAT state and xAPIC mode before
+    /// relying on the PWT+PCD UC cache selection. Interrupts must be disabled;
+    /// this is the only Gaxera mapping of the Local APIC physical page.
+    pub(crate) unsafe fn map_local_apic_page<A>(
+        &mut self,
+        context: &BootContext,
+        physical_address: u64,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        if !physical_address.is_multiple_of(PAGE_SIZE) {
+            return Err(PagingError::LocalApicAddressUnaligned);
+        }
+        if physical_range_has_kind(context, physical_address, PAGE_SIZE, MemoryKind::Usable) {
+            return Err(PagingError::LocalApicAddressAliasesRam);
+        }
+        if framebuffer_overlaps(context.framebuffer(), physical_address, PAGE_SIZE)? {
+            return Err(PagingError::LocalApicAddressAliasesFramebuffer);
+        }
+        let frame = frame_from_physical(physical_address)?;
+        // SAFETY: the caller proved the one-mapping UC policy. PWT+PCD select
+        // PAT entry 3 for a 4 KiB page; APIC initialization validates that entry.
+        unsafe {
+            self.map_page(
+                LOCAL_APIC_WINDOW,
+                frame,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::WRITE_THROUGH
+                    | PageTableFlags::NO_CACHE,
+                allocator,
+            )
+        }
+    }
+
     /// # Safety
     /// Gaxera's RAM-only HHDM must be active and must map all physical frames
     /// used as page tables by the supplied allocator. The caller must also
@@ -309,6 +422,25 @@ impl KernelPageTables {
         Ok(())
     }
 
+    /// # Safety
+    /// The active HHDM must map `root`, the page must be mapped, and no code may
+    /// retain or access pointers into the virtual page after this operation.
+    unsafe fn unmap_page(&mut self, virtual_address: u64) -> Result<(), PagingError> {
+        let root_address = HHDM_BASE
+            .checked_add(self.root.start_address().as_u64())
+            .ok_or(PagingError::AddressOverflow)?;
+        // SAFETY: caller excludes concurrent table mutation and pointer use;
+        // the active HHDM maps the root table frame.
+        let root = unsafe { &mut *(root_address as *mut PageTable) };
+        let mut mapper = unsafe { MappedPageTable::new(root, FrameMapping { offset: HHDM_BASE }) };
+        let page = Page::<Size4KiB>::containing_address(VirtAddr::new(virtual_address));
+        let (_, flush) = mapper
+            .unmap(page)
+            .map_err(|_| PagingError::PageUnmappingFailed { virtual_address })?;
+        flush.flush();
+        Ok(())
+    }
+
     /// Translate through Gaxera's active root table.
     ///
     /// # Safety
@@ -335,6 +467,45 @@ fn validate_boot_hhdm(context: &BootContext, boot_hhdm_offset: u64) -> Result<()
             .ok_or(PagingError::BootHhdmAddressOverflow)?;
     }
     Ok(())
+}
+
+fn frame_from_physical(physical_address: u64) -> Result<PhysFrame, PagingError> {
+    PhysFrame::from_start_address(
+        PhysAddr::try_new(physical_address).map_err(|_| PagingError::AddressOverflow)?,
+    )
+    .map_err(|_| PagingError::AddressOverflow)
+}
+
+fn physical_range_has_kind(
+    context: &BootContext,
+    physical_address: u64,
+    length: u64,
+    expected_kind: MemoryKind,
+) -> bool {
+    let Some(end) = physical_address.checked_add(length) else {
+        return false;
+    };
+    context.memory_regions().iter().any(|region| {
+        region.kind == expected_kind && physical_address >= region.start && end <= region.end
+    })
+}
+
+fn framebuffer_overlaps(
+    framebuffer: Option<FramebufferInfo>,
+    physical_address: u64,
+    length: u64,
+) -> Result<bool, PagingError> {
+    let Some(framebuffer) = framebuffer else {
+        return Ok(false);
+    };
+    let end = physical_address
+        .checked_add(length)
+        .ok_or(PagingError::AddressOverflow)?;
+    let framebuffer_end = framebuffer
+        .physical_address
+        .checked_add(framebuffer.size)
+        .ok_or(PagingError::AddressOverflow)?;
+    Ok(physical_address < framebuffer_end && framebuffer.physical_address < end)
 }
 
 unsafe extern "C" {

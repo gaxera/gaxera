@@ -6,5 +6,7 @@ pub const HEAP_LOWER_GUARD: u64 = 0xffff_fe80_0000_0000;
 pub const HEAP_START: u64 = HEAP_LOWER_GUARD + 4096;
 pub const HEAP_SIZE: u64 = 2 * 1024 * 1024;
 pub const HEAP_UPPER_GUARD: u64 = HEAP_START + HEAP_SIZE;
+pub const ACPI_TABLE_WINDOW: u64 = 0xffff_fe90_0000_0000;
+pub const LOCAL_APIC_WINDOW: u64 = 0xffff_fea0_0000_0000;
 
 pub const KERNEL_VIRTUAL_BASE: u64 = 0xffff_ffff_8000_0000;

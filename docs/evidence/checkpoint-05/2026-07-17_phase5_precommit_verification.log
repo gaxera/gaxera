@@ -1,0 +1,47 @@
+Gaxera Phase 5 pre-commit verification
+Date: 2026-07-17
+Repository: /home/nyx/gaxera
+Base revision: 541ad49 (Phase 4 baseline)
+Source state: uncommitted Phase 5 worktree
+Toolchain: nightly-2026-07-13
+Host: Ubuntu 26.04 WSL2
+QEMU: qemu-system-x86_64 10.2.1
+Firmware: OVMF UEFI
+Limine: 12.4.2
+
+Command:
+  cargo xtask test
+
+Static verification:
+  - Locked target check passed for x86_64-unknown-none.
+  - 10 host kernel unit tests passed.
+  - Strict Clippy passed for 12 profiles: normal, boot, panic, memory,
+    heap-guard, apic-timer, breakpoint, divide-error, invalid-opcode,
+    general-protection, page-fault, and double-fault.
+
+UEFI guest verification:
+  - boot passed with the normal boot and framebuffer markers.
+  - panic passed with source location and panic message telemetry.
+  - memory passed with owned CR3, physical allocator, heap translation, and
+    Box/Vec allocation markers.
+  - heap-guard passed with CR2 equal to the lower unmapped guard page.
+  - apic-timer passed with ACPI MADT discovery at 0xfee00000, the
+    ACPI_TEMPORARY_WINDOW_RELEASED marker, Local APIC readiness, and exactly
+    three periodic timer deliveries followed by deterministic guest exit.
+  - breakpoint, divide-error, invalid-opcode, general-protection, page-fault,
+    and processor-delivered double-fault probes passed, including the Phase 3
+    IST-range assertion.
+
+  All guest-confirmed tests exited successfully, and the normal kernel ISO was
+  rebuilt after the test-only profiles.
+
+Additional focused checks after PAT hardening:
+  cargo fmt --all
+  cargo test --locked --package kernel --lib
+  cargo clippy --locked --package kernel --lib -- -D warnings
+  cargo check --locked --package kernel --target x86_64-unknown-none \
+    -Z build-std=core,compiler_builtins,alloc \
+    -Z build-std-features=compiler-builtins-mem
+  cargo xtask run --headless --firmware uefi --test apic-timer
+
+Result: PASS

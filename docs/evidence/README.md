@@ -1,6 +1,6 @@
 # Execution Evidence Directory
 
-> **Status:** Governance | **Last Updated:** 2026-07-16
+> **Status:** Governance | **Last Updated:** 2026-07-17
 
 This directory serves as the immutable record of successful checkpoint executions. The Gaxera project demands proof for architectural claims. If an implementation phase claims to work, the deterministic evidence proving it belongs here.
 
@@ -43,5 +43,5 @@ Evidence should map directly to the checkpoints defined in `roadmap_v01.md`:
 | **Phase 2** | Serial log of kernel entry; Framebuffer screenshot. |
 | **Phase 3** | UEFI serial log of caught Breakpoint and processor-delivered Double Fault, including an RSP-in-IST-stack assertion and guest-confirmed exit. |
 | **Phase 4** | UEFI serial log of owned CR3, page translation, `Box`/`Vec` allocation, and a lower heap guard-page fault with exact CR2. |
-| **Phase 5** | Serial log of APIC discovery and timer interrupt ticks. |
+| **Phase 5** | UEFI serial log of ACPI/MADT discovery, temporary firmware-window release, Local APIC setup, and exact timer-delivery ticks. |
 | **Phase 6** | Full CI workflow artifact for v0.1 completion. |

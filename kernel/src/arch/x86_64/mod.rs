@@ -1,3 +1,5 @@
+pub mod acpi;
+pub mod apic;
 pub mod boot;
 pub mod descriptors;
 pub mod entry;

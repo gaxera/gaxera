@@ -75,6 +75,7 @@ cargo xtask run -- --headless
 cargo xtask run -- --headless --test double-fault
 cargo xtask run -- --headless --test memory
 cargo xtask run -- --headless --test heap-guard
+cargo xtask run -- --headless --test apic-timer
 ```
 
 ### D. Running Verification Tests
@@ -97,9 +98,12 @@ This command runs:
    plus virtual-to-physical heap translation after the CR3 transition.
 5. A Phase 4 heap-guard proof that deliberately faults on the unmapped lower
    guard page and confirms the exact address through CR2.
-6. UEFI breakpoint, divide error, invalid opcode, general protection fault,
+6. A Phase 5 ACPI/MADT and Local APIC proof that confirms the temporary
+   firmware window is released and receives exactly three periodic timer
+   deliveries with EOI handling.
+7. UEFI breakpoint, divide error, invalid opcode, general protection fault,
    page fault, and double-fault probes.
-7. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+8. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
    never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real
@@ -112,5 +116,7 @@ Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a r
 The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
 After it copies and publishes `&'static BootContext`, later setup consumes only
 Gaxera-owned metadata; no allocator, framebuffer, paging, or entry code reads
-a Limine response pointer. The closeout tag also triggers this CI workflow, so
-the tagged Phase 4 source revision receives the same verification matrix.
+a Limine response pointer. ACPI parsing consumes copied physical metadata and
+uses only the fixed temporary firmware mapping; it retains no firmware-table
+pointer. The closeout tag also triggers this CI workflow, so tagged source
+revisions receive the same verification matrix.

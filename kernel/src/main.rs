@@ -6,6 +6,7 @@ extern crate alloc;
 
 #[cfg(any(
     all(feature = "panic-test", feature = "test-boot"),
+    all(feature = "panic-test", feature = "test-apic-timer"),
     all(
         feature = "panic-test",
         any(
@@ -15,6 +16,7 @@ extern crate alloc;
             feature = "test-general-protection",
             feature = "test-page-fault",
             feature = "test-double-fault",
+            feature = "test-apic-timer",
         )
     ),
     all(
@@ -26,6 +28,7 @@ extern crate alloc;
             feature = "test-general-protection",
             feature = "test-page-fault",
             feature = "test-double-fault",
+            feature = "test-apic-timer",
         )
     ),
     all(
@@ -40,6 +43,7 @@ extern crate alloc;
             feature = "test-page-fault",
             feature = "test-double-fault",
             feature = "test-heap-guard",
+            feature = "test-apic-timer",
         )
     ),
     all(
@@ -47,6 +51,22 @@ extern crate alloc;
         any(
             feature = "panic-test",
             feature = "test-boot",
+            feature = "test-breakpoint",
+            feature = "test-divide-error",
+            feature = "test-invalid-opcode",
+            feature = "test-general-protection",
+            feature = "test-page-fault",
+            feature = "test-double-fault",
+            feature = "test-apic-timer",
+        )
+    ),
+    all(
+        feature = "test-apic-timer",
+        any(
+            feature = "panic-test",
+            feature = "test-boot",
+            feature = "test-memory",
+            feature = "test-heap-guard",
             feature = "test-breakpoint",
             feature = "test-divide-error",
             feature = "test-invalid-opcode",
@@ -313,8 +333,59 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         arch::x86_64::qemu::exit_success();
     }
 
-    #[cfg(not(feature = "test-boot"))]
-    serial::halt();
+    let local_apic_info = match unsafe {
+        arch::x86_64::acpi::discover_from_boot_context(
+            boot_context,
+            &mut page_tables,
+            physical_frames,
+        )
+    } {
+        Ok(info) => info,
+        Err(error) => {
+            println!("GAXERA ERROR: ACPI Local APIC discovery failed: {error}");
+            serial::halt();
+        }
+    };
+    println!(
+        "GAXERA: ACPI_MADT_READY local_apic_phys={:#018x} override={}",
+        local_apic_info.physical_address, local_apic_info.used_address_override
+    );
+    // SAFETY: interrupts remain disabled and this bootstrap path exclusively
+    // owns page-table mutation. ACPI discovery must not retain its fixed
+    // temporary mapping once it has copied the parsed table bytes.
+    if unsafe { page_tables.translate(kernel::memory::mapping::ACPI_TABLE_WINDOW) }.is_some() {
+        println!("GAXERA ERROR: ACPI temporary mapping was not released");
+        serial::halt();
+    }
+    println!("GAXERA: ACPI_TEMPORARY_WINDOW_RELEASED");
+    let local_apic = match unsafe {
+        arch::x86_64::apic::initialize(
+            boot_context,
+            local_apic_info,
+            &mut page_tables,
+            physical_frames,
+        )
+    } {
+        Ok(apic) => apic,
+        Err(error) => {
+            println!("GAXERA ERROR: Local APIC initialization failed: {error}");
+            serial::halt();
+        }
+    };
+    println!(
+        "GAXERA: LOCAL_APIC_READY phys={:#018x} vector={:#04x}",
+        local_apic.physical_address(),
+        arch::x86_64::apic::TIMER_VECTOR
+    );
+
+    #[cfg(feature = "test-apic-timer")]
+    arch::x86_64::apic::run_timer_delivery_test();
+
+    #[cfg(not(feature = "test-apic-timer"))]
+    {
+        x86_64::instructions::interrupts::enable();
+        serial::idle();
+    }
 }
 
 #[alloc_error_handler]

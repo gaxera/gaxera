@@ -6,7 +6,8 @@ use x86_64::registers::control::Cr2;
 use x86_64::structures::idt::PageFaultErrorCode;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use crate::arch::x86_64::descriptors::{self, DOUBLE_FAULT_IST_INDEX, StaticCell};
+use crate::arch::x86_64::descriptors::{DOUBLE_FAULT_IST_INDEX, StaticCell};
+use crate::arch::x86_64::{apic, descriptors};
 #[cfg(feature = "test-heap-guard")]
 use crate::memory::mapping::HEAP_LOWER_GUARD;
 use crate::println;
@@ -37,6 +38,8 @@ pub unsafe fn init() {
         .set_handler_fn(general_protection_fault_handler);
     #[cfg(not(feature = "test-double-fault"))]
     idt.page_fault.set_handler_fn(page_fault_handler);
+    idt[apic::TIMER_VECTOR].set_handler_fn(local_apic_timer_handler);
+    idt[apic::SPURIOUS_VECTOR].set_handler_fn(local_apic_spurious_handler);
 
     // SAFETY: IST index 0 names the unique, initialized double-fault stack in
     // the already-loaded TSS. No other Phase 3 IDT gate selects that stack.
@@ -51,6 +54,16 @@ pub unsafe fn init() {
     unsafe {
         idt.load_unsafe();
     }
+}
+
+extern "x86-interrupt" fn local_apic_timer_handler(_frame: InterruptStackFrame) {
+    apic::on_timer_interrupt();
+}
+
+extern "x86-interrupt" fn local_apic_spurious_handler(_frame: InterruptStackFrame) {
+    // The Local APIC spurious-interrupt path does not require EOI. This gate
+    // intentionally does no logging or allocation because it can occur while
+    // normal interrupt delivery is active.
 }
 
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptStackFrame) {

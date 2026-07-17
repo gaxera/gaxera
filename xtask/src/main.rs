@@ -29,6 +29,7 @@ enum KernelProfile {
     BootTest,
     MemoryFoundation,
     HeapGuard,
+    ApicTimer,
     Exception(ExceptionTest),
 }
 
@@ -40,6 +41,7 @@ impl KernelProfile {
             Self::BootTest => Some("test-boot"),
             Self::MemoryFoundation => Some("test-memory"),
             Self::HeapGuard => Some("test-heap-guard"),
+            Self::ApicTimer => Some("test-apic-timer"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -55,6 +57,7 @@ impl KernelProfile {
             Self::PanicTest => "GAXERA KERNEL PANIC at kernel/src/main.rs",
             Self::MemoryFoundation => "GAXERA: MEMORY_FOUNDATION_OK",
             Self::HeapGuard => "GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT",
+            Self::ApicTimer => "GAXERA: APIC_TIMER_DELIVERY_OK",
             Self::Exception(ExceptionTest::Breakpoint) => "GAXERA: EXCEPTION_BREAKPOINT_RESUMED",
             Self::Exception(ExceptionTest::DivideError) => "GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT",
             Self::Exception(ExceptionTest::InvalidOpcode) => {
@@ -81,6 +84,7 @@ impl KernelProfile {
             Self::BootTest => "boot",
             Self::MemoryFoundation => "memory",
             Self::HeapGuard => "heap-guard",
+            Self::ApicTimer => "apic-timer",
             Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -140,7 +144,7 @@ fn print_help() {
     println!("  --firmware   Select uefi, or bios for an optional packaging diagnostic");
     println!("  --test       Run one deterministic proof: memory, heap-guard, breakpoint,");
     println!(
-        "               divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
+        "               apic-timer, divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
     );
 }
 
@@ -152,6 +156,7 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
     match value.as_str() {
         "memory" => Ok(KernelProfile::MemoryFoundation),
         "heap-guard" => Ok(KernelProfile::HeapGuard),
+        "apic-timer" => Ok(KernelProfile::ApicTimer),
         "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -698,6 +703,7 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::PanicTest,
         KernelProfile::MemoryFoundation,
         KernelProfile::HeapGuard,
+        KernelProfile::ApicTimer,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -713,6 +719,7 @@ fn handle_test() -> Result<(), &'static str> {
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::HeapGuard)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::ApicTimer)?;
     handle_run(
         true,
         Some(Firmware::Uefi),

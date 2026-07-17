@@ -1,6 +1,6 @@
 # Execution Roadmap — Zero to v0.1 (with v0.5 Checkpoints)
 
-> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-16
+> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-17
 > **Related:** [Roadmap](../roadmap/roadmap_v01.md), [Constitution](../governance/constitution.md)
 
 **Purpose:** A dependency-driven map of the path to v0.1.
@@ -166,21 +166,27 @@ under UEFI QEMU. The Phase 5 constraints are recorded in ADRs 0003 and 0004.
 
 ### Phase 5: ACPI Discovery & APIC Timer Proof
 
+**Status:** Implementation in progress. Research Gate 5A is closed by
+[ADR 0005](../adr/0005-acpi-local-apic-and-timer-delivery.md). The current
+implementation and complete pre-commit UEFI matrix are complete; exact
+commit/tag provenance remains part of Phase 5 closeout.
 **Dependencies:** Phase 4.
-**Objective:** Discover the Local APIC via ACPI tables, map it with Uncacheable attributes, and prove timer interrupt delivery.
+**Objective:** Discover the BSP Local APIC via ACPI tables, map it with
+verified Uncacheable attributes, and prove deterministic timer interrupt
+delivery without introducing timer calibration or scheduler semantics.
 
 **Architecture & Subproblems:**
 
 - **ACPI Discovery:** Locate the RSDP (via Limine), walk RSDP -> XSDT -> MADT to extract the Local APIC base physical address.
 - **MMIO Caching & Aliasing:**
-  - **🛑 RESEARCH GATE 5A:** Evaluate APIC implementation choices, including ACPI parsing (lightweight crate vs custom), MMIO mapping attributes to prevent HHDM WB cache attribute aliasing, and timer calibration. Output: ADR on APIC implementation strategy.
-- **APIC Timer Setup:** Configure the APIC Timer in periodic mode and route it to a custom IDT vector.
-- **Interrupt Handler:** Write a timer interrupt handler that increments a ticks counter and sends EOI.
+  - **Research Gate 5A:** Closed by ADR 0005. Gaxera owns a minimal bounds-checked parser, a page-at-a-time temporary firmware mapping, a typed permanent UC xAPIC mapping, BSP-only xAPIC mode, and delivery-only timer semantics.
+- **APIC Timer Setup:** Configure the APIC Timer in periodic mode and route it to vector `0xe0`; vector `0xff` handles spurious delivery.
+- **Interrupt Handler:** Write a non-allocating timer handler that increments an atomic ticks counter, masks at the exact test target, and sends EOI.
 
 #### 🚩 Checkpoint 5: Interrupts & Timer Working
 
 - **Evidence:**
-  - *Machine Evidence:* Serial log showing ACPI MADT parsed, Local APIC base address printed, and ticks counter incrementing correctly on periodic timer interrupts.
+  - *Machine Evidence:* Serial log showing ACPI MADT parsing, release of the temporary window, Local APIC base address, and exactly three periodic timer deliveries.
 
 ### Phase 6: Stabilization & v0.1 Release
 

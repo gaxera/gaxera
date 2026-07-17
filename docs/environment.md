@@ -38,8 +38,8 @@ cargo xtask test
 
 ## Support Matrix
 
-Gaxera's Phase 3 exception and completed Phase 4 memory contract is verified
-specifically under:
+Gaxera's Phase 3 exception, Phase 4 memory contract, and current Phase 5
+ACPI/xAPIC timer proof are verified specifically under:
 
 * QEMU emulated standard VGA adapter (`-vga std`).
 * OVMF UEFI firmware, which is the required development, CI, and release target.
@@ -60,3 +60,9 @@ RAM-only higher-half direct map, a segmented physical-frame allocator, a fixed
 guard-page fault to report its exact address in CR2. These checks do not yet
 validate SMP behavior, physical hardware, arbitrary MMIO mappings, huge pages,
 or user address spaces.
+
+The Phase 5 proof additionally exercises UEFI ACPI revision 2+ RSDP -> XSDT ->
+MADT discovery, a read-only page-at-a-time firmware mapping, a permanent UC
+Local APIC mapping, masked 8259 PICs, and an exact three-delivery periodic
+timer test. It does not claim timer calibration, physical-hardware coverage,
+x2APIC, SMP, IOAPIC, MSI, AML, or a general MMIO facility.
