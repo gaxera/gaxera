@@ -1,7 +1,7 @@
 # Gaxera v0.5 Engineering Program
 
-> **Status:** Proposed engineering program. No milestone authorizes code until
-> its listed research gates and ADRs are accepted.
+> **Status:** Frozen implementation architecture. Changes require an ADR or
+> implementation evidence showing a genuine design flaw.
 > **Baseline:** Gaxera Foundation v0.1, tag `v0.1.0`
 > **Purpose:** Define the path from a verified hardware foundation to a small,
 > single-processor capability microkernel that can run supervised user programs,
@@ -19,7 +19,8 @@ version in which Gaxera's intended microkernel architecture becomes real:
 - threads can block, wake, and preempt on one bootstrap processor;
 - synchronous IPC and notifications connect small user-space services;
 - a trusted init program starts a ramfs and developer shell from a boot payload;
-- the shell can inspect and read files through IPC, not kernel filesystem code.
+- a deterministic scripted developer session can inspect and read files through
+  IPC, not kernel filesystem code.
 
 The release must remain deliberately constrained. It does not need SMP,
 multiple scheduling classes, physical disks, DMA-capable drivers, networking,
@@ -57,12 +58,12 @@ ownership that v0.5 will not yet have.
 ### 2.1 Required outcome
 
 At completion, UEFI QEMU deterministically boots a kernel that loads one
-trusted init ELF from a packaged boot payload. Init receives explicit initial
+developer-trusted static init image from a packaged boot payload. Init receives explicit initial
 capabilities, starts a ramfs server and shell, and uses capability-gated IPC to
 read files. The system demonstrates preemption, user/kernel transitions,
 capability denial, IPC call/reply, notification wakeup, service restart after a
-controlled crash, and normal shell interaction through the documented
-developer-console boundary.
+controlled crash, and a deterministic scripted developer session through the
+documented output-only console boundary.
 
 ### 2.2 Explicitly out of scope
 
@@ -78,8 +79,8 @@ developer-console boundary.
   arbitrary third-party executable loading;
 - kernel/user ASLR claims, KASLR relocation, secure boot, signing, and
   physical-hardware security certification;
-- capability leases, distributed revocation, resource budgets, and global OOM
-  policy beyond interfaces that leave room for them;
+- capability leases, distributed revocation, dynamic resource budgets, and
+  global OOM policy beyond v0.5's bounded `ResourceDomain` limits;
 - graphics/compositor, windowing, AI/knowledge services, and all user-facing
   product experience beyond the developer shell.
 
@@ -93,7 +94,7 @@ UEFI -> Limine -> immutable BootContext -> kernel bootstrap
       +-------------------------------+-------------------------------+
       | kernel mechanism                                              |
       |                                                               |
-      | Object arena / capability spaces / rights                    |
+      | Resource domains / object arena / capability spaces / rights |
       | Address spaces / mappings / user-copy boundary                |
       | Threads / trap frames / single-CPU run queue                  |
       | Synchronous endpoints / notifications / timer events          |
@@ -157,6 +158,9 @@ first consumer are accepted. The workspace must continue to use committed
   address-space ownership before dereference.
 - User mappings never include HHDM, page tables, kernel heap, kernel stacks,
   boot metadata, or device pages by accident.
+- After bootstrap, every user-triggerable allocation is fallible. Resource
+  exhaustion returns a defined error; it must not invoke the fatal allocator
+  path or panic the kernel.
 
 ### 4.2 Unsafe policy
 
@@ -187,35 +191,40 @@ designed.
 
 | Gate | Decision to resolve | Required ADR | Proceed only when |
 | --- | --- | --- | --- |
-| V5-A | Kernel object storage, identity, references, capability-slot and revocation model | ADR 0007 | Object destruction, stale handles, derivation, transfer, and revocation have executable state-machine tests. |
-| V5-B | User ABI, syscall entry/exit, trap-frame layout, per-CPU kernel-stack ownership | ADR 0008 | The ABI has a version, register convention, error encoding, canonical-address policy, and hostile-return audit. |
-| V5-C | User address-space layout, mapping API, user-copy, initial ELF loading, and ASLR staging | ADR 0009 | Kernel/user mappings, guard pages, copy faults, executable permissions, and init-image trust boundary are specified. |
-| V5-D | Thread state machine, context-switch ownership, timer calibration, and single-CPU scheduler contract | ADR 0010 | Blocking/wakeup/preemption races are modeled; no scheduler policy is selected without a usable monotonic tick source. |
-| V5-E | Endpoint ABI, notification semantics, capability transfer, cancellation, and deadlock policy | ADR 0011 | Call/reply state diagrams and capability-transfer rollback are independently tested. |
-| V5-F | Boot-payload/initramfs format, init authority, service discovery, crash/restart policy | ADR 0012 | The kernel knows only a bounded payload format and init's initial capability set is minimal and reviewable. |
-| V5-G | Developer console and input authority: temporary bridge versus port-I/O/IRQ capability model | ADR 0013 | No user service receives ambient I/O privilege; the transitional path has a removal trigger. |
-| V5-H | Ramfs service protocol and minimal shell boundary | ADR 0014 | Paths, file data, shell syntax, and service semantics remain user-space and are not smuggled into the kernel. |
+| V5-A | Kernel object identity, capability slots, derivation, transfer, and revocation semantics | ADR 0007 | Object destruction, stale handles, bounded lineage, transfer, and revocation have executable state-machine tests. |
+| V5-B | User ABI, syscall entry/exit, trap-frame layout, per-CPU kernel-stack ownership | ADR 0010 | The ABI has a version, register convention, error encoding, canonical-address policy, and hostile-return audit. |
+| V5-C | User address-space layout, mapping API, guard pages, executable permissions, and ASLR staging | ADR 0011 | Kernel/user mappings, W^X, guard pages, and page-table ownership are specified. |
+| V5-D | Thread state machine, context-switch ownership, timer calibration, and single-CPU scheduler contract | ADR 0012 | Blocking/wakeup/preemption races are modeled; no scheduler policy is selected without a usable monotonic tick source. |
+| V5-E | Endpoint ABI, notification semantics, capability transfer, cancellation, and deadlock policy | ADR 0013 | Call/reply state diagrams and capability-transfer rollback are independently tested. |
+| V5-F | Boot payload, static init image, init authority, service discovery, crash/restart policy, and user-artifact pipeline | ADR 0014 | The kernel loads only init; all remaining payload is opaque read-only memory and init's authority is minimal and reviewable. |
+| V5-G | Deterministic developer-console output and scripted-session boundary | ADR 0015 | No user service receives ambient I/O privilege; interactive input is explicitly deferred. |
+| V5-H | Ramfs service protocol and deterministic scripted shell boundary | ADR 0016 | Paths, file data, shell syntax, and service semantics remain user-space and are not smuggled into the kernel. |
+| V5-I | User-memory access, fault-resume state, and page-fault recovery policy | ADR 0009 | Every faultable user copy has a bounded recovery path; unrelated kernel faults remain terminal. |
+| V5-J | Resource-domain ownership, Factory authority, fallible object allocation, and post-bootstrap OOM policy | ADR 0008 | Every user-triggerable creation path returns a defined exhaustion error and is charged to a bounded domain. |
 
-Additional ADRs are expected if a gate shows that SMP, IOAPIC, general MMIO,
-KASLR, or allocator concurrency is a real dependency. They are not assumed
-dependencies today.
+No ADR 0017 is scheduled. User-artifact and static-init image policy is a
+bounded part of ADR 0014; separating it now would not reduce an independent
+ambiguity. Additional ADRs are expected only if implementation shows SMP,
+IOAPIC, general MMIO, KASLR, or allocator concurrency is a real dependency.
 
 ## 6. Major Subsystem Decisions
 
 ### 6.1 Object and capability core
 
-**Recommended direction:** Gaxera-owned typed object arena plus a per-domain
-capability space of generational slots. A capability value encodes a slot and
-generation, never a kernel address. The slot stores object reference, type,
-rights, and derivation metadata. A derivation tree permits bounded descendant
-revocation. Initial v0.5 rights are minimal and object-specific; capability
-leases and budgets reserve fields but are not implemented.
+**Recommended direction:** a first-class `ResourceDomain` owns bounded
+allocation authority. Gaxera-owned typed object arenas are charged to it, and
+each domain has capability spaces of generational slots. A capability value
+encodes a slot and generation, never a kernel address. The slot stores object
+reference, type, rights, and derivation metadata. A bounded derivation lineage
+permits logically immediate descendant revocation with deferred cleanup.
 
-**Owner modules:** `kernel-core::object`, `kernel-core::capability`, and
-`gaxera-abi::handle`.
+**Owner modules:** `kernel-core::resource`, `kernel-core::object`,
+`kernel-core::capability`, and `gaxera-abi::handle`.
 
 **Public API shape:** safe kernel-internal `create`, `derive`, `lookup`,
-`transfer_prepare`, `transfer_commit`, `revoke`, and `destroy`; user ABI sees
+`transfer_prepare`, `transfer_commit`, `revoke`, and `destroy`; creation takes
+a `ResourceDomain` allocation authority and is fallible. A Factory is a right
+on a `ResourceDomain` capability, not a separate kernel object. User ABI sees
 opaque `Handle` values and operation-specific syscall arguments.
 
 **Internal responsibilities:** maintain typed object lifecycle state, slot
@@ -224,8 +233,8 @@ capability-space mutation. Object storage never decides service policy.
 
 **Invariants:** handles are unforgeable by generation check; rights can only
 narrow during derivation; failed transfer leaves both spaces unchanged;
-destroyed objects invalidate every lookup; revocation cannot leave a usable
-descendant capability.
+destroyed objects invalidate every lookup; once revocation returns, every
+future use of a descendant fails; exhaustion never panics a running kernel.
 
 **Unsafe boundary:** object storage and reference/lifetime implementation only.
 No raw pointer crosses a capability lookup boundary.
@@ -239,19 +248,26 @@ No raw pointer crosses a capability lookup boundary.
 - Raw object pointers or integer IDs are rejected because they conflate naming
   with authority and make stale-reference bugs too easy.
 
-The generational-slot model is recommended because it provides a small ABI now
-while retaining explicit derivation/revocation structure for later proof work.
+The generational-slot plus bounded-lineage model is recommended because it
+provides a small ABI, rejects stale handles, gives immediate authorization
+semantics, and avoids unbounded revoke-time walks. `ResourceDomain` is the
+eleventh kernel object because neither `CapabilitySpace` nor `AddressSpace`
+has the correct lifetime to own allocation accounting.
 
-**Future extension points:** leases, quotas, object labels, multi-level
-capability spaces, and stronger revocation accounting are intentionally fields
-or internal implementation changes, not v0.5 ABI commitments.
+**Future extension points:** leases, hierarchical domains, dynamic quotas,
+object labels, multi-level capability spaces, and stronger reclamation are
+intentionally deferred. The v0.5 domain interface reserves their ownership
+boundary without claiming their policy.
 
 ### 6.2 User ABI, traps, and task execution
 
-**Recommended direction:** x86-64 `syscall`/`sysret` with a shared, explicit
-trap-frame representation and a per-CPU kernel stack. Use `swapgs` only with a
-documented GS-base policy. All user return addresses and flags must be checked
-before `sysret`; invalid cases use an audited `iretq` path.
+**Recommended direction:** first prove ring transition with a fixed internal
+probe, then expose x86-64 `syscall` entry with a shared explicit trap-frame
+contract and a per-CPU kernel stack. Architecture code owns user selectors,
+GDT/TSS programming, and loading the current thread's `RSP0`; a thread owns
+its kernel-stack storage. Use `swapgs` only with a documented GS-base policy.
+All user return addresses and flags must be checked before `sysret`; invalid
+cases use an audited `iretq` path.
 
 **Owner modules:** `kernel/src/arch/x86_64/trap.rs`,
 `kernel-core::task`, `gaxera-abi::syscall`, and a new `user/libgaxera` veneer.
@@ -267,8 +283,9 @@ crate owns wire layouts; kernel services own syscall semantics.
 
 **Invariants:** kernel stack is selected before Rust handler code; user RSP/RIP
 are canonical and user-range; direction flag and privileged flags are
-sanitized; user ABI buffers are validated; no `sysret` target can fault into an
-unsafe privilege transition.
+sanitized; no arbitrary user pointer is dereferenced before ADR 0009's
+recovery contract exists; no `sysret` target can fault into an unsafe privilege
+transition.
 
 **Alternatives considered:**
 
@@ -299,7 +316,8 @@ map/unmap a page-aligned range with read/write/execute rights, and copy to/from
 user through checked slices. No public arbitrary-frame mapper exists.
 
 **Internal responsibilities:** own mapping metadata, page-table application,
-TLB invalidation, memory-object lifetime, and checked user-copy mechanics.
+TLB invalidation, memory-object lifetime, and, after ADR 0009, checked
+fault-recoverable user-copy mechanics.
 The physical allocator remains the sole source of page-table frames.
 
 **Invariants:** one physical frame is not mapped writable into unrelated
@@ -336,8 +354,10 @@ gate; it does not promise EEVDF.
 notifications; scheduler-visible timer arm/cancel only through `TimerObject`.
 
 **Internal responsibilities:** own task state transitions, run/wait queues,
-context lifetime, timer-to-reschedule handoff, and reaping. Scheduler policy
-does not own IPC message contents or capability decisions.
+context lifetime, timer-to-reschedule handoff, and reaping. The durable thread
+context is distinct from the transient M2 trap frame, but both use a shared
+documented register and kernel-stack contract. Scheduler policy does not own
+IPC message contents or capability decisions.
 
 **Invariants:** exactly one thread is `Running` on the BSP; a blocked thread is
 not on a run queue; a wakeup is not lost across state changes; switch assembly
@@ -396,22 +416,25 @@ resource and wakeup policies before they can extend this base.
 ### 6.6 Boot payload, init, and services
 
 **Recommended direction:** package a small, versioned boot payload as Limine
-modules: one trusted init ELF and one read-only ramfs image. Extend only the
-architecture entry layer to copy module descriptors into `BootContext`. The
-kernel minimally loads the fixed init ELF into a fresh address space and gives
-it a narrow initial capability set. Init starts the ramfs and shell, owns names
-and restart policy, and remains the only service discovery authority in v0.5.
+modules: one trusted static init image and one read-only ramfs image. Extend
+only the architecture entry layer to copy module descriptors into
+`BootContext`. The kernel loads only init into a fresh address space; every
+remaining module is exposed to init as opaque read-only `MemoryObject` data.
+Init owns archive parsing, names, service discovery, and restart policy.
 
 **Owner modules:** `boot.rs`, `kernel-core::boot_payload`,
 `kernel-core::elf_loader`, `user/init`, and `xtask` image composition.
 
-**Public API shape:** a private boot payload parser and a documented initial
-capability manifest; user-space service discovery occurs through init endpoint
-capabilities, not global kernel names.
+**Public API shape:** a private bounded manifest parser, static init-image
+loader, and documented initial-capability manifest. Init receives a bounded
+`ResourceDomain` Factory right, self/control authority, and a read-only ramfs
+memory capability; a bootstrap console capability is optional. It receives no
+physical-memory, page-table, APIC, raw I/O, or unrestricted debug authority.
 
 **Internal responsibilities:** copy and validate boot descriptors, parse only
-the bounded manifest and ELF subset, construct init's initial objects, and
-then relinquish service naming and lifecycle policy to init.
+the bounded manifest and static init-image subset, construct init's initial
+objects, and then relinquish archive parsing, service naming, and lifecycle
+policy to init.
 
 **Invariants:** only boot.rs reads Limine module responses; each payload range
 is checked against immutable boot metadata; init receives no ambient physical
@@ -426,18 +449,17 @@ crash cannot overwrite kernel or peer address spaces.
 - Loading arbitrary ELF files before a trust and resource model exists is
   rejected. The fixed boot payload is recommended as a bounded bootstrap.
 
-**Future extension points:** signed payload manifests, multiple modules,
-dynamic loading, and richer restart supervision are deferred until their trust
-and resource-accounting requirements are separately accepted.
+**Future extension points:** signed payload manifests, dynamic loading, and
+richer restart supervision are deferred until their trust and resource
+accounting requirements are separately accepted.
 
 ### 6.7 Developer console, ramfs, and shell
 
 **Recommended direction:** ramfs and shell are user-space processes. The
-kernel exports neither path parsing nor file semantics. Gate V5-G decides the
-temporary developer-console path. The preferred transitional option is a
-capability-gated bootstrap console service backed by the existing QEMU COM1
-mechanism, explicitly unavailable to ordinary tasks and scheduled for removal
-when the port-I/O/IRQ authority model is accepted.
+kernel exports neither path parsing nor file semantics. v0.5 requires a
+deterministic scripted developer session with capability-gated serial output;
+it does not require interactive input. A real input path remains a later
+port-I/O and IRQ-capability decision.
 
 **Owner modules:** `user/ramfs`, `user/shell`, `user/init`; narrowly scoped
 bootstrap console glue only if Gate V5-G accepts it.
@@ -446,8 +468,9 @@ bootstrap console glue only if Gate V5-G accepts it.
 uses only service endpoint capabilities and no filesystem kernel syscall.
 
 **Internal responsibilities:** init owns service routing, ramfs owns image
-format and path semantics, and the shell owns command syntax and interaction.
-Any bootstrap console glue owns only its narrowly granted output/input bridge.
+format and path semantics, and the shell owns command syntax and script
+execution. Any bootstrap console glue owns only its narrowly granted output
+bridge.
 
 **Invariants:** shell input/output does not grant ambient I/O privilege; ramfs
 paths and command parsing remain user-space; a malformed file request cannot
@@ -459,11 +482,12 @@ corrupt service memory; a console capability does not imply general port I/O.
   microkernel split.
 - Immediate user-space PS/2 support requires a port-I/O and IRQ design that
   deserves its own ADR; it must not be smuggled in as shell plumbing.
-- A scripted-only shell is insufficient for the v0.5 developer milestone.
+- Interactive serial or PS/2 input is rejected for v0.5 because it would add
+  a device-authority and interrupt-routing dependency to a service milestone.
 
 **Future extension points:** a real device-capability model, interrupt-backed
 input, writable filesystems, process launch policy, and richer shells remain
-user-space work and must not enlarge the kernel's console bridge.
+user-space work and must not enlarge the output-only console bridge.
 
 ## 7. Milestone Program
 
@@ -474,64 +498,102 @@ split plan, and test harness conventions without changing v0.1 behavior.
 
 **Dependencies:** v0.1 tags and exact evidence.
 
-**Scope:** Foundation reference, this program, ADR index policy, host test
-conventions, QEMU profile naming, and an explicit v0.1 regression job.
+**Scope:** Foundation reference, v0.5 requirements trace, accepted ADRs 0007,
+0008, and 0009, ABI-versioning rules, workspace split, test-scenario naming,
+and an explicit v0.1 regression job. Pin the Limine crate exactly and pin CI
+actions by commit digest.
 
 **Verification/evidence:** `v0.1.0` matrix remains runnable; document links
 are checked; immutable evidence is not rewritten.
 
-**Exit:** Gates V5-A through V5-H have named owners, ADR templates, and no
-code milestone begins without its gate.
+**Exit:** the architecture freeze commit exists; V5-A and V5-J are accepted;
+the v0.1 matrix remains runnable; no code milestone begins without every gate
+it explicitly depends on.
 
 ### M1: Object lifecycle and capability-space model
 
 **Objective:** implement the accepted V5-A object arena and capability state
 machine in host-testable `kernel-core`.
 
-**Dependencies:** ADR 0007.
+**Dependencies:** ADRs 0007 and 0008.
 
-**Scope:** object IDs, capability slots, type/rights checks, derivation,
-destroy, stale-handle detection, transfer transactions, and revocation model.
+**Scope:** a safe host-testable `kernel-core`, a no_std `gaxera-abi`, fallible
+typed object arenas, `ResourceDomain`, Factory rights, object IDs, capability
+slots, type/rights checks, derivation, destroy, stale-handle detection,
+transfer transactions, and revocation model. It does not integrate a kernel
+object store, syscall, user mode, or hardware behavior.
 
-**Unsafe invariants:** arena storage cannot move live object identity; slot
-reuse requires generation change; reference accounting cannot underflow.
+**Unsafe invariants:** none are expected in M1. Semantic object identity is an
+index/generation pair, not a storage address; slot reuse requires generation
+change; accounting cannot underflow; exhaustion is represented as an error.
 
 **Verification/evidence:** exhaustive state-table tests plus property tests for
-derive/revoke/transfer sequences; no QEMU dependency yet.
+derive/revoke/transfer sequences and allocation exhaustion. The unchanged
+v0.1 UEFI matrix is the required guest regression proof.
 
 **Exit:** every object lookup path has deterministic success and denial tests;
+revocation is immediate for future lookups; every creation path is fallible;
 no raw object pointer crosses an API boundary.
 
-### M2: User ABI and isolated address spaces
+### M2A: Privilege transition and isolated address space proof
 
-**Objective:** establish V5-B/V5-C and enter a minimal ring-3 probe in its own
-address space through an audited syscall path.
+**Objective:** establish V5-B/V5-C and prove a fixed ring-3 probe can enter and
+return from an isolated address space before a public syscall ABI exists.
 
-**Dependencies:** M1, ADRs 0008 and 0009.
+**Dependencies:** M1, ADRs 0010 and 0011.
 
-**Scope:** ABI crate, trap entry/exit, per-CPU kernel stack, user page tables,
-checked user copy, `MemoryObject` mapping, and a fixed trusted user ELF probe.
+**Scope:** user selectors, GDT/TSS/`RSP0` ownership, a per-thread kernel stack,
+fixed user page tables, a minimal static code-page probe, and an internal-only
+privilege-transition test path. No public syscall ABI, user pointer, or ELF
+loader is introduced. The probe toolchain must not emit user extended-state
+instructions until M3 establishes their save/restore contract.
 
-**Unsafe invariants:** all user return and pointer checks precede privileged
-use; kernel mappings stay supervisor-only; TLB state matches mapping changes.
+**Unsafe invariants:** architecture code installs `RSP0` before any ring-3
+entry; all user return state is canonical and user-range; kernel mappings stay
+supervisor-only; TLB state matches mapping changes.
 
 **Verification/evidence:** host range/permission tests; QEMU profiles for user
-entry, syscall round trip, denied invalid handle, bad user pointer, bad return
-address, user guard-page fault, and clean return to kernel.
+entry, denied privileged instruction, invalid user return state, and clean
+return to the kernel.
 
 **Exit:** an unprivileged probe cannot read/write kernel or HHDM addresses and
-can only invoke a capability-authorized no-op/yield syscall.
+every privilege transition uses the intended GDT/TSS/kernel-stack contract.
+
+### M2B: Syscall ABI and fault-recoverable user access
+
+**Objective:** add the public syscall boundary only after privilege transition
+and user-copy recovery contracts are independently accepted.
+
+**Dependencies:** M2A, ADR 0009, and the syscall portion of ADR 0010.
+
+**Scope:** versioned register-only syscall ABI, `syscall` entry, audited
+`iretq`/`sysret` return policy, capability-authorized no-op/yield operations,
+then bounded fault-recoverable user-copy routines. Explicit `MemoryObject`
+mappings are the only bulk-data path.
+
+**Unsafe invariants:** a fault resume is installed only for a known copy range,
+cannot nest, and is cleared on every return; unrelated kernel page faults
+remain terminal; `swapgs` and return state cannot cross a privilege boundary
+with unchecked addresses or flags.
+
+**Verification/evidence:** host ABI/range/fault-state tests; QEMU syscall round
+trip, invalid handle, bad user pointer, bad return address, and user guard-page
+profiles.
+
+**Exit:** every public syscall is capability checked and a malicious user
+pointer returns a defined error without corrupting or terminating the kernel.
 
 ### M3: Threads and cooperative execution
 
 **Objective:** prove context ownership and task lifecycle before timer-driven
 preemption.
 
-**Dependencies:** M2 and ADR 0010's cooperative portion.
+**Dependencies:** M2B and ADR 0012's cooperative portion.
 
 **Scope:** thread objects, kernel stacks, context save/restore, start/yield,
-block/wake/exit transitions, one BSP run queue, and deterministic two-task
-user proof.
+block/wake/exit transitions, one BSP run queue, an explicit shared
+trap/context register contract, and deterministic two-task user proof. User
+extended-state use remains prohibited until the context contract saves it.
 
 **Unsafe invariants:** saved context contains all required state; a dead task
 is never scheduled; no thread frees its current stack; queue links have one
@@ -547,7 +609,7 @@ kernel or each other's state.
 
 **Objective:** implement V5-E mechanism without scheduler policy leakage.
 
-**Dependencies:** M1 through M3 and ADR 0011.
+**Dependencies:** M1 through M3 and ADR 0013.
 
 **Scope:** endpoint and notification objects, synchronous call/reply, blocking
 wakeup, reply authority, fixed inline message ABI, capability transfer, and
@@ -573,7 +635,7 @@ preemption mechanism without claiming production timekeeping.
 
 **Scope:** selected monotonic tick source, APIC timer programming, minimal
 timer object, reschedule request from IRQ, safe switch point, and simple fair
-or priority-band policy accepted by ADR 0010.
+or priority-band policy accepted by ADR 0012.
 
 **Unsafe invariants:** interrupt handler does no allocation or blocking; timer
 state cannot wake a dead thread; a preemption request cannot switch from an
@@ -591,10 +653,11 @@ BSP. No EEVDF or real-time latency claim is made.
 **Objective:** replace test-only user probes with a bounded init process and
 explicit initial authority.
 
-**Dependencies:** M1 through M5, ADR 0012.
+**Dependencies:** M1 through M5 and ADR 0014.
 
-**Scope:** copied Limine module descriptors in BootContext, payload manifest,
-minimal ELF loader, initial address space/thread/capability space, init service
+**Scope:** copied Limine module descriptors in BootContext, bounded payload
+manifest, static init-image loader, opaque read-only ramfs `MemoryObject`,
+initial `ResourceDomain`/thread/address-space/capability space, init service
 registry, and controlled child-service crash/restart proof.
 
 **Unsafe invariants:** module boundaries are checked; ELF segments obey W^X;
@@ -604,30 +667,32 @@ restart reclaims or invalidates all dead-service capabilities and mappings.
 **Verification/evidence:** malformed module/ELF host tests; QEMU init-ready,
 least-authority manifest, service crash, revocation, and restart markers.
 
-**Exit:** the kernel boots init from packaged data and knows no service name or
-shell/ramfs protocol after that handoff.
+**Exit:** the kernel loads only init from packaged data and knows no service
+name, archive format, shell, or ramfs protocol after that handoff.
 
 ### M7: Ramfs service and developer shell
 
 **Objective:** reach the v0.5 usable developer surface without moving file or
 shell policy into the kernel.
 
-**Dependencies:** M4 through M6 and ADRs 0013/0014.
+**Dependencies:** M4 through M6 and ADRs 0015/0016.
 
 **Scope:** read-only in-memory filesystem image, ramfs list/open/read protocol,
-capability-routed service discovery, shell command loop, `help`, `ls`, `cat`,
-and `echo`, plus the accepted limited developer-console path.
+capability-routed service discovery, scripted shell command loop, `help`,
+`ls`, `cat`, and `echo`, plus the accepted output-only developer-console path.
 
 **Unsafe invariants:** console bridge does not grant ambient port access;
 ramfs parser bounds checks every image offset; shell buffers remain user-space;
 service IPC payload validation is service-owned.
 
-**Verification/evidence:** ramfs parser host fuzz/property corpus; QEMU shell
-script that lists and reads seeded files, capability denial to an unrelated
-task, console round trip, and ramfs-service restart/reconnect proof.
+**Verification/evidence:** ramfs parser host fuzz/property corpus; a QEMU
+scripted session that lists and reads seeded files, capability denial to an
+unrelated task, serial transcript output, and ramfs-service restart/reconnect
+proof.
 
-**Exit:** a user can interact with the shell in QEMU and read a bundled file
-through ramfs IPC. The kernel contains neither filesystem paths nor commands.
+**Exit:** a deterministic user-space script reads a bundled file through ramfs
+IPC and emits a verified serial transcript. The kernel contains neither
+filesystem paths nor commands.
 
 ### M8: v0.5 audit and release
 
@@ -670,7 +735,7 @@ every new authority boundary.
 
 Required v0.5 scenario families are:
 
-- user entry and hostile-syscall return validation;
+- privilege transition, user entry, and hostile-syscall return validation;
 - address-space isolation and user guard pages;
 - context switch and preemption;
 - capability denial, transfer, revocation, and stale handle rejection;
@@ -695,8 +760,9 @@ version update.
 | Risk | Why it matters | Mitigation and gate |
 | --- | --- | --- |
 | Capability revocation semantics are wrong | A later security model cannot repair leaked authority cheaply. | V5-A state models, generation tests, explicit derivation tree, ADR 0007. |
-| `sysret`/`swapgs` error permits privilege confusion | This is a high-severity x86 boundary. | V5-B hostile-return audit, tiny assembly surface, QEMU negative tests, ADR 0008. |
-| User-copy faults reenter an unsafe kernel state | Copying user bytes is a new faulting path. | V5-C recovery design, fault labels or checked mappings, QEMU bad-pointer tests. |
+| `sysret`/`swapgs` error permits privilege confusion | This is a high-severity x86 boundary. | V5-B hostile-return audit, tiny assembly surface, QEMU negative tests, ADR 0010. |
+| User-copy faults reenter an unsafe kernel state | Copying user bytes is a new faulting path. | V5-I recovery design, fault labels or checked mappings, QEMU bad-pointer tests. |
+| User-triggered allocation panics the kernel | The fixed v0.1 heap has no process-level recovery policy. | V5-J `ResourceDomain`, fallible arenas, exhaustion tests, and no allocation in IRQ paths. |
 | Context switch corrupts registers/stacks | Failure can be intermittent and nonlocal. | Cooperative proof first, fixed register contract, disassembly review, deterministic alternation test. |
 | Preemption races lose wakeups | Scheduler correctness is defined by rare transitions. | Single CPU first, state-machine tests, explicit IRQ-to-scheduler handoff, stress profiles. |
 | IPC transfer leaves split authority | Capability duplication or loss breaks isolation. | Two-phase transfer with rollback and property tests, V5-E. |
@@ -715,6 +781,8 @@ version update.
   only after calibration is accepted.
 - Extend BootContext to copy only the module metadata required for a boot
   payload; continue to prohibit leaked Limine pointers.
+- Establish bounded `ResourceDomain` accounting and fallible object allocation
+  without claiming a global OOM policy.
 - Introduce a safe, typed address-space/memory-object layer instead of exposing
   v0.1 paging helpers to user-facing code.
 - Separate host-testable logic from bootable architecture glue.
@@ -750,8 +818,9 @@ Gaxera v0.5 is complete only when all of the following are true:
    transfer rollback.
 7. The kernel loads a bounded boot payload into init. Init starts, detects, and
    restarts a controlled crashing service without rebooting the kernel.
-8. A user-space ramfs service and developer shell can list and read seeded
-   in-memory files through IPC. No kernel code parses paths or shell commands.
+8. A user-space ramfs service and deterministic scripted developer session can
+   list and read seeded in-memory files through IPC. No kernel code parses
+   paths, archives, or shell commands.
 9. Host model/property/parser tests and the deterministic UEFI QEMU scenario
    matrix pass from a clean locked build. v0.1 profiles remain passing.
 10. Exact-commit evidence, ADRs, ABI specs, workflow, environment, handoffs,

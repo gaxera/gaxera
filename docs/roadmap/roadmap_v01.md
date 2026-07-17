@@ -211,7 +211,7 @@ tagged `phase-6-complete` & `v0.1.0`; remote CI pipeline verified green.
 ## 5. v0.5 Horizon (Dependency Graph)
 
 After v0.1, the architecture progresses to basic OS functionality. This legacy
-horizon is superseded as an implementation plan by the canonical proposed
+horizon is superseded as an implementation plan by the canonical frozen
 [v0.5 Engineering Program](roadmap_v05.md). In particular, the dependency
 order is corrected: object/capability semantics and the user-mode boundary
 precede scheduler policy and IPC, while EEVDF, PS/2 input, and broad device

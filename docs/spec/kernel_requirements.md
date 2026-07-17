@@ -1,6 +1,6 @@
 # What Our Kernel Must Be — The Complete Requirements Extraction
 
-> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-12
+> **Status:** Canonical | **Version:** 1.1 | **Last Updated:** 2026-07-17
 > **Related:** [Roadmap](../roadmap/roadmap_v01.md), [Constitution](../governance/constitution.md)
 
 **Purpose:** Every hard requirement, constraint, and property our kernel must satisfy, explicitly extracted from the Technical Specification. This serves as an evaluation checklist rather than an independent architectural source.
@@ -26,7 +26,10 @@ These come directly from the Constitution and Architectural Invariants. Violatin
 
 ## 2. Kernel Object Model
 
-The kernel exposes exactly **10 kernel objects**. Not more, not fewer (at v1). Every interaction with the system goes through these objects and their capabilities.
+The kernel exposes exactly **11 kernel objects**. Every interaction with the
+system goes through these objects and their capabilities. ADR 0008 amended the
+former ten-object model because resource accounting needs an owner whose
+lifetime is independent of address and capability spaces.
 
 | Object | What It Does |
 | --- | --- |
@@ -40,6 +43,7 @@ The kernel exposes exactly **10 kernel objects**. Not more, not fewer (at v1). E
 | **InterruptObject** | Delivers hardware interrupts to a user-space driver thread via Notification. |
 | **TimerObject** | Kernel-managed timer that fires a Notification at a specified time or interval. |
 | **SchedulingContext** | Controls CPU time allocation for a thread or group of threads. |
+| **ResourceDomain** | Owns bounded allocation authority and charges created kernel objects and memory. A Factory is a right on this object. |
 
 **Source:** [Technical Specification](technical_spec.md) KRN-02.
 
@@ -209,7 +213,7 @@ These are things that must live in user space. If a candidate kernel does them i
 
 ## Summary: The Kernel in One Paragraph
 
-Our kernel is a **minimal, Rust-only, capability-based microkernel** targeting x86_64 UEFI systems. It manages exactly 10 kernel objects (Thread, AddressSpace, CapabilitySpace, Endpoint, Notification, MemoryObject, Mapping, InterruptObject, TimerObject, SchedulingContext) through ~30-50 syscalls. It provides sub-microsecond IPC, a multi-class scheduler (Deadline through Idle), IOMMU-enforced device isolation, and ASLR/KASLR. It does **nothing else**. No drivers, no filesystems, no networking, no AI, no display — all of that is user-space services communicating over the kernel's IPC. The kernel is designed to be formally verifiable, and its total architecture-independent codebase targets 50-100K lines of Rust.
+Our kernel is a **minimal, Rust-only, capability-based microkernel** targeting x86_64 UEFI systems. It manages exactly 11 kernel objects (Thread, AddressSpace, CapabilitySpace, Endpoint, Notification, MemoryObject, Mapping, InterruptObject, TimerObject, SchedulingContext, ResourceDomain) through ~30-50 syscalls. A Factory is a capability right on ResourceDomain, not another object. It provides sub-microsecond IPC, a multi-class scheduler (Deadline through Idle), IOMMU-enforced device isolation, and ASLR/KASLR. It does **nothing else**. No drivers, no filesystems, no networking, no AI, no display — all of that is user-space services communicating over the kernel's IPC. The kernel is designed to be formally verifiable, and its total architecture-independent codebase targets 50-100K lines of Rust.
 
 ---
 

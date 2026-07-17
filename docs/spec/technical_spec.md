@@ -1,10 +1,13 @@
 # Technical Specification
 
-> **Status:** Canonical | **Version:** 1.0 | **Last Updated:** 2026-07-12
+> **Status:** Canonical | **Version:** 1.1 | **Last Updated:** 2026-07-17
 > **Related:** [Roadmap](../roadmap/roadmap_v01.md), [Constitution](../governance/constitution.md)
 
 **Purpose:** Canonical intended architecture reference.
-**Implementation State:** The architecture described here is the *intended* long-term system architecture. It is NOT the current implementation state. The project is currently in early implementation. See `roadmap_v01.md` for current progress and the immediate v0.1 scope.
+**Implementation State:** The architecture described here is the *intended*
+long-term system architecture. It is not the current implementation state.
+Foundation v0.1 is released; v0.5 implementation is governed by the frozen
+`roadmap_v05.md` program and `architecture/v05_requirements_trace.md`.
 
 ## 0. Status Taxonomy
 
@@ -42,7 +45,10 @@ The following properties must hold and cannot be casually violated by future imp
 **Validation:** QEMU integration tests, benchmark suites, and eventually formal verification of capability boundaries.
 
 - **KRN-01 [COMMITTED]:** Source: S6. Language: Rust + minimal assembly. Validation: Compiles via `cargo build` on `x86_64-unknown-none`.
-- **KRN-02 [COMMITTED]:** Source: S6. 10 kernel objects: Thread, AddressSpace, CapabilitySpace, Endpoint, Notification, MemoryObject, Mapping, InterruptObject, TimerObject, SchedulingContext.
+- **KRN-02 [COMMITTED]:** Amended by ADR 0008. 11 kernel objects: Thread,
+  AddressSpace, CapabilitySpace, Endpoint, Notification, MemoryObject,
+  Mapping, InterruptObject, TimerObject, SchedulingContext, and
+  ResourceDomain. A Factory is authority on a ResourceDomain, not an object.
 - **KRN-03 [TARGET]:** Source: S6. Size budget: 50–100K LOC Rust for architecture-independent core. Validation: Line count metrics.
 
 ### 2.2 Scheduler
@@ -63,6 +69,9 @@ The following properties must hold and cannot be casually violated by future imp
 - **MEM-02 [COMMITTED]:** Source: S6. 8-step OOM sequence with lifecycle-aware scoring and emergency reserve.
 - **MEM-03 [TARGET]:** Source: S18, S53. Base OS idle RAM < 1 GB. (Stretch target: < 500 MB without AI).
 - **MEM-04 [TARGET]:** Source: S48. AI-active memory budget: ~2 GB to 5 GB depending on model size.
+- **MEM-05 [COMMITTED]:** Amended by ADR 0008. After mandatory bootstrap,
+  user-triggerable allocation is fallible and resource exhaustion must not
+  panic the kernel. ResourceDomain owns the initial bounded accounting model.
 
 ### 2.4 IPC (Inter-Process Communication)
 

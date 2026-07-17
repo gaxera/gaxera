@@ -360,7 +360,8 @@ RAM-only HHDM into a general MMIO shortcut. Do not use Limine structures after
 entry, or interrupt routing without a per-CPU and lifecycle design.
 
 The right next step is not to grow every subsystem at once. Establish the
-object/capability model, user execution and syscall boundary, controlled
-address-space mappings, scheduler/time ownership, IPC semantics, and service
-bootstrap in dependency order. The v0.5 engineering program records that work
-as a proposed plan; it does not alter this foundation contract.
+resource and object/capability model, privilege-transition proof, syscall and
+user-copy boundary, controlled address-space mappings, scheduler/time
+ownership, IPC semantics, and service bootstrap in dependency order. The
+frozen v0.5 engineering program and its requirements trace record that work;
+they do not alter this immutable foundation contract.
