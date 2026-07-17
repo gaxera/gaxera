@@ -190,8 +190,8 @@ delivery without introducing timer calibration or scheduler semantics.
 
 ### Phase 6: Stabilization & v0.1 Release
 
-**Status:** Implementation complete; final release closeout pending exact-commit
-verification, immutable Checkpoint 6 evidence, `v0.1.0` tagging, and remote CI.
+**Status:** Complete. Exact-commit evidence registered at commit `f6b2146`;
+tagged `phase-6-complete` & `v0.1.0`; remote CI pipeline verified green.
 **Dependencies:** Phase 5.
 **Objective:** Harden the kernel, ensure automated testing, and release v0.1.
 
