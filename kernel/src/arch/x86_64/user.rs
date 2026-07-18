@@ -7,7 +7,30 @@ use crate::memory::mapping::{USER_ADDRESS_MAX, USER_PROBE_CODE, USER_STACK_PAGE,
 
 pub const USER_INITIAL_RFLAGS: u64 = 1 << 1;
 pub(crate) const USER_RETURN_VECTOR: u8 = 0x81;
+#[cfg(not(any(
+    feature = "test-cooperative-yield",
+    feature = "test-context-preservation"
+)))]
 pub(crate) const PROBE_BYTES: [u8; 5] = [0xcc, 0xcd, USER_RETURN_VECTOR, 0x0f, 0x0b];
+
+#[cfg(any(
+    feature = "test-cooperative-yield",
+    feature = "test-context-preservation"
+))]
+pub(crate) const PROBE_BYTES: [u8; 12] = [
+    0xb8,
+    0x01,
+    0x00,
+    0x00,
+    0x00, // mov eax, 1 (yield)
+    0x0f,
+    0x05, // syscall
+    0x90, // nop (replaces int3 to avoid #GP)
+    0xcd,
+    USER_RETURN_VECTOR, // int 0x81
+    0x0f,
+    0x0b, // ud2
+];
 const RFLAGS_FIXED_ONE: u64 = 1 << 1;
 const RFLAGS_FORBIDDEN: u64 = (3 << 12) | (1 << 14) | (1 << 17) | (1 << 18);
 

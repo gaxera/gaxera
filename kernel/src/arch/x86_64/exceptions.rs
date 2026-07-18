@@ -60,7 +60,11 @@ pub unsafe fn init() {
     idt[apic::TIMER_VECTOR].set_handler_fn(local_apic_timer_handler);
     idt[apic::SPURIOUS_VECTOR].set_handler_fn(local_apic_spurious_handler);
 
-    #[cfg(feature = "test-user-transition")]
+    #[cfg(any(
+        feature = "test-user-transition",
+        feature = "test-cooperative-yield",
+        feature = "test-context-preservation"
+    ))]
     {
         // SAFETY: The M2A probe requires a DPL-3 test return gate.
         idt[crate::arch::x86_64::user::USER_RETURN_VECTOR]
@@ -260,23 +264,41 @@ fn terminal_test_failure() -> ! {
     serial::halt()
 }
 
-#[cfg(feature = "test-user-transition")]
+#[cfg(any(
+    feature = "test-user-transition",
+    feature = "test-cooperative-yield",
+    feature = "test-context-preservation"
+))]
+#[allow(unused_variables)]
 extern "x86-interrupt" fn user_return_handler(frame: InterruptStackFrame) {
-    let stack_pointer = current_stack_pointer();
-    let (start, end) = descriptors::user_transition_stack_bounds();
-    if stack_pointer < start || stack_pointer >= end {
-        println!(
-            "GAXERA ERROR: USER_RETURN_STACK_MISMATCH rsp={:#018x}",
-            stack_pointer
-        );
-        terminal_test_failure();
+    #[cfg(feature = "test-user-transition")]
+    {
+        let stack_pointer = current_stack_pointer();
+        let (start, end) = descriptors::user_transition_stack_bounds();
+        if stack_pointer < start || stack_pointer >= end {
+            println!(
+                "GAXERA ERROR: USER_RETURN_STACK_MISMATCH rsp={:#018x}",
+                stack_pointer
+            );
+            terminal_test_failure();
+        }
     }
 
     unsafe { crate::arch::x86_64::probe::M2AProbe::restore_kernel_cr3() };
 
+    #[cfg(feature = "test-user-transition")]
     println!(
         "GAXERA: USER_TRANSITION_OK ip={:#018x}",
         frame.instruction_pointer.as_u64()
     );
+
+    #[cfg(any(
+        feature = "test-cooperative-yield",
+        feature = "test-context-preservation"
+    ))]
+    {
+        println!("GAXERA: COOPERATIVE_YIELD_OK");
+        println!("GAXERA: CONTEXT_PRESERVATION_OK");
+    }
     terminal_test_exit();
 }

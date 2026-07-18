@@ -28,6 +28,8 @@ version = "0.1.0"
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "gaxera-abi",
+ "kernel-core",
  "limine",
  "linked_list_allocator",
  "x86_64",

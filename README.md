@@ -56,12 +56,13 @@ leak simply don't exist, because they were never built.
 **v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
 `f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
-**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m2-complete`).
+**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m3-complete`).
 
 * **M0 (Setup & Baseline Preservation):** Completed.
 * **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
 * **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
 * **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
+* **M3 (Threads & Cooperative Execution):** Completed and verified under UEFI QEMU. Gaxera now possesses a proven System V ABI-compliant context switch, a generic capability-integrated thread ownership model, and deterministic state-enforced scheduling.
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

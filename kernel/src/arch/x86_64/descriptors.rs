@@ -139,6 +139,21 @@ pub(crate) unsafe fn install_user_transition_stack() -> Option<u64> {
     Some(top.as_u64())
 }
 
+/// Dynamically updates TSS.RSP0 for the active CPU.
+///
+/// # Safety
+/// Must only be called with interrupts disabled during a context switch.
+/// The `top` pointer must point to a valid, initialized kernel stack.
+pub unsafe fn set_tss_rsp0(top: u64) {
+    if !INITIALIZED.load(Ordering::Acquire) {
+        return;
+    }
+    // SAFETY: caller guarantees this is called during a context switch where
+    // interrupts are disabled and no ring-3 execution is active on this CPU.
+    let tables = unsafe { &mut *TABLES.get() };
+    tables.tss.privilege_stack_table[0] = VirtAddr::new(top);
+}
+
 /// Return whether `stack_pointer` is within the double-fault IST allocation.
 ///
 /// The stack grows down, so the initial TSS pointer is one byte past `end` and

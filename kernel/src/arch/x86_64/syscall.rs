@@ -1,3 +1,4 @@
+use crate::arch::x86_64::cpu;
 use core::arch::global_asm;
 use x86_64::registers::model_specific::{Efer, EferFlags, Msr};
 use x86_64::registers::rflags::RFlags;
@@ -58,8 +59,13 @@ global_asm!(
         push r15
 
         // Pass pointer to frame as first arg (&mut SyscallFrame)
+        // Align stack to 16-bytes before call (ABI requirement)
+        // Currently 15 pushes * 8 bytes = 120 bytes, so rsp is 16n + 8.
+        // We push a dummy value (or sub rsp, 8) to make it 16n.
         mov rdi, rsp
+        sub rsp, 8
         call handle_syscall
+        add rsp, 8
 
         // Restore registers
         pop r15
@@ -125,7 +131,47 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             frame.rax = 0; // Success
         }
         1 => {
-            // Yield / Placeholder
+            // Yield
+            let cpu_local = unsafe { cpu::get_cpu_local() };
+            let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+
+            if let Some(sched) = scheduler_cell.as_mut()
+                && let Some(current_id) = sched.current_thread()
+                && let Some(next_id) = sched.dequeue_next()
+            {
+                unsafe {
+                    // Fetch threads
+                    let prev_thread = crate::arch::x86_64::thread::THREADS
+                        .get_mut(current_id)
+                        .unwrap();
+                    let _ = sched.enqueue(prev_thread);
+
+                    let next_thread = crate::arch::x86_64::thread::THREADS
+                        .get_mut(next_id)
+                        .unwrap();
+                    let _ = next_thread.make_running();
+
+                    sched.set_current_thread(Some(next_id));
+
+                    let prev_ctx_ptr =
+                        &mut prev_thread.arch.context as *mut crate::arch::x86_64::context::Context;
+
+                    let next_thread = crate::arch::x86_64::thread::THREADS
+                        .get_mut(next_id)
+                        .unwrap();
+                    let next_ctx_ptr =
+                        &next_thread.arch.context as *const crate::arch::x86_64::context::Context;
+                    let next_stack_top = next_thread.arch.stack.top().as_u64();
+                    let next_cr3 = next_thread.arch.cr3;
+
+                    crate::arch::x86_64::context::switch_thread(
+                        prev_ctx_ptr,
+                        next_ctx_ptr,
+                        next_stack_top,
+                        next_cr3,
+                    );
+                }
+            }
             frame.rax = 0;
         }
         _ => {

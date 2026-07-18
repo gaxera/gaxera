@@ -18,6 +18,11 @@ impl ObjectId {
     pub const fn generation(self) -> u32 {
         self.generation
     }
+
+    #[doc(hidden)]
+    pub const fn new_for_test(index: u32, generation: u32) -> Self {
+        Self { index, generation }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

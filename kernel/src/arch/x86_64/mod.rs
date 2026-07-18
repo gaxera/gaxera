@@ -1,6 +1,7 @@
 pub mod acpi;
 pub mod apic;
 pub mod boot;
+pub mod context;
 pub mod cpu;
 pub mod descriptors;
 pub mod diagnostics;
@@ -9,7 +10,10 @@ pub mod exceptions;
 pub mod paging;
 pub mod probe;
 pub mod qemu;
+pub mod stack;
 pub mod syscall;
 pub mod test;
+pub mod test_yield;
+pub mod thread;
 pub mod user;
 pub mod user_copy;

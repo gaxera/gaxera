@@ -394,6 +394,14 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         probe.execute();
     }
 
+    #[cfg(any(
+        feature = "test-cooperative-yield",
+        feature = "test-context-preservation"
+    ))]
+    {
+        arch::x86_64::test_yield::run_cooperative_yield_test(&mut page_tables, physical_frames);
+    }
+
     #[cfg(feature = "test-syscall-round-trip")]
     {
         println!("GAXERA: SYSCALL_ROUND_TRIP_OK");
@@ -429,7 +437,9 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         feature = "test-user-privilege",
         feature = "test-user-invalid-frame",
         feature = "test-syscall-round-trip",
-        feature = "test-user-copy-fault"
+        feature = "test-user-copy-fault",
+        feature = "test-cooperative-yield",
+        feature = "test-context-preservation"
     )))]
     {
         x86_64::instructions::interrupts::enable();

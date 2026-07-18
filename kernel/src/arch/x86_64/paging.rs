@@ -432,6 +432,30 @@ impl KernelPageTables {
         }
     }
 
+    /// Map a kernel stack page.
+    ///
+    /// # Safety
+    /// The caller must ensure that the virtual address is within the dedicated
+    /// kernel stack region and that the frame is allocated.
+    pub unsafe fn map_kernel_stack_page<A>(
+        &mut self,
+        virtual_address: u64,
+        frame: PhysFrame,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        unsafe {
+            self.map_page(
+                virtual_address,
+                frame,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                allocator,
+            )
+        }
+    }
+
     /// # Safety
     /// Gaxera's RAM-only HHDM must be active and must map all physical frames
     /// used as page tables by the supplied allocator. The caller must also

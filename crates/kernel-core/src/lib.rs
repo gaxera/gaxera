@@ -5,6 +5,8 @@ extern crate alloc;
 pub mod capability;
 pub mod object;
 pub mod resource;
+pub mod scheduler;
+pub mod thread;
 
 #[cfg(test)]
 mod tests {
@@ -284,5 +286,71 @@ mod tests {
                 );
             }
         }
+    }
+
+    use crate::object::ObjectId;
+    use crate::scheduler::{Scheduler, SchedulerError};
+    use crate::thread::{Thread, ThreadError, ThreadState};
+
+    fn test_object_id(_index: u32) -> ObjectId {
+        // Since ObjectId constructor is not public or easy to construct manually without Arena,
+        // we can construct it via unsafe if it were repr(C), or we can just mock it.
+        // Let's create an arena to get some object IDs for tests.
+        let mut arena = ObjectArena::try_new(10).unwrap();
+        let mut domain = domain(DOMAIN_A, 10, 10);
+        let factory = Factory::new(&domain, ObjectTypeSet::of(ObjectType::Thread));
+        arena
+            .create(&mut domain, factory, ObjectType::Thread)
+            .unwrap()
+    }
+
+    #[test]
+    fn thread_state_transitions() {
+        let id = test_object_id(1);
+        let mut thread = Thread::new(id, None, ());
+        assert_eq!(thread.state(), ThreadState::New);
+
+        // New -> Runnable
+        assert_eq!(thread.make_runnable(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Runnable);
+
+        // Runnable -> Running
+        assert_eq!(thread.make_running(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Running);
+
+        // Running -> Blocked
+        assert_eq!(thread.make_blocked(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Blocked);
+
+        // Blocked -> Runnable
+        assert_eq!(thread.make_runnable(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Runnable);
+
+        // Runnable -> Dying
+        assert_eq!(thread.make_dying(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Dying);
+
+        // Dying -> Dead
+        assert_eq!(thread.make_dead(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Dead);
+
+        // Invalid: Dead -> Runnable
+        assert_eq!(thread.make_runnable(), Err(ThreadError::InvalidTransition));
+    }
+
+    #[test]
+    fn scheduler_queue_logic() {
+        let mut sched = Scheduler::try_new(2).unwrap();
+        let mut t1 = Thread::new(test_object_id(1), None, ());
+        let mut t2 = Thread::new(test_object_id(2), None, ());
+        let mut t3 = Thread::new(test_object_id(3), None, ());
+
+        assert_eq!(sched.enqueue(&mut t1), Ok(()));
+        assert_eq!(sched.enqueue(&mut t2), Ok(()));
+        assert_eq!(sched.enqueue(&mut t3), Err(SchedulerError::QueueFull));
+
+        assert_eq!(sched.dequeue_next(), Some(t1.id()));
+        assert_eq!(sched.dequeue_next(), Some(t2.id()));
+        assert_eq!(sched.dequeue_next(), None);
     }
 }

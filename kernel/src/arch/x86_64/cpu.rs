@@ -28,6 +28,9 @@ pub struct CpuLocal {
     /// Represented as an atomic u64 (pointer or raw rip) for fast access.
     /// We use u64 instead of AtomicPtr to avoid Option boxing, 0 means no recovery active.
     pub user_copy_recovery_rip: AtomicU64,
+
+    /// The processor-local thread scheduler.
+    pub scheduler: core::cell::UnsafeCell<Option<kernel_core::scheduler::Scheduler>>,
 }
 
 impl CpuLocal {
@@ -36,6 +39,7 @@ impl CpuLocal {
             kernel_stack_top: 0,
             scratch_user_rsp: 0,
             user_copy_recovery_rip: AtomicU64::new(0),
+            scheduler: core::cell::UnsafeCell::new(None),
         }
     }
 
