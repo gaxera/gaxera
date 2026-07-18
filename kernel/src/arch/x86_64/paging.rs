@@ -214,6 +214,10 @@ impl KernelPageTables {
                 linker_symbol(&raw const __ist_stack_start),
                 linker_symbol(&raw const __ist_stack_end),
             ),
+            (
+                linker_symbol(&raw const __user_transition_stack_start),
+                linker_symbol(&raw const __user_transition_stack_end),
+            ),
         ] {
             map_kernel_section(
                 &mut mapper,
@@ -523,6 +527,8 @@ unsafe extern "C" {
     static __bootstrap_stack_end: u8;
     static __ist_stack_start: u8;
     static __ist_stack_end: u8;
+    static __user_transition_stack_start: u8;
+    static __user_transition_stack_end: u8;
 }
 
 fn linker_symbol(symbol: *const u8) -> u64 {

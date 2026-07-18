@@ -8,6 +8,7 @@ use x86_64::structures::tss::TaskStateSegment;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 const DOUBLE_FAULT_STACK_SIZE: usize = 32 * 1024;
+const USER_TRANSITION_STACK_SIZE: usize = 16 * 1024;
 
 #[repr(align(16))]
 struct Stack([u8; DOUBLE_FAULT_STACK_SIZE]);
@@ -50,7 +51,16 @@ static TABLES: StaticCell<DescriptorTables> = StaticCell::new(DescriptorTables::
 #[unsafe(link_section = ".ist_stack")]
 #[used]
 static DOUBLE_FAULT_STACK: StaticCell<Stack> = StaticCell::new(Stack([0; DOUBLE_FAULT_STACK_SIZE]));
+#[unsafe(link_section = ".user_transition_stack")]
+#[used]
+static USER_TRANSITION_STACK: StaticCell<TransitionStack> =
+    StaticCell::new(TransitionStack([0; USER_TRANSITION_STACK_SIZE]));
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
+static USER_SELECTORS_READY: AtomicBool = AtomicBool::new(false);
+
+#[repr(align(16))]
+#[allow(dead_code)] // Consumed by the staged M2A transition path.
+struct TransitionStack([u8; USER_TRANSITION_STACK_SIZE]);
 
 /// Install Gaxera-owned GDT and TSS state, including the double-fault IST stack.
 ///
@@ -74,6 +84,8 @@ pub unsafe fn init() {
 
     let code_selector = tables.gdt.append(Descriptor::kernel_code_segment());
     let data_selector = tables.gdt.append(Descriptor::kernel_data_segment());
+    let user_data_selector = tables.gdt.append(Descriptor::user_data_segment());
+    let user_code_selector = tables.gdt.append(Descriptor::user_code_segment());
     let tss_selector = tables
         .gdt
         // SAFETY: `tables.tss` has static storage inside `TABLES` and is not
@@ -81,6 +93,50 @@ pub unsafe fn init() {
         .append(unsafe { Descriptor::tss_segment_unchecked(&raw const tables.tss) });
 
     load_gdt_and_segments(tables, code_selector, data_selector, tss_selector);
+
+    USER_CODE_SELECTOR.store(user_code_selector.0, Ordering::Release);
+    USER_DATA_SELECTOR.store(user_data_selector.0, Ordering::Release);
+    USER_SELECTORS_READY.store(true, Ordering::Release);
+}
+
+static USER_CODE_SELECTOR: core::sync::atomic::AtomicU16 = core::sync::atomic::AtomicU16::new(0);
+static USER_DATA_SELECTOR: core::sync::atomic::AtomicU16 = core::sync::atomic::AtomicU16::new(0);
+
+/// Return the fixed GDT selectors used by M2A's internal ring-3 probe.
+#[allow(dead_code)] // Consumed by the staged M2A transition path.
+pub(crate) fn user_selectors() -> Option<crate::arch::x86_64::user::UserSelectors> {
+    if !USER_SELECTORS_READY.load(Ordering::Acquire) {
+        return None;
+    }
+    Some(crate::arch::x86_64::user::UserSelectors {
+        code: USER_CODE_SELECTOR.load(Ordering::Acquire) | 0b11,
+        data: USER_DATA_SELECTOR.load(Ordering::Acquire) | 0b11,
+    })
+}
+
+/// Install the one M2A transition stack as TSS.RSP0.
+///
+/// # Safety
+/// Descriptor initialization must have completed. Interrupts must be disabled
+/// and no ring-3 execution may be active while the TSS privilege stack is
+/// changed. M2A has one bootstrap processor and one static transition stack.
+#[allow(dead_code)] // Consumed by the staged M2A transition path.
+pub(crate) unsafe fn install_user_transition_stack() -> Option<u64> {
+    if !INITIALIZED.load(Ordering::Acquire) {
+        return None;
+    }
+    // SAFETY: the caller upholds the single-CPU, no-active-user-entry rule.
+    // The stack and TSS are static and their addresses cannot move.
+    let tables = unsafe { &mut *TABLES.get() };
+    let stack = unsafe { &mut *USER_TRANSITION_STACK.get() };
+    let top = VirtAddr::from_ptr(
+        stack
+            .0
+            .as_mut_ptr()
+            .wrapping_add(USER_TRANSITION_STACK_SIZE),
+    );
+    tables.tss.privilege_stack_table[0] = top;
+    Some(top.as_u64())
 }
 
 /// Return whether `stack_pointer` is within the double-fault IST allocation.
@@ -108,6 +164,16 @@ pub(crate) fn double_fault_stack_bounds() -> (u64, u64) {
     // create an alias to mutable descriptor state.
     let start = unsafe { (*DOUBLE_FAULT_STACK.get()).0.as_ptr() as u64 };
     let end = start + DOUBLE_FAULT_STACK_SIZE as u64;
+    (start, end)
+}
+
+/// Return M2A's transition stack bounds for exception-path validation.
+#[allow(dead_code)] // Consumed by the staged M2A transition path.
+pub(crate) fn user_transition_stack_bounds() -> (u64, u64) {
+    // SAFETY: the allocation is static. This returns addresses only and never
+    // exposes a mutable reference to the stack.
+    let start = unsafe { (*USER_TRANSITION_STACK.get()).0.as_ptr() as u64 };
+    let end = start + USER_TRANSITION_STACK_SIZE as u64;
     (start, end)
 }
 

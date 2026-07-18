@@ -8,3 +8,4 @@ pub mod exceptions;
 pub mod paging;
 pub mod qemu;
 pub mod test;
+pub mod user;

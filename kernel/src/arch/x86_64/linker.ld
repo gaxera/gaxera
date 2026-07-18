@@ -96,6 +96,16 @@ SECTIONS
         __ist_stack_end = .;
     } :data
 
+    . = ALIGN(4K);
+    __user_transition_stack_guard_start = .;
+    . += 4K;
+    __user_transition_stack_guard_end = .;
+    .user_transition_stack : {
+        __user_transition_stack_start = .;
+        KEEP(*(.user_transition_stack))
+        __user_transition_stack_end = .;
+    } :data
+
     __kernel_end = .;
 
     /* Discard compiler-generated stack unwinding metadata */
