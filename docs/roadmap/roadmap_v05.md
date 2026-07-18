@@ -540,7 +540,7 @@ no raw object pointer crosses an API boundary.
 **Objective:** establish V5-B/V5-C and prove a fixed ring-3 probe can enter and
 return from an isolated address space before a public syscall ABI exists.
 
-**Dependencies:** M1, ADRs 0010 and 0011.
+**Dependencies:** M1, ADRs 0010 and 0011 (accepted).
 
 **Scope:** user selectors, GDT/TSS/`RSP0` ownership, a per-thread kernel stack,
 fixed user page tables, a minimal static code-page probe, and an internal-only
