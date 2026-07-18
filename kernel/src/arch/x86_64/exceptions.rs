@@ -137,7 +137,7 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 
 #[cfg(not(feature = "test-double-fault"))]
 extern "x86-interrupt" fn page_fault_handler(
-    frame: InterruptStackFrame,
+    #[allow(unused_mut)] mut frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
     #[cfg(feature = "test-heap-guard")]
@@ -159,14 +159,27 @@ extern "x86-interrupt" fn page_fault_handler(
     }
 
     #[cfg(not(feature = "test-heap-guard"))]
-    println!(
-        "GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT ip={:#018x} cr2={:#018x} error={:?}",
-        frame.instruction_pointer.as_u64(),
-        Cr2::read_raw(),
-        error_code
-    );
-    #[cfg(not(feature = "test-heap-guard"))]
-    terminal_test_exit();
+    {
+        // Check if this fault occurred during a recoverable user copy operation
+        unsafe {
+            let cpu_local = crate::arch::x86_64::cpu::get_cpu_local();
+            if let Some(recovery) = cpu_local.take_recovery() {
+                // Redirect instruction pointer to recovery landing pad
+                frame.as_mut().update(|val| {
+                    val.instruction_pointer = x86_64::VirtAddr::new(recovery.fault_resume_rip);
+                });
+                return;
+            }
+        }
+
+        println!(
+            "GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT ip={:#018x} cr2={:#018x} error={:?}",
+            frame.instruction_pointer.as_u64(),
+            Cr2::read_raw(),
+            error_code
+        );
+        terminal_test_exit();
+    }
 }
 
 extern "x86-interrupt" fn double_fault_handler(frame: InterruptStackFrame, error_code: u64) -> ! {

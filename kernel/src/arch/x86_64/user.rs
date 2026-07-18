@@ -6,6 +6,8 @@
 use crate::memory::mapping::{USER_ADDRESS_MAX, USER_PROBE_CODE, USER_STACK_PAGE, USER_STACK_TOP};
 
 pub const USER_INITIAL_RFLAGS: u64 = 1 << 1;
+pub(crate) const USER_RETURN_VECTOR: u8 = 0x81;
+pub(crate) const PROBE_BYTES: [u8; 5] = [0xcc, 0xcd, USER_RETURN_VECTOR, 0x0f, 0x0b];
 const RFLAGS_FIXED_ONE: u64 = 1 << 1;
 const RFLAGS_FORBIDDEN: u64 = (3 << 12) | (1 << 14) | (1 << 17) | (1 << 18);
 

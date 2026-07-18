@@ -19,6 +19,8 @@ test-apic-timer = ["qemu-test"]
 test-user-transition = ["qemu-test"]
 test-user-privilege = ["qemu-test"]
 test-user-invalid-frame = ["qemu-test"]
+test-syscall-round-trip = ["qemu-test"]
+test-user-copy-fault = ["qemu-test"]
 
 [dependencies]
 limine = "=0.6.5"

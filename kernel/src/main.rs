@@ -102,8 +102,10 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     // before this Rust code executes. Descriptor setup remains single-core and
     // interrupts are disabled by the Limine entry contract.
     unsafe {
+        arch::x86_64::cpu::init_bsp_cpu_local();
         arch::x86_64::descriptors::init();
         arch::x86_64::exceptions::init();
+        arch::x86_64::syscall::enable_syscalls();
     }
     println!("GAXERA: BOOT_STACK_READY");
     println!("GAXERA: DESCRIPTORS_AND_IDT_READY");
@@ -392,11 +394,34 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         probe.execute();
     }
 
+    #[cfg(feature = "test-syscall-round-trip")]
+    {
+        println!("GAXERA: SYSCALL_ROUND_TRIP_OK");
+        #[cfg(feature = "qemu-test")]
+        unsafe { arch::x86_64::qemu::exit_success() };
+    }
+
+    #[cfg(feature = "test-user-copy-fault")]
+    {
+        let mut buf = [0u8; 16];
+        let res = arch::x86_64::user_copy::copy_from_user(&mut buf, 0x0, 16);
+        if res == Err(arch::x86_64::user_copy::UserCopyError::Fault) || res == Err(arch::x86_64::user_copy::UserCopyError::InvalidPointer) {
+            println!("GAXERA: USER_COPY_FAULT_RECOVERED_OK");
+            #[cfg(feature = "qemu-test")]
+            unsafe { arch::x86_64::qemu::exit_success() };
+        }
+        println!("GAXERA ERROR: USER_COPY_FAULT_NOT_RECOVERED");
+        #[cfg(feature = "qemu-test")]
+        unsafe { arch::x86_64::qemu::exit_failure() };
+    }
+
     #[cfg(not(any(
         feature = "test-apic-timer",
         feature = "test-user-transition",
         feature = "test-user-privilege",
-        feature = "test-user-invalid-frame"
+        feature = "test-user-invalid-frame",
+        feature = "test-syscall-round-trip",
+        feature = "test-user-copy-fault"
     )))]
     {
         x86_64::instructions::interrupts::enable();

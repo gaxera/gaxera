@@ -33,6 +33,8 @@ enum KernelProfile {
     UserTransition,
     UserPrivilege,
     UserInvalidFrame,
+    SyscallRoundTrip,
+    UserCopyFault,
     Exception(ExceptionTest),
 }
 
@@ -48,6 +50,8 @@ impl KernelProfile {
             Self::UserTransition => Some("test-user-transition"),
             Self::UserPrivilege => Some("test-user-privilege"),
             Self::UserInvalidFrame => Some("test-user-invalid-frame"),
+            Self::SyscallRoundTrip => Some("test-syscall-round-trip"),
+            Self::UserCopyFault => Some("test-user-copy-fault"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -75,6 +79,8 @@ impl KernelProfile {
             Self::UserTransition => &["GAXERA: USER_TRANSITION_OK"],
             Self::UserPrivilege => &["GAXERA: USER_PRIVILEGE_DENIED_OK"],
             Self::UserInvalidFrame => &["GAXERA: USER_INVALID_FRAME_REJECTED"],
+            Self::SyscallRoundTrip => &["GAXERA: SYSCALL_ROUND_TRIP_OK"],
+            Self::UserCopyFault => &["GAXERA: USER_COPY_FAULT_RECOVERED_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -107,6 +113,8 @@ impl KernelProfile {
             Self::UserTransition => "user-transition",
             Self::UserPrivilege => "user-privilege",
             Self::UserInvalidFrame => "user-invalid-frame",
+            Self::SyscallRoundTrip => "syscall-round-trip",
+            Self::UserCopyFault => "user-copy-fault",
             Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -183,6 +191,8 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "user-transition" => Ok(KernelProfile::UserTransition),
         "user-privilege" => Ok(KernelProfile::UserPrivilege),
         "user-invalid-frame" => Ok(KernelProfile::UserInvalidFrame),
+        "syscall-round-trip" => Ok(KernelProfile::SyscallRoundTrip),
+        "user-copy-fault" => Ok(KernelProfile::UserCopyFault),
         "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -772,6 +782,8 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::UserTransition,
         KernelProfile::UserPrivilege,
         KernelProfile::UserInvalidFrame,
+        KernelProfile::SyscallRoundTrip,
+        KernelProfile::UserCopyFault,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -783,6 +795,11 @@ fn handle_test() -> Result<(), &'static str> {
     }
 
     println!("Executing UEFI guest-confirmed integration checks...");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserTransition)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserPrivilege)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserInvalidFrame)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::SyscallRoundTrip)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserCopyFault)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;
