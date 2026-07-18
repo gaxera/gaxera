@@ -398,21 +398,29 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     {
         println!("GAXERA: SYSCALL_ROUND_TRIP_OK");
         #[cfg(feature = "qemu-test")]
-        unsafe { arch::x86_64::qemu::exit_success() };
+        unsafe {
+            arch::x86_64::qemu::exit_success()
+        };
     }
 
     #[cfg(feature = "test-user-copy-fault")]
     {
         let mut buf = [0u8; 16];
         let res = arch::x86_64::user_copy::copy_from_user(&mut buf, 0x0, 16);
-        if res == Err(arch::x86_64::user_copy::UserCopyError::Fault) || res == Err(arch::x86_64::user_copy::UserCopyError::InvalidPointer) {
+        if res == Err(arch::x86_64::user_copy::UserCopyError::Fault)
+            || res == Err(arch::x86_64::user_copy::UserCopyError::InvalidPointer)
+        {
             println!("GAXERA: USER_COPY_FAULT_RECOVERED_OK");
             #[cfg(feature = "qemu-test")]
-            unsafe { arch::x86_64::qemu::exit_success() };
+            unsafe {
+                arch::x86_64::qemu::exit_success()
+            };
         }
         println!("GAXERA ERROR: USER_COPY_FAULT_NOT_RECOVERED");
         #[cfg(feature = "qemu-test")]
-        unsafe { arch::x86_64::qemu::exit_failure() };
+        unsafe {
+            arch::x86_64::qemu::exit_failure()
+        };
     }
 
     #[cfg(not(any(

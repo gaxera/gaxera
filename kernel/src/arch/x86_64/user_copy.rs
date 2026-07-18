@@ -1,5 +1,5 @@
+use crate::arch::x86_64::cpu::{UserCopyRecovery, get_cpu_local};
 use core::arch::asm;
-use crate::arch::x86_64::cpu::{get_cpu_local, UserCopyRecovery};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserCopyError {
@@ -13,7 +13,9 @@ pub fn copy_from_user(dst: &mut [u8], src_user_ptr: u64, len: usize) -> Result<(
         return Ok(());
     }
 
-    let end_ptr = src_user_ptr.checked_add(len as u64).ok_or(UserCopyError::InvalidPointer)?;
+    let end_ptr = src_user_ptr
+        .checked_add(len as u64)
+        .ok_or(UserCopyError::InvalidPointer)?;
     if src_user_ptr >= 0x0000_8000_0000_0000 || end_ptr > 0x0000_8000_0000_0000 {
         return Err(UserCopyError::InvalidPointer);
     }
@@ -63,7 +65,9 @@ pub fn copy_to_user(dst_user_ptr: u64, src: &[u8], len: usize) -> Result<(), Use
         return Ok(());
     }
 
-    let end_ptr = dst_user_ptr.checked_add(len as u64).ok_or(UserCopyError::InvalidPointer)?;
+    let end_ptr = dst_user_ptr
+        .checked_add(len as u64)
+        .ok_or(UserCopyError::InvalidPointer)?;
     if dst_user_ptr >= 0x0000_8000_0000_0000 || end_ptr > 0x0000_8000_0000_0000 {
         return Err(UserCopyError::InvalidPointer);
     }

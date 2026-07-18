@@ -3,7 +3,7 @@ use x86_64::VirtAddr;
 use x86_64::registers::model_specific::KernelGsBase;
 
 /// Minimal architecture-private recovery context for user-copy operations.
-/// 
+///
 /// This encapsulates the active state for a recoverable user-access block.
 /// For M2B, this holds just the instruction pointer to jump to upon fault,
 /// but it is explicitly designed as a distinct abstraction to allow adding
@@ -20,7 +20,7 @@ pub struct CpuLocal {
     /// Pointer to the top of the current thread's kernel stack.
     /// Loaded into RSP during `syscall` entry.
     pub kernel_stack_top: u64,
-    
+
     /// Stashed user RSP during syscall entry (since syscall does not push RSP).
     pub scratch_user_rsp: u64,
 
@@ -41,7 +41,8 @@ impl CpuLocal {
 
     /// Sets the active recovery context.
     pub fn set_recovery(&self, recovery: UserCopyRecovery) {
-        self.user_copy_recovery_rip.store(recovery.fault_resume_rip, Ordering::Release);
+        self.user_copy_recovery_rip
+            .store(recovery.fault_resume_rip, Ordering::Release);
     }
 
     /// Clears the active recovery context.
@@ -53,7 +54,9 @@ impl CpuLocal {
     pub fn take_recovery(&self) -> Option<UserCopyRecovery> {
         let rip = self.user_copy_recovery_rip.swap(0, Ordering::Acquire);
         if rip != 0 {
-            Some(UserCopyRecovery { fault_resume_rip: rip })
+            Some(UserCopyRecovery {
+                fault_resume_rip: rip,
+            })
         } else {
             None
         }
@@ -79,7 +82,7 @@ pub unsafe fn init_bsp_cpu_local() {
 }
 
 /// Returns a reference to the active `CpuLocal` for the current processor.
-/// 
+///
 /// # Safety
 /// Must only be called when `GSBase` contains the `CpuLocal` pointer (i.e. in ring 0).
 pub unsafe fn get_cpu_local() -> &'static CpuLocal {
@@ -90,7 +93,7 @@ pub unsafe fn get_cpu_local() -> &'static CpuLocal {
 }
 
 /// Sets the top of the kernel stack for the active processor.
-/// 
+///
 /// # Safety
 /// Must only be called in ring 0.
 pub unsafe fn set_kernel_stack_top(top: u64) {

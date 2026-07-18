@@ -32,14 +32,22 @@ pub unsafe fn init() {
     // static allocation remains at a fixed address for the kernel lifetime.
     let idt = unsafe { &mut *IDT.get() };
     idt.divide_error.set_handler_fn(divide_error_handler);
-    
-    #[cfg(any(feature = "test-user-transition", feature = "test-user-privilege", feature = "test-user-invalid-frame"))]
+
+    #[cfg(any(
+        feature = "test-user-transition",
+        feature = "test-user-privilege",
+        feature = "test-user-invalid-frame"
+    ))]
     {
         idt.breakpoint
             .set_handler_fn(breakpoint_handler)
             .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
     }
-    #[cfg(not(any(feature = "test-user-transition", feature = "test-user-privilege", feature = "test-user-invalid-frame")))]
+    #[cfg(not(any(
+        feature = "test-user-transition",
+        feature = "test-user-privilege",
+        feature = "test-user-invalid-frame"
+    )))]
     {
         idt.breakpoint.set_handler_fn(breakpoint_handler);
     }

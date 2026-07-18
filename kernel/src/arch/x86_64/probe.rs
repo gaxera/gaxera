@@ -58,12 +58,13 @@ impl M2AProbe {
     /// Enter the M2A probe.
     pub fn execute(&self) -> ! {
         let frame = UserTransitionFrame::fixed_probe(self.selectors);
-        
+
         #[cfg(feature = "test-user-invalid-frame")]
         {
             let mut invalid = frame;
             invalid.code_selector = 0x08;
-            if let Err(UserTransitionError::InvalidCodeSelector) = invalid.validate(self.selectors) {
+            if let Err(UserTransitionError::InvalidCodeSelector) = invalid.validate(self.selectors)
+            {
                 println!("GAXERA: USER_INVALID_FRAME_REJECTED");
                 unsafe { crate::arch::x86_64::qemu::exit_success() };
             }
@@ -80,8 +81,10 @@ impl M2AProbe {
             unsafe {
                 Self::stash_kernel_cr3();
                 install_user_transition_stack();
-                self.page_tables.activate().expect("Failed to activate user CR3");
-                
+                self.page_tables
+                    .activate()
+                    .expect("Failed to activate user CR3");
+
                 // iretq sequence
                 asm!(
                     "mov ds, {data:x}",

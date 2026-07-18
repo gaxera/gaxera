@@ -109,7 +109,9 @@ pub unsafe fn enable_syscalls() {
 
         // 4. Program FMASK MSR (mask RFLAGS bits during syscall)
         // Mask IF (Interrupt Flag), TF (Trap Flag), DF (Direction Flag), etc.
-        let mask = RFlags::INTERRUPT_FLAG.bits() | RFlags::TRAP_FLAG.bits() | RFlags::DIRECTION_FLAG.bits();
+        let mask = RFlags::INTERRUPT_FLAG.bits()
+            | RFlags::TRAP_FLAG.bits()
+            | RFlags::DIRECTION_FLAG.bits();
         Msr::new(MSR_FMASK).write(mask);
     }
 }
