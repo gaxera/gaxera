@@ -85,6 +85,7 @@ cargo xtask run -- --headless --test syscall-round-trip
 cargo xtask run -- --headless --test user-copy-fault
 cargo xtask run -- --headless --test cooperative-yield
 cargo xtask run -- --headless --test context-preservation
+cargo xtask run -- --headless --test ipc-test
 ```
 
 ### D. Running Verification Tests
@@ -133,9 +134,10 @@ This command runs:
     callee-saved registers (`rbx`, `r12`–`r15`, `rbp`) before a cooperative
     yield, context-switches to a second thread and back, then mathematically
     verifies every sentinel survived the round-trip.
-14. UEFI breakpoint, divide error, invalid opcode, general protection fault,
+14. An IPC proof that instantiates the core capability system, verifies synchronous endpoint rendezvous, executes an exact atomic capability-transfer rollback, and checks notification signaling.
+15. UEFI breakpoint, divide error, invalid opcode, general protection fault,
     page fault, and double-fault probes.
-15. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+16. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
     never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real

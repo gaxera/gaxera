@@ -56,18 +56,18 @@ leak simply don't exist, because they were never built.
 **v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
 `f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
-**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m3-complete`).
+**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m4-complete`).
 
 * **M0 (Setup & Baseline Preservation):** Completed.
 * **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
 * **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
 * **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
-* [x] **M3: Cooperative Execution & Thread Hardening (v0.5.1)**
-  * Thread objects, generational identity, and explicit kernel stack ownership.
-  * Syscall ABI hardening: `sysretq` frame validation to prevent `#GP(0)` injection.
-  * Recoverable user copies: slice bounds validation and narrowed page-fault recovery.
-  * Cooperative scheduler: duplicate-entry rejection and safe error handling.
-  * Verification: sentinel-verified context preservation and dedicated privilege tests.
+* **M3 (Cooperative Execution & Thread Hardening):** Completed and verified under UEFI QEMU (thread generation, explicit trap frames, cooperative yield mechanics).
+* [x] **M4: First-Class Core IPC**
+  * `InlineMessage`, `TransferDescriptor`, and `ReplyToken` primitives.
+  * Synchronous `Endpoint` rendezvous with atomic capability transfer rollback.
+  * Asynchronous `Notification` signals with bitwise coalescing.
+  * Verified via headless integration test running in QEMU `ipc-test` profile.
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

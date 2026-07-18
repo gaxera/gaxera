@@ -133,5 +133,7 @@ pub fn run_ipc_test() -> ! {
     unsafe {
         crate::arch::x86_64::qemu::exit_success();
     }
+
+    #[cfg(not(feature = "qemu-test"))]
     crate::serial::idle()
 }

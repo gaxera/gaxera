@@ -69,6 +69,7 @@ impl M2AProbe {
     /// to ring-0 transitions. M3 uses this path so the syscall frame belongs
     /// to the running thread rather than the M2A static test stack.
     pub fn execute_on_kernel_stack(&self, kernel_stack_top: u64) -> ! {
+        let _ = kernel_stack_top;
         let frame = UserTransitionFrame::fixed_probe(self.selectors);
 
         #[cfg(feature = "test-user-invalid-frame")]

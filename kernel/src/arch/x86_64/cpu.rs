@@ -47,6 +47,7 @@ impl CpuLocal {
     ///
     /// The caller must keep `recovery` live until it clears the record or a
     /// matching page fault has resumed execution at its landing pad.
+    #[allow(clippy::result_unit_err)]
     pub fn install_recovery(&self, recovery: &UserCopyRecovery) -> Result<(), ()> {
         self.user_copy_recovery
             .compare_exchange(

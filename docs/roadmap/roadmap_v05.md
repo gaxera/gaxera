@@ -177,7 +177,8 @@ Every milestone has a host-model proof and a QEMU proof before it grows a
 dependent subsystem. Every new ABI number, object state transition, mapping
 permission, and serial success marker belongs in a versioned specification.
 Evidence remains append-only and names the exact commit it proves. ADRs record
-decisions, not implementation diaries.
+decisions, not implementation diaries. A formal requirements-trace document
+must exist to track what v0.5 implements, represents in API shape, and explicitly defers.
 
 ### 4.4 Scope discipline
 
@@ -191,20 +192,19 @@ designed.
 
 | Gate | Decision to resolve | Required ADR | Proceed only when |
 | --- | --- | --- | --- |
-| V5-A | Kernel object identity, capability slots, derivation, transfer, and revocation semantics | ADR 0007 | Object destruction, stale handles, bounded lineage, transfer, and revocation have executable state-machine tests. |
-| V5-B | User ABI, syscall entry/exit, trap-frame layout, per-CPU kernel-stack ownership | ADR 0010 | The ABI has a version, register convention, error encoding, canonical-address policy, and hostile-return audit. |
-| V5-C | User address-space layout, mapping API, guard pages, executable permissions, and ASLR staging | ADR 0011 | Kernel/user mappings, W^X, guard pages, and page-table ownership are specified. |
-| V5-D | Thread state machine, context-switch ownership, timer calibration, and single-CPU scheduler contract | ADR 0012 | Blocking/wakeup/preemption races are modeled; no scheduler policy is selected without a usable monotonic tick source. |
-| V5-E | Endpoint ABI, notification semantics, capability transfer, cancellation, and deadlock policy | ADR 0013 | Call/reply state diagrams and capability-transfer rollback are independently tested. |
-| V5-F | Boot payload, static init image, init authority, service discovery, crash/restart policy, and user-artifact pipeline | ADR 0014 | The kernel loads only init; all remaining payload is opaque read-only memory and init's authority is minimal and reviewable. |
-| V5-G | Deterministic developer-console output and scripted-session boundary | ADR 0015 | No user service receives ambient I/O privilege; interactive input is explicitly deferred. |
-| V5-H | Ramfs service protocol and deterministic scripted shell boundary | ADR 0016 | Paths, file data, shell syntax, and service semantics remain user-space and are not smuggled into the kernel. |
-| V5-I | User-memory access, fault-resume state, and page-fault recovery policy | ADR 0009 | Every faultable user copy has a bounded recovery path; unrelated kernel faults remain terminal. |
-| V5-J | Resource-domain ownership, Factory authority, fallible object allocation, and post-bootstrap OOM policy | ADR 0008 | Every user-triggerable creation path returns a defined exhaustion error and is charged to a bounded domain. |
+| V5-A | Kernel object storage, identity, delegation, and hybrid revocation model | ADR 0007 | Derivation tree, generational slots, and physically lazy revocation with in-flight operation rules are defined. |
+| V5-B | User ABI, syscall entry/exit, trap-frame layout, TSS `RSP0` ownership | ADR 0008 | The ABI has a version, register convention, error encoding, and hostile-return audit. |
+| V5-C | User address-space layout, mapping API, initial ELF loading, and ASLR staging | ADR 0009 | Kernel/user mappings, executable permissions, and init-image trust boundary are specified. |
+| V5-D | Thread state machine, context-switch ownership, FPU/xstate policy, and timer calibration | ADR 0010 | Trap frames (transient) and contexts (persistent) are distinct; blocking races are modeled. |
+| V5-E | Endpoint ABI, notification semantics, capability transfer, and deadlock policy | ADR 0011 | Call/reply state diagrams and capability-transfer rollback are independently tested. |
+| V5-F | Boot-payload handoff, init authority manifest, service discovery, crash/restart policy | ADR 0012 | Init authority is strictly bounded; kernel loads only init, and init owns archive interpretation. |
+| V5-G | Developer console and input authority: temporary bridge versus port-I/O/IRQ capability model | ADR 0013 | No user service receives ambient I/O privilege; the transitional path has a removal trigger. |
+| V5-H | Ramfs service protocol and minimal shell boundary | ADR 0014 | Shell is deterministic and scripted. Paths and file data remain user-space and are not smuggled into the kernel. |
+| V5-I | User Image and Artifact Pipeline | ADR 0017 | User target, static ELF format, relocation, payload manifest, and host-side composition are defined. |
+| V5-J | User-memory access and page-fault recovery | ADR 0015 | A narrowly scoped, non-nestable fault-recovery state exists for explicitly marked user-copy routines. |
+| V5-K | Kernel object allocation and resource domains | ADR 0016 | `ResourceDomain` is introduced as the 11th object; all user-triggerable allocations are fallible. |
 
-No ADR 0017 is scheduled. User-artifact and static-init image policy is a
-bounded part of ADR 0014; separating it now would not reduce an independent
-ambiguity. Additional ADRs are expected only if implementation shows SMP,
+Additional ADRs are expected only if implementation shows SMP,
 IOAPIC, general MMIO, KASLR, or allocator concurrency is a real dependency.
 
 ## 6. Major Subsystem Decisions
@@ -227,7 +227,7 @@ a `ResourceDomain` allocation authority and is fallible. A Factory is a right
 on a `ResourceDomain` capability, not a separate kernel object. User ABI sees
 opaque `Handle` values and operation-specific syscall arguments.
 
-**Internal responsibilities:** maintain typed object lifecycle state, slot
+**Internal responsibilities:** maintain typed object lifecycle state, fallible resource allocation, slot
 generation and rights validation, derivation links, and all-or-nothing
 capability-space mutation. Object storage never decides service policy.
 
@@ -275,7 +275,7 @@ cases use an audited `iretq` path.
 **Public API shape:** numbered, versioned syscalls for handle operations,
 thread control, mapping, endpoint call/reply, notification wait/signal, and
 debug-console use if Gate V5-G accepts it. Syscalls return typed ABI status
-codes, never kernel pointers.
+codes, never kernel pointers. Initial IPC uses register-only payloads until ADR 0015.
 
 **Internal responsibilities:** own entry assembly, trap-frame normalization,
 dispatch, return-path selection, and all user-register validation. The ABI
@@ -313,12 +313,13 @@ and architecture-specific page-table application in `paging.rs`.
 
 **Public API shape:** create address space, create/frame-backed memory object,
 map/unmap a page-aligned range with read/write/execute rights, and copy to/from
-user through checked slices. No public arbitrary-frame mapper exists.
+user through checked slices (only after ADR 0015 fault-recovery is proven). No public arbitrary-frame mapper exists.
 
 **Internal responsibilities:** own mapping metadata, page-table application,
 TLB invalidation, memory-object lifetime, and, after ADR 0009, checked
 fault-recoverable user-copy mechanics.
-The physical allocator remains the sole source of page-table frames.
+The physical allocator remains the sole source of page-table frames. `PhysicalMemory` and `UntypedMemory`
+capabilities do not exist in v0.5; use anonymous `MemoryObject`s charged to a `ResourceDomain`.
 
 **Invariants:** one physical frame is not mapped writable into unrelated
 domains without an explicit shared-memory capability; W^X applies to user
@@ -340,8 +341,9 @@ than widening the initial mapping API.
 
 ### 6.4 Threads, scheduler, and time
 
-**Recommended direction:** a single-BSP scheduler with explicit thread states
-(`New`, `Runnable`, `Running`, `Blocked`, `Dying`, `Dead`), intrusive run and
+**Recommended direction:** A shared trap/context contract across ADR 0008/0010 before M2 code.
+Explicit thread states (`New`, `Runnable`, `Running`, `Blocked`, `Dying`, `Dead`), intrusive run and
+wait queues. FPU/SIMD xstate must be explicitly forbidden or saved/restored.
 wait queues owned by the scheduler, cooperative switching first, then APIC
 timer preemption after Gate V5-D accepts calibration. v0.5 uses FIFO within a
 small number of fixed priority bands or a simple fair queue selected by the
@@ -455,7 +457,8 @@ accounting requirements are separately accepted.
 
 ### 6.7 Developer console, ramfs, and shell
 
-**Recommended direction:** ramfs and shell are user-space processes. The
+**Recommended direction:** A deterministic scripted shell (not mandatory interactive input).
+ramfs and shell are user-space processes. The
 kernel exports neither path parsing nor file semantics. v0.5 requires a
 deterministic scripted developer session with capability-gated serial output;
 it does not require interactive input. A real input path remains a later
@@ -491,24 +494,22 @@ user-space work and must not enlarge the output-only console bridge.
 
 ## 7. Milestone Program
 
-### M0: Program setup and baseline preservation
+### M0: Pre-Code Architecture Authorization
 
-**Objective:** establish v0.5 documentation, ABI versioning rules, workspace
-split plan, and test harness conventions without changing v0.1 behavior.
+**Objective:** Authorize required contracts before the first implementation commit.
 
 **Dependencies:** v0.1 tags and exact evidence.
 
-**Scope:** Foundation reference, v0.5 requirements trace, accepted ADRs 0007,
-0008, and 0009, ABI-versioning rules, workspace split, test-scenario naming,
-and an explicit v0.1 regression job. Pin the Limine crate exactly and pin CI
-actions by commit digest.
+**Scope:**
+1. A v0.5 requirements-trace document.
+2. ADR 0007: Capability identity, delegation, and revocation.
+3. ADR 0016: `ResourceDomain`, Factory authority, fallible kernel allocation, and amended object model.
+4. ADR 0015: User-memory access and page-fault recovery.
+5. Revised M2 split and M7 scripted-shell criterion.
+6. V5-I (ADR 0017) scheduling for payload pipeline.
+7. Test-scenario and CI-scaling design.
 
-**Verification/evidence:** `v0.1.0` matrix remains runnable; document links
-are checked; immutable evidence is not rewritten.
-
-**Exit:** the architecture freeze commit exists; V5-A and V5-J are accepted;
-the v0.1 matrix remains runnable; no code milestone begins without every gate
-it explicitly depends on.
+**Exit:** All documents are merged and accepted.
 
 ### M1: Object lifecycle and capability-space model
 

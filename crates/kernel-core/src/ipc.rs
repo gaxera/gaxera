@@ -50,16 +50,14 @@ enum EndpointState {
 }
 
 pub struct Endpoint {
-    id: ObjectId,
     state: EndpointState,
     reply_sequence: u64,
     closed: bool,
 }
 
 impl Endpoint {
-    pub fn new(id: ObjectId) -> Self {
+    pub fn new(_id: ObjectId) -> Self {
         Self {
-            id,
             state: EndpointState::Idle,
             reply_sequence: 0,
             closed: false,
@@ -135,17 +133,11 @@ impl Endpoint {
                 caller,
                 token,
                 message,
-            } => {
-                if let Some(msg) = message.take() {
-                    Some(ReceivedCall {
-                        caller: *caller,
-                        message: msg,
-                        reply_token: *token,
-                    })
-                } else {
-                    None
-                }
-            }
+            } => message.take().map(|msg| ReceivedCall {
+                caller: *caller,
+                message: msg,
+                reply_token: *token,
+            }),
             _ => None,
         }
     }
@@ -264,7 +256,6 @@ impl PreparedMessageTransfers {
 mod tests {
     use super::*;
     use crate::resource::{ResourceDomainId, ResourceLimits};
-    use gaxera_abi::ipc::IpcStatus;
     use gaxera_abi::{ObjectType, ObjectTypeSet, Rights};
 
     fn test_id(index: u32) -> ObjectId {
