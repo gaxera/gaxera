@@ -13,6 +13,7 @@ pub mod qemu;
 pub mod stack;
 pub mod syscall;
 pub mod test;
+pub mod test_ipc;
 pub mod test_yield;
 pub mod thread;
 pub mod user;

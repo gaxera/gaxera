@@ -37,6 +37,7 @@ enum KernelProfile {
     UserCopyFault,
     CooperativeYield,
     ContextPreservation,
+    IpcTest,
     Exception(ExceptionTest),
 }
 
@@ -56,6 +57,7 @@ impl KernelProfile {
             Self::UserCopyFault => Some("test-user-copy-fault"),
             Self::CooperativeYield => Some("test-cooperative-yield"),
             Self::ContextPreservation => Some("test-context-preservation"),
+            Self::IpcTest => Some("test-ipc"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -87,6 +89,7 @@ impl KernelProfile {
             Self::UserCopyFault => &["GAXERA: USER_COPY_FAULT_RECOVERED_OK"],
             Self::CooperativeYield => &["GAXERA: COOPERATIVE_YIELD_OK"],
             Self::ContextPreservation => &["GAXERA: CONTEXT_PRESERVATION_OK"],
+            Self::IpcTest => &["GAXERA: IPC_TEST_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -123,7 +126,8 @@ impl KernelProfile {
             Self::UserCopyFault => "user-copy-fault",
             Self::CooperativeYield => "cooperative-yield",
             Self::ContextPreservation => "context-preservation",
-            Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
+            Self::IpcTest => "ipc-test",
+            Self::Exception(ExceptionTest::Breakpoint) => "exception-breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
             Self::Exception(ExceptionTest::GeneralProtection) => "general-protection",
@@ -203,7 +207,8 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "user-copy-fault" => Ok(KernelProfile::UserCopyFault),
         "cooperative-yield" => Ok(KernelProfile::CooperativeYield),
         "context-preservation" => Ok(KernelProfile::ContextPreservation),
-        "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
+        "ipc-test" => Ok(KernelProfile::IpcTest),
+        "exception-breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
         "general-protection" => Ok(KernelProfile::Exception(ExceptionTest::GeneralProtection)),
@@ -796,6 +801,7 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::UserCopyFault,
         KernelProfile::CooperativeYield,
         KernelProfile::ContextPreservation,
+        KernelProfile::IpcTest,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -818,6 +824,7 @@ fn handle_test() -> Result<(), &'static str> {
         Some(Firmware::Uefi),
         KernelProfile::ContextPreservation,
     )?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;

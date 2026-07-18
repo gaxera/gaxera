@@ -110,6 +110,50 @@ impl Scheduler {
     pub fn contains(&self, id: ObjectId) -> bool {
         self.run_queue.contains(&id)
     }
+
+    /// Blocks the current thread and unsets it from the scheduler.
+    pub fn block_current<T>(
+        &mut self,
+        thread: &mut crate::thread::Thread<T>,
+    ) -> Result<ObjectId, SchedulerError> {
+        let id = thread.id();
+        if self.current_thread != Some(id) {
+            return Err(SchedulerError::NoCurrentThread);
+        }
+        thread
+            .make_blocked()
+            .map_err(|_| SchedulerError::InvalidState)?;
+        self.current_thread = None;
+        Ok(id)
+    }
+
+    /// Applies a wake effect to the target thread.
+    /// Ignores duplicate wakes on runnable/running threads and dead threads.
+    pub fn apply_wake<T>(
+        &mut self,
+        thread: &mut crate::thread::Thread<T>,
+    ) -> Result<(), SchedulerError> {
+        if self.run_queue.len() >= self.capacity {
+            return Err(SchedulerError::QueueFull);
+        }
+
+        match thread.state() {
+            crate::thread::ThreadState::Blocked => {
+                thread
+                    .make_runnable()
+                    .map_err(|_| SchedulerError::InvalidState)?;
+                self.run_queue.push_back(thread.id());
+                Ok(())
+            }
+            crate::thread::ThreadState::Dead => {
+                Ok(()) // dead thread ignores
+            }
+            crate::thread::ThreadState::Running | crate::thread::ThreadState::Runnable => {
+                Ok(()) // duplicate wake ignores
+            }
+            _ => Err(SchedulerError::InvalidState),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -150,6 +194,72 @@ mod tests {
         let _ = t1.make_runnable();
         let _ = t1.make_running();
         assert_eq!(sched.enqueue(&mut t1), Err(SchedulerError::QueueFull));
+    }
+
+    #[test]
+    fn scheduler_queue_logic() {
+        let mut sched = Scheduler::try_new(2).unwrap();
+        let mut t1 = Thread::new(test_id(1), None, MockArch);
+        let mut t2 = Thread::new(test_id(2), None, MockArch);
+        let mut t3 = Thread::new(test_id(3), None, MockArch);
+
+        assert_eq!(sched.enqueue(&mut t1), Ok(()));
+        assert_eq!(sched.enqueue(&mut t2), Ok(()));
+        assert_eq!(sched.enqueue(&mut t3), Err(SchedulerError::QueueFull));
+
+        assert_eq!(sched.dequeue_next(), Some(t1.id()));
+        assert_eq!(sched.dequeue_next(), Some(t2.id()));
+        assert_eq!(sched.dequeue_next(), None);
+    }
+
+    #[test]
+    fn scheduler_block_current() {
+        let mut sched = Scheduler::try_new(2).unwrap();
+        let mut t1 = Thread::new(test_id(1), None, MockArch);
+
+        // Setup current thread manually for the test
+        assert_eq!(sched.enqueue(&mut t1), Ok(()));
+        assert_eq!(sched.dequeue_next(), Some(t1.id()));
+        assert_eq!(t1.make_running(), Ok(()));
+        sched.set_current_thread(Some(t1.id()));
+
+        // Block it
+        assert_eq!(sched.block_current(&mut t1), Ok(t1.id()));
+        assert_eq!(sched.current_thread(), None);
+        assert_eq!(t1.state(), crate::thread::ThreadState::Blocked);
+
+        // Attempting to block it again fails because it's no longer current
+        assert_eq!(
+            sched.block_current(&mut t1),
+            Err(SchedulerError::NoCurrentThread)
+        );
+    }
+
+    #[test]
+    fn scheduler_apply_wake() {
+        let mut sched = Scheduler::try_new(2).unwrap();
+        let mut t1 = Thread::new(test_id(1), None, MockArch);
+
+        // Force to Blocked state for testing
+        let _ = t1.make_runnable();
+        let _ = t1.make_running();
+        assert_eq!(t1.make_blocked(), Ok(()));
+
+        // Normal wake
+        assert_eq!(sched.apply_wake(&mut t1), Ok(()));
+        assert_eq!(t1.state(), crate::thread::ThreadState::Runnable);
+        assert_eq!(sched.contains(t1.id()), true);
+
+        // Duplicate wake is ignored
+        assert_eq!(sched.apply_wake(&mut t1), Ok(()));
+
+        // Dead thread wake is ignored
+        let mut t2 = Thread::new(test_id(2), None, MockArch);
+        let _ = t2.make_runnable();
+        let _ = t2.make_dying();
+        let _ = t2.make_dead();
+        assert_eq!(sched.apply_wake(&mut t2), Ok(()));
+        assert_eq!(sched.contains(t2.id()), false);
     }
 
     #[test]

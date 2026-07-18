@@ -44,6 +44,9 @@ for later work.
   architecture layer.
 - ADR 0011 requires a distinct user CR3 root with supervisor-only shared
   kernel mappings and a fixed, W^X M2A probe layout.
+- ADR 0013 defines the contracts for synchronous endpoint IPC, notifications,
+  and strict all-or-nothing capability transfer semantics, isolating them from
+  scheduling policy.
 - ADR 0014 remains the single future decision point for static init artifacts,
   payload manifest, and boot-payload loading. ADR 0017 is not scheduled.
 

@@ -3,6 +3,8 @@
 extern crate alloc;
 
 pub mod capability;
+pub mod ipc;
+pub mod notification;
 pub mod object;
 pub mod resource;
 pub mod scheduler;

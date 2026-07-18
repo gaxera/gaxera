@@ -423,6 +423,11 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         };
     }
 
+    #[cfg(feature = "test-ipc")]
+    {
+        arch::x86_64::test_ipc::run_ipc_test();
+    }
+
     #[cfg(not(any(
         feature = "test-apic-timer",
         feature = "test-user-transition",
@@ -431,7 +436,8 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         feature = "test-syscall-round-trip",
         feature = "test-user-copy-fault",
         feature = "test-cooperative-yield",
-        feature = "test-context-preservation"
+        feature = "test-context-preservation",
+        feature = "test-ipc"
     )))]
     {
         x86_64::instructions::interrupts::enable();

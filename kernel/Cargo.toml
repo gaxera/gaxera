@@ -23,6 +23,7 @@ test-syscall-round-trip = ["qemu-test"]
 test-user-copy-fault = ["qemu-test"]
 test-cooperative-yield = ["qemu-test"]
 test-context-preservation = ["qemu-test"]
+test-ipc = ["qemu-test"]
 
 [dependencies]
 limine = "=0.6.5"

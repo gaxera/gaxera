@@ -41,6 +41,10 @@ impl Factory {
         }
     }
 
+    pub const fn new_for_test(domain: &ResourceDomain, allowed_types: ObjectTypeSet) -> Self {
+        Self::new(domain, allowed_types)
+    }
+
     pub const fn domain(&self) -> ResourceDomainId {
         self.domain
     }

@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod ipc;
+
 use core::ops::{BitAnd, BitOr, BitOrAssign};
 
 /// Opaque capability handle carried across the future user/kernel ABI.

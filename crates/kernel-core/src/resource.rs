@@ -5,8 +5,13 @@ pub struct ResourceDomainId(u32);
 impl ResourceDomainId {
     // Domain creation enters the kernel with the later bootstrap-object path.
     // M1 exercises the constructor only in this crate's host model.
+    // M1 exercises the constructor only in this crate's host model.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) const fn new(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    pub const fn new_for_test(raw: u32) -> Self {
         Self(raw)
     }
 }
@@ -52,6 +57,10 @@ impl ResourceDomain {
                 capabilities: 0,
             },
         }
+    }
+
+    pub const fn new_for_test(id: ResourceDomainId, limits: ResourceLimits) -> Self {
+        Self::new(id, limits)
     }
 
     pub(crate) const fn id(&self) -> ResourceDomainId {
