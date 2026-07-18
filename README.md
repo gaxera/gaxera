@@ -56,25 +56,15 @@ leak simply don't exist, because they were never built.
 **v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
 `f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
-* **Phase 1 (Toolchain & Scaffolding):** Completed.
-* **Phase 2 (Boot Contract & Observability):** Completed.
-* **Phase 3 (Robust Exceptions):** Completed and verified under UEFI QEMU.
-* **Phase 4 (Physical & Virtual Memory Foundations):** Completed and verified
-  under UEFI QEMU. Gaxera owns its CR3 and four-level page tables, captures an
-  immutable protocol-neutral boot context, allocates physical frames, and
-  proves a guarded kernel heap.
-* **Phase 5 (ACPI Discovery & APIC Timer Proof):** Completed and verified under
-  UEFI QEMU at commit `18e4c98`. Research Gate 5A is closed by ADR 0005; the
-  ACPI/MADT discovery path, temporary firmware mapping, xAPIC setup, and
-  deterministic timer proof are covered by the exact-commit matrix.
-* **Phase 6 (Stabilization & v0.1 Release):** Completed and verified under
-  UEFI QEMU (tagged `phase-6-complete` & `v0.1.0`). ADR 0006 adds bounded,
-  allocation-free serial panic telemetry with CPU state and a frame-pointer
-  backtrace. The full deterministic UEFI matrix verifies every required panic
-  diagnostic marker.
+**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m2-complete`).
 
-Detailed phase milestones and progress maps are tracked in the [v0.1 Roadmap](docs/roadmap/roadmap_v01.md).
-The exact released architecture and proposed post-v0.1 program are documented
+* **M0 (Setup & Baseline Preservation):** Completed.
+* **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
+* **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
+* **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
+
+Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
+The exact released architecture and proposed program are documented
 in the [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md) and
 [v0.5 Engineering Program](docs/roadmap/roadmap_v05.md).
 
