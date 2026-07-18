@@ -44,8 +44,12 @@ impl KernelStack {
             .ok_or(StackError::AddressSpaceExhausted)?;
 
         // Virtual base of the mapped stack (skipping the guard page)
-        let stack_base = virt_base + (GUARD_SIZE_PAGES * PAGE_SIZE);
-        let stack_top = stack_base + (STACK_SIZE_PAGES * PAGE_SIZE);
+        let stack_base = virt_base
+            .checked_add(GUARD_SIZE_PAGES * PAGE_SIZE)
+            .ok_or(StackError::AddressSpaceExhausted)?;
+        let stack_top = stack_base
+            .checked_add(STACK_SIZE_PAGES * PAGE_SIZE)
+            .ok_or(StackError::AddressSpaceExhausted)?;
 
         let mut frames = Vec::new();
         frames
@@ -80,12 +84,15 @@ impl KernelStack {
     }
 }
 
-// In a real system, Drop would unmap and free the frames.
-// For M3, thread destruction is deferred, but we implement Drop for completeness.
+// M3.1 limitation: Drop does not reclaim kernel stack memory.
+//
+// The kernel currently lacks an unmap API in the Mapper, and the physical frame
+// allocator does not support returning individual frames. This is acceptable
+// for BSP-only cooperative scheduling where thread count is bounded and stacks
+// are allocated once. M4/M5 must address stack reclamation when thread
+// destruction and SMP are introduced.
 impl Drop for KernelStack {
     fn drop(&mut self) {
-        // We do not unmap in Drop yet because we lack an unmap API in Mapper.
-        // We will free the physical frames back to the allocator when we have a
-        // global getter or a safe way to drop threads.
+        // Intentionally empty: see M3.1 limitation above.
     }
 }

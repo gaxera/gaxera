@@ -386,7 +386,8 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     #[cfg(any(
         feature = "test-user-transition",
         feature = "test-user-privilege",
-        feature = "test-user-invalid-frame"
+        feature = "test-user-invalid-frame",
+        feature = "test-syscall-round-trip"
     ))]
     {
         let probe = arch::x86_64::probe::M2AProbe::build(&page_tables, physical_frames)
@@ -400,15 +401,6 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     ))]
     {
         arch::x86_64::test_yield::run_cooperative_yield_test(&mut page_tables, physical_frames);
-    }
-
-    #[cfg(feature = "test-syscall-round-trip")]
-    {
-        println!("GAXERA: SYSCALL_ROUND_TRIP_OK");
-        #[cfg(feature = "qemu-test")]
-        unsafe {
-            arch::x86_64::qemu::exit_success()
-        };
     }
 
     #[cfg(feature = "test-user-copy-fault")]

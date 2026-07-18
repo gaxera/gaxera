@@ -33,21 +33,13 @@ pub unsafe fn init() {
     let idt = unsafe { &mut *IDT.get() };
     idt.divide_error.set_handler_fn(divide_error_handler);
 
-    #[cfg(any(
-        feature = "test-user-transition",
-        feature = "test-user-privilege",
-        feature = "test-user-invalid-frame"
-    ))]
+    #[cfg(any(feature = "test-user-transition", feature = "test-user-invalid-frame"))]
     {
         idt.breakpoint
             .set_handler_fn(breakpoint_handler)
             .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
     }
-    #[cfg(not(any(
-        feature = "test-user-transition",
-        feature = "test-user-privilege",
-        feature = "test-user-invalid-frame"
-    )))]
+    #[cfg(not(any(feature = "test-user-transition", feature = "test-user-invalid-frame")))]
     {
         idt.breakpoint.set_handler_fn(breakpoint_handler);
     }
@@ -62,6 +54,7 @@ pub unsafe fn init() {
 
     #[cfg(any(
         feature = "test-user-transition",
+        feature = "test-syscall-round-trip",
         feature = "test-cooperative-yield",
         feature = "test-context-preservation"
     ))]
@@ -172,15 +165,33 @@ extern "x86-interrupt" fn page_fault_handler(
 
     #[cfg(not(feature = "test-heap-guard"))]
     {
-        // Check if this fault occurred during a recoverable user copy operation
+        // Check if this fault occurred during a recoverable user copy operation.
+        // ADR 0009 requires only a matching kernel-mode copy fault to be
+        // redirected. User-mode faults or kernel-address faults with an active
+        // recovery record indicate a different (possibly serious) fault and
+        // must remain terminal.
         unsafe {
             let cpu_local = crate::arch::x86_64::cpu::get_cpu_local();
             if let Some(recovery) = cpu_local.take_recovery() {
-                // Redirect instruction pointer to recovery landing pad
-                frame.as_mut().update(|val| {
-                    val.instruction_pointer = x86_64::VirtAddr::new(recovery.fault_resume_rip);
-                });
-                return;
+                let is_kernel_fault = !error_code.contains(PageFaultErrorCode::USER_MODE);
+                let fault_addr = Cr2::read_raw();
+                let is_user_addr = fault_addr < 0x0000_8000_0000_0000;
+
+                let faulting_ip = frame.instruction_pointer.as_u64();
+                let is_copy_instruction = faulting_ip == recovery.faulting_rip;
+                let is_copy_range =
+                    fault_addr >= recovery.user_start && fault_addr < recovery.user_end;
+
+                if is_kernel_fault && is_user_addr && is_copy_instruction && is_copy_range {
+                    // Redirect instruction pointer to recovery landing pad
+                    frame.as_mut().update(|val| {
+                        val.instruction_pointer = x86_64::VirtAddr::new(recovery.fault_resume_rip);
+                    });
+                    return;
+                }
+                // Fall through to terminal fault — this is NOT a matching
+                // user-copy fault. The recovery record was already consumed
+                // by take_recovery() so it cannot apply to a future fault.
             }
         }
 
@@ -266,6 +277,7 @@ fn terminal_test_failure() -> ! {
 
 #[cfg(any(
     feature = "test-user-transition",
+    feature = "test-syscall-round-trip",
     feature = "test-cooperative-yield",
     feature = "test-context-preservation"
 ))]
@@ -292,13 +304,20 @@ extern "x86-interrupt" fn user_return_handler(frame: InterruptStackFrame) {
         frame.instruction_pointer.as_u64()
     );
 
-    #[cfg(any(
-        feature = "test-cooperative-yield",
-        feature = "test-context-preservation"
-    ))]
+    #[cfg(feature = "test-syscall-round-trip")]
+    println!("GAXERA: SYSCALL_ROUND_TRIP_OK");
+
+    #[cfg(feature = "test-cooperative-yield")]
+    println!("GAXERA: COOPERATIVE_YIELD_OK");
+
+    #[cfg(feature = "test-context-preservation")]
     {
-        println!("GAXERA: COOPERATIVE_YIELD_OK");
-        println!("GAXERA: CONTEXT_PRESERVATION_OK");
+        if crate::arch::x86_64::context::context_sentinel_passed() {
+            println!("GAXERA: CONTEXT_PRESERVATION_OK");
+        } else {
+            println!("GAXERA ERROR: CONTEXT_PRESERVATION_FAILED");
+            terminal_test_failure();
+        }
     }
     terminal_test_exit();
 }

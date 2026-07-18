@@ -73,10 +73,18 @@ cargo xtask run -- --headless
 
 # Run one guest-confirmed deterministic proof:
 cargo xtask run -- --headless --test panic
+cargo xtask run -- --headless --test boot
 cargo xtask run -- --headless --test double-fault
 cargo xtask run -- --headless --test memory
 cargo xtask run -- --headless --test heap-guard
 cargo xtask run -- --headless --test apic-timer
+cargo xtask run -- --headless --test user-transition
+cargo xtask run -- --headless --test user-privilege
+cargo xtask run -- --headless --test user-invalid-frame
+cargo xtask run -- --headless --test syscall-round-trip
+cargo xtask run -- --headless --test user-copy-fault
+cargo xtask run -- --headless --test cooperative-yield
+cargo xtask run -- --headless --test context-preservation
 ```
 
 ### D. Running Verification Tests
@@ -105,17 +113,37 @@ This command runs:
 6. A Phase 5 ACPI/MADT and Local APIC proof that confirms the temporary
    firmware window is released and receives exactly three periodic timer
    deliveries with EOI handling.
-7. UEFI breakpoint, divide error, invalid opcode, general protection fault,
-   page fault, and double-fault probes.
-8. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
-   never remains an injected-fault image.
+7. A user-transition proof (M2A) that enters ring 3 through an `iretq`
+   trampoline and returns through the `int 0x81` test gate, verifying the
+   kernel transition stack bounds.
+8. A user-privilege proof that executes `cli` (a privileged instruction) from
+   CPL 3 and verifies the processor raises `#GP` as expected.
+9. A user-invalid-frame proof that validates a malformed `UserTransitionFrame`
+   (kernel code selector) is rejected before any transition occurs.
+10. A syscall-round-trip proof that executes `syscall` from ring 3 with
+    `rax = 0` (NoOp), returns through `sysretq`, and terminates through the
+    test return gate.
+11. A user-copy-fault proof that invokes `copy_from_user` with a null pointer,
+    confirms the page-fault recovery path routes through the `CpuLocal`
+    recovery record, and returns `Err(Fault)` without crashing.
+12. A cooperative-yield proof that spawns two user-mode threads, executes
+    `Syscall::Yield` from thread 0, context-switches to thread 1, and
+    confirms successful return through the test gate.
+13. A context-preservation proof that loads sentinel values into all six
+    callee-saved registers (`rbx`, `r12`–`r15`, `rbp`) before a cooperative
+    yield, context-switches to a second thread and back, then mathematically
+    verifies every sentinel survived the round-trip.
+14. UEFI breakpoint, divide error, invalid opcode, general protection fault,
+    page fault, and double-fault probes.
+15. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+    never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real
 page fault, and relies on processor escalation during exception delivery. The
 handler reports success only after it confirms that RSP lies inside the static
 IST stack; a stack mismatch exits QEMU with a failure status.
 
-Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, and exception matrix is part of CI rather than local-only checks.
+Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, user-transition, syscall, scheduling, and exception matrix is part of CI rather than local-only checks.
 
 The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
 After it copies and publishes `&'static BootContext`, later setup consumes only

@@ -33,10 +33,19 @@ pub struct ArchThread {
 
 pub type Thread = kernel_core::thread::Thread<ArchThread>;
 
+/// A slot in the thread table, carrying the generation at insertion time.
+///
+/// Lookups compare the requested `ObjectId.generation()` against the stored
+/// generation to prevent stale IDs from aliasing a reused slot.
+struct ThreadSlot {
+    generation: u32,
+    thread: Option<Thread>,
+}
+
 // SAFETY: M3 is strictly single BSP. We do not have SMP yet.
 // We will transition this to a thread-safe slab allocator in M5 (SMP).
 pub struct ThreadTable {
-    threads: UnsafeCell<Vec<Option<Thread>>>,
+    slots: UnsafeCell<Vec<ThreadSlot>>,
 }
 
 unsafe impl Sync for ThreadTable {}
@@ -44,7 +53,7 @@ unsafe impl Sync for ThreadTable {}
 impl ThreadTable {
     pub const fn new() -> Self {
         Self {
-            threads: UnsafeCell::new(Vec::new()),
+            slots: UnsafeCell::new(Vec::new()),
         }
     }
 }
@@ -59,30 +68,64 @@ impl ThreadTable {
     /// # Safety
     /// Must only be called on the BSP.
     pub unsafe fn insert(&self, thread: Thread) {
-        let threads = unsafe { &mut *self.threads.get() };
+        let slots = unsafe { &mut *self.slots.get() };
         let index = thread.id().index() as usize;
-        if threads.len() <= index {
-            threads.resize_with(index + 1, || None);
+        let generation = thread.id().generation();
+        if slots.len() <= index {
+            slots.resize_with(index + 1, || ThreadSlot {
+                generation: 0,
+                thread: None,
+            });
         }
-        threads[index] = Some(thread);
+        slots[index] = ThreadSlot {
+            generation,
+            thread: Some(thread),
+        };
     }
 
     /// # Safety
     /// Must only be called on the BSP.
-    #[allow(clippy::mut_from_ref)]
-    pub unsafe fn get_mut(&self, id: ObjectId) -> Option<&mut Thread> {
-        let threads = unsafe { &mut *self.threads.get() };
-        let index = id.index() as usize;
-        threads.get_mut(index).and_then(|opt| opt.as_mut())
+    pub unsafe fn with_two_mut<R>(
+        &self,
+        first: ObjectId,
+        second: ObjectId,
+        operation: impl FnOnce(&mut Thread, &mut Thread) -> R,
+    ) -> Option<R> {
+        if first == second {
+            return None;
+        }
+
+        let slots = unsafe { &mut *self.slots.get() };
+        let first_index = first.index() as usize;
+        let second_index = second.index() as usize;
+
+        let (first_slot, second_slot) = if first_index < second_index {
+            let (left, right) = slots.split_at_mut(second_index);
+            (left.get_mut(first_index)?, right.first_mut()?)
+        } else {
+            let (left, right) = slots.split_at_mut(first_index);
+            (right.first_mut()?, left.get_mut(second_index)?)
+        };
+
+        if first_slot.generation != first.generation()
+            || second_slot.generation != second.generation()
+        {
+            return None;
+        }
+
+        Some(operation(
+            first_slot.thread.as_mut()?,
+            second_slot.thread.as_mut()?,
+        ))
     }
 
     /// # Safety
     /// Must only be called on the BSP.
     pub unsafe fn remove(&self, id: ObjectId) -> Option<Thread> {
-        let threads = unsafe { &mut *self.threads.get() };
+        let slots = unsafe { &mut *self.slots.get() };
         let index = id.index() as usize;
-        if index < threads.len() {
-            threads[index].take()
+        if index < slots.len() && slots[index].generation == id.generation() {
+            slots[index].thread.take()
         } else {
             None
         }

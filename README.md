@@ -62,7 +62,12 @@ leak simply don't exist, because they were never built.
 * **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
 * **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
 * **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
-* **M3 (Threads & Cooperative Execution):** Completed and verified under UEFI QEMU. Gaxera now possesses a proven System V ABI-compliant context switch, a generic capability-integrated thread ownership model, and deterministic state-enforced scheduling.
+* [x] **M3: Cooperative Execution & Thread Hardening (v0.5.1)**
+  * Thread objects, generational identity, and explicit kernel stack ownership.
+  * Syscall ABI hardening: `sysretq` frame validation to prevent `#GP(0)` injection.
+  * Recoverable user copies: slice bounds validation and narrowed page-fault recovery.
+  * Cooperative scheduler: duplicate-entry rejection and safe error handling.
+  * Verification: sentinel-verified context preservation and dedicated privilege tests.
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

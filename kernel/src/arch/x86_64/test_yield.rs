@@ -9,6 +9,7 @@ pub fn run_cooperative_yield_test(
 ) -> ! {
     let stack0 = KernelStack::allocate(page_tables, physical_frames).unwrap();
     let stack1 = KernelStack::allocate(page_tables, physical_frames).unwrap();
+    let thread0_stack_top = stack0.top().as_u64();
 
     let probe = crate::arch::x86_64::probe::M2AProbe::build(page_tables, physical_frames).unwrap();
     let selectors = crate::arch::x86_64::descriptors::user_selectors().unwrap();
@@ -24,6 +25,9 @@ pub fn run_cooperative_yield_test(
     let mut thread1 = Thread::new(ObjectId::new_for_test(2, 1), None, arch1);
 
     let cpu_local = unsafe { crate::arch::x86_64::cpu::get_cpu_local() };
+    unsafe {
+        *cpu_local.scheduler.get() = Some(kernel_core::scheduler::Scheduler::try_new(256).unwrap());
+    }
     let scheduler = unsafe { &mut *cpu_local.scheduler.get() };
     if let Some(sched) = scheduler.as_mut() {
         sched.enqueue(&mut thread1).unwrap();
@@ -34,11 +38,11 @@ pub fn run_cooperative_yield_test(
     }
 
     unsafe {
-        crate::arch::x86_64::cpu::set_kernel_stack_top(thread0.arch.stack.top().as_u64());
+        crate::arch::x86_64::cpu::set_kernel_stack_top(thread0_stack_top);
         crate::arch::x86_64::thread::THREADS.insert(thread0);
         crate::arch::x86_64::thread::THREADS.insert(thread1);
     }
 
     println!("GAXERA: TEST_PATTERN_DRAWN"); // Satisfy the runner's sequence
-    probe.execute();
+    probe.execute_on_kernel_stack(thread0_stack_top);
 }

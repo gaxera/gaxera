@@ -3,6 +3,9 @@ use core::arch::global_asm;
 use x86_64::registers::model_specific::{Efer, EferFlags, Msr};
 use x86_64::registers::rflags::RFlags;
 
+use crate::memory::mapping::USER_ADDRESS_MAX;
+use crate::println;
+
 const MSR_STAR: u32 = 0xC0000081;
 const MSR_LSTAR: u32 = 0xC0000082;
 const MSR_FMASK: u32 = 0xC0000084;
@@ -94,6 +97,46 @@ unsafe extern "C" {
     fn syscall_entry();
 }
 
+/// Validates the sysret return frame for safety.
+///
+/// `sysretq` loads RIP from RCX and RFLAGS from R11. If RCX contains a
+/// non-canonical address, the processor raises `#GP(0)` while still at CPL 0
+/// (the well-known sysret vulnerability). This function ensures the return
+/// frame cannot trigger that condition or restore forbidden RFLAGS bits.
+fn validate_sysret_frame(frame: &SyscallFrame) -> bool {
+    // RCX (return RIP) and RSP must be non-zero lower-half canonical user
+    // addresses. `sysretq` consumes RCX while still at CPL 0; RSP is restored
+    // before the privilege transition in the entry assembly, so both fields
+    // are part of the kernel return boundary.
+    if !is_user_return_address(frame.rcx) || !is_user_return_address(frame.rsp) {
+        return false;
+    }
+
+    // R11 (return RFLAGS):
+    // - Bit 1 (fixed-one) must be set
+    // - IF (bit 9) should be set for user mode
+    // - IOPL (bits 12:13) must be zero
+    // - NT (bit 14) must be clear
+    // - VM (bit 17) must be clear
+    // - AC (bit 18) must be clear
+    let r11 = frame.r11;
+    let rflags_fixed_one: u64 = 1 << 1;
+    let rflags_forbidden: u64 = (3 << 12) | (1 << 14) | (1 << 17) | (1 << 18);
+
+    if r11 & rflags_fixed_one == 0 {
+        return false;
+    }
+    if r11 & rflags_forbidden != 0 {
+        return false;
+    }
+
+    true
+}
+
+const fn is_user_return_address(address: u64) -> bool {
+    address != 0 && address <= USER_ADDRESS_MAX
+}
+
 /// Enables x86_64 `syscall`/`sysret` hardware support.
 ///
 /// # Safety
@@ -125,57 +168,116 @@ pub unsafe fn enable_syscalls() {
 #[unsafe(no_mangle)]
 extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
     // For M2B, handle simple syscalls like NoOp and Yield, or return error for unknown
-    match frame.rax {
+    frame.rax = match frame.rax {
         0 => {
             // NoOp / Test Syscall
-            frame.rax = 0; // Success
+            0
         }
-        1 => {
-            // Yield
-            let cpu_local = unsafe { cpu::get_cpu_local() };
-            let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+        1 => match yield_current_thread() {
+            Ok(()) => 0,
+            Err(()) => u64::MAX,
+        },
+        _ => u64::MAX, // Error / unknown syscall
+    };
 
-            if let Some(sched) = scheduler_cell.as_mut()
-                && let Some(current_id) = sched.current_thread()
-                && let Some(next_id) = sched.dequeue_next()
-            {
-                unsafe {
-                    // Fetch threads
-                    let prev_thread = crate::arch::x86_64::thread::THREADS
-                        .get_mut(current_id)
-                        .unwrap();
-                    let _ = sched.enqueue(prev_thread);
+    // Validate the return frame before sysretq executes.
+    // A non-canonical RCX would cause #GP(0) at CPL 0 (sysret vulnerability).
+    // Forbidden RFLAGS bits in R11 could grant user code IOPL or other
+    // dangerous state.
+    if !validate_sysret_frame(frame) {
+        println!(
+            "GAXERA ERROR: SYSRET_VALIDATION_FAILED rcx={:#018x} r11={:#018x}",
+            frame.rcx, frame.r11
+        );
+        #[cfg(feature = "qemu-test")]
+        unsafe {
+            crate::arch::x86_64::qemu::exit_failure();
+        }
+        #[cfg(not(feature = "qemu-test"))]
+        crate::serial::halt();
+    }
+}
 
-                    let next_thread = crate::arch::x86_64::thread::THREADS
-                        .get_mut(next_id)
-                        .unwrap();
-                    let _ = next_thread.make_running();
+fn yield_current_thread() -> Result<(), ()> {
+    let cpu_local = unsafe { cpu::get_cpu_local() };
+    let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+    let scheduler = scheduler_cell.as_mut().ok_or(())?;
+    let current_id = scheduler.current_thread().ok_or(())?;
+    let next_id = match scheduler.next_runnable() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
 
-                    sched.set_current_thread(Some(next_id));
-
-                    let prev_ctx_ptr =
-                        &mut prev_thread.arch.context as *mut crate::arch::x86_64::context::Context;
-
-                    let next_thread = crate::arch::x86_64::thread::THREADS
-                        .get_mut(next_id)
-                        .unwrap();
-                    let next_ctx_ptr =
-                        &next_thread.arch.context as *const crate::arch::x86_64::context::Context;
-                    let next_stack_top = next_thread.arch.stack.top().as_u64();
-                    let next_cr3 = next_thread.arch.cr3;
-
-                    crate::arch::x86_64::context::switch_thread(
-                        prev_ctx_ptr,
-                        next_ctx_ptr,
-                        next_stack_top,
-                        next_cr3,
-                    );
+    unsafe {
+        crate::arch::x86_64::thread::THREADS
+            .with_two_mut(current_id, next_id, |current, next| {
+                if current.state() != kernel_core::thread::ThreadState::Running
+                    || next.state() != kernel_core::thread::ThreadState::Runnable
+                {
+                    return Err(());
                 }
-            }
-            frame.rax = 0;
+
+                scheduler
+                    .commit_yield(current_id, next_id)
+                    .map_err(|_| ())?;
+                current.make_runnable().map_err(|_| ())?;
+                next.make_running().map_err(|_| ())?;
+
+                let current_context = &mut current.arch.context as *mut _;
+                let next_context = &next.arch.context as *const _;
+                let next_stack_top = next.arch.stack.top().as_u64();
+                let next_cr3 = next.arch.cr3;
+
+                // SAFETY: queue and thread state are committed as one BSP-only
+                // transition; both contexts and the incoming stack are live.
+                crate::arch::x86_64::context::switch_thread(
+                    current_context,
+                    next_context,
+                    next_stack_top,
+                    next_cr3,
+                );
+                Ok(())
+            })
+            .ok_or(())?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_frame() -> SyscallFrame {
+        SyscallFrame {
+            r15: 0,
+            r14: 0,
+            r13: 0,
+            r12: 0,
+            r11: 1 << 1,
+            r10: 0,
+            r9: 0,
+            r8: 0,
+            rbp: 0,
+            rdi: 0,
+            rsi: 0,
+            rdx: 0,
+            rcx: 0x1000,
+            rax: 0,
+            rsp: 0x2000,
         }
-        _ => {
-            frame.rax = u64::MAX; // Error / Unknown Syscall
-        }
+    }
+
+    #[test]
+    fn sysret_validation_rejects_hostile_return_addresses_and_flags() {
+        let frame = valid_frame();
+        assert!(validate_sysret_frame(&frame));
+        assert!(!validate_sysret_frame(&SyscallFrame { rcx: 0, ..frame }));
+        assert!(!validate_sysret_frame(&SyscallFrame {
+            rsp: USER_ADDRESS_MAX + 1,
+            ..frame
+        }));
+        assert!(!validate_sysret_frame(&SyscallFrame {
+            r11: (1 << 1) | (3 << 12),
+            ..frame
+        }));
     }
 }

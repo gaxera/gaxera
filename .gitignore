@@ -15,4 +15,5 @@ sysroot/
 *.swp
 logs/
 .internal/ 
+.agents/
 

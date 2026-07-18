@@ -292,16 +292,8 @@ mod tests {
     use crate::scheduler::{Scheduler, SchedulerError};
     use crate::thread::{Thread, ThreadError, ThreadState};
 
-    fn test_object_id(_index: u32) -> ObjectId {
-        // Since ObjectId constructor is not public or easy to construct manually without Arena,
-        // we can construct it via unsafe if it were repr(C), or we can just mock it.
-        // Let's create an arena to get some object IDs for tests.
-        let mut arena = ObjectArena::try_new(10).unwrap();
-        let mut domain = domain(DOMAIN_A, 10, 10);
-        let factory = Factory::new(&domain, ObjectTypeSet::of(ObjectType::Thread));
-        arena
-            .create(&mut domain, factory, ObjectType::Thread)
-            .unwrap()
+    fn test_object_id(index: u32) -> ObjectId {
+        ObjectId::new_for_test(index, 1)
     }
 
     #[test]

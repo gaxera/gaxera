@@ -7,7 +7,9 @@
 use core::arch::asm;
 
 #[allow(unused_imports)]
-use crate::arch::x86_64::descriptors::{install_user_transition_stack, user_selectors};
+use crate::arch::x86_64::descriptors::{
+    install_user_transition_stack, set_tss_rsp0, user_selectors,
+};
 use crate::arch::x86_64::paging::{KernelPageTables, PagingError, UserPageTables};
 #[allow(unused_imports)]
 use crate::arch::x86_64::user::{UserSelectors, UserTransitionError, UserTransitionFrame};
@@ -57,6 +59,16 @@ impl M2AProbe {
 
     /// Enter the M2A probe.
     pub fn execute(&self) -> ! {
+        // SAFETY: the M2A bootstrap path is single-threaded with interrupts
+        // disabled, and descriptor initialization has already completed.
+        let top = unsafe { install_user_transition_stack() }.expect("Descriptors not initialized");
+        self.execute_on_kernel_stack(top)
+    }
+
+    /// Enter the probe using a caller-owned kernel stack for all later ring-3
+    /// to ring-0 transitions. M3 uses this path so the syscall frame belongs
+    /// to the running thread rather than the M2A static test stack.
+    pub fn execute_on_kernel_stack(&self, kernel_stack_top: u64) -> ! {
         let frame = UserTransitionFrame::fixed_probe(self.selectors);
 
         #[cfg(feature = "test-user-invalid-frame")]
@@ -80,7 +92,8 @@ impl M2AProbe {
             // SAFETY: This is the single-threaded bootstrap path.
             unsafe {
                 Self::stash_kernel_cr3();
-                install_user_transition_stack();
+                set_tss_rsp0(kernel_stack_top);
+                crate::arch::x86_64::cpu::set_kernel_stack_top(kernel_stack_top);
                 self.page_tables
                     .activate()
                     .expect("Failed to activate user CR3");

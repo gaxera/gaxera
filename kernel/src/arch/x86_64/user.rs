@@ -7,12 +7,44 @@ use crate::memory::mapping::{USER_ADDRESS_MAX, USER_PROBE_CODE, USER_STACK_PAGE,
 
 pub const USER_INITIAL_RFLAGS: u64 = 1 << 1;
 pub(crate) const USER_RETURN_VECTOR: u8 = 0x81;
+
+// Default probe: int3, int 0x81 (return gate), ud2
 #[cfg(not(any(
     feature = "test-cooperative-yield",
-    feature = "test-context-preservation"
+    feature = "test-context-preservation",
+    feature = "test-syscall-round-trip",
+    feature = "test-user-privilege"
 )))]
 pub(crate) const PROBE_BYTES: [u8; 5] = [0xcc, 0xcd, USER_RETURN_VECTOR, 0x0f, 0x0b];
 
+// Syscall round-trip probe: mov eax, 0 (NoOp) / syscall / int 0x81 / ud2
+#[cfg(feature = "test-syscall-round-trip")]
+pub(crate) const PROBE_BYTES: [u8; 12] = [
+    0xb8,
+    0x00,
+    0x00,
+    0x00,
+    0x00, // mov eax, 0 (NoOp)
+    0x0f,
+    0x05, // syscall
+    0x90, // nop
+    0xcd,
+    USER_RETURN_VECTOR, // int 0x81
+    0x0f,
+    0x0b, // ud2
+];
+
+// Privilege denial probe: cli (privileged, triggers #GP from CPL 3)
+#[cfg(feature = "test-user-privilege")]
+pub(crate) const PROBE_BYTES: [u8; 5] = [
+    0xfa, // cli — privileged instruction, triggers #GP at CPL 3
+    0xcd,
+    USER_RETURN_VECTOR, // int 0x81 (should never reach here)
+    0x0f,
+    0x0b, // ud2
+];
+
+// Cooperative yield probe: mov eax, 1 (yield) / syscall / nop / int 0x81 / ud2
 #[cfg(any(
     feature = "test-cooperative-yield",
     feature = "test-context-preservation"

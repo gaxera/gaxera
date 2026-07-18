@@ -1,17 +1,19 @@
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicPtr, Ordering};
 use x86_64::VirtAddr;
 use x86_64::registers::model_specific::KernelGsBase;
 
 /// Minimal architecture-private recovery context for user-copy operations.
 ///
 /// This encapsulates the active state for a recoverable user-access block.
-/// For M2B, this holds just the instruction pointer to jump to upon fault,
-/// but it is explicitly designed as a distinct abstraction to allow adding
-/// fault metadata (e.g., faulting address, error flags) later without
-/// rewriting the architectural contract.
+/// The record describes one exact faultable `rep movsb` instruction and the
+/// user range it is permitted to access. It lives on the current kernel stack
+/// for the duration of the copy; the CPU-local field stores only its pointer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UserCopyRecovery {
     pub fault_resume_rip: u64,
+    pub faulting_rip: u64,
+    pub user_start: u64,
+    pub user_end: u64,
 }
 
 /// CPU-local data structure accessed via `gs` register after `swapgs` (or normally in ring 0).
@@ -24,10 +26,8 @@ pub struct CpuLocal {
     /// Stashed user RSP during syscall entry (since syscall does not push RSP).
     pub scratch_user_rsp: u64,
 
-    /// Recovery context for active recoverable user-access operations.
-    /// Represented as an atomic u64 (pointer or raw rip) for fast access.
-    /// We use u64 instead of AtomicPtr to avoid Option boxing, 0 means no recovery active.
-    pub user_copy_recovery_rip: AtomicU64,
+    /// Pointer to the one active recoverable user-access record, or null.
+    pub user_copy_recovery: AtomicPtr<UserCopyRecovery>,
 
     /// The processor-local thread scheduler.
     pub scheduler: core::cell::UnsafeCell<Option<kernel_core::scheduler::Scheduler>>,
@@ -38,32 +38,49 @@ impl CpuLocal {
         Self {
             kernel_stack_top: 0,
             scratch_user_rsp: 0,
-            user_copy_recovery_rip: AtomicU64::new(0),
+            user_copy_recovery: AtomicPtr::new(core::ptr::null_mut()),
             scheduler: core::cell::UnsafeCell::new(None),
         }
     }
 
-    /// Sets the active recovery context.
-    pub fn set_recovery(&self, recovery: UserCopyRecovery) {
-        self.user_copy_recovery_rip
-            .store(recovery.fault_resume_rip, Ordering::Release);
+    /// Installs a non-nestable recovery record for the current CPU.
+    ///
+    /// The caller must keep `recovery` live until it clears the record or a
+    /// matching page fault has resumed execution at its landing pad.
+    pub fn install_recovery(&self, recovery: &UserCopyRecovery) -> Result<(), ()> {
+        self.user_copy_recovery
+            .compare_exchange(
+                core::ptr::null_mut(),
+                recovery as *const _ as *mut _,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .map(|_| ())
+            .map_err(|_| ())
     }
 
-    /// Clears the active recovery context.
-    pub fn clear_recovery(&self) {
-        self.user_copy_recovery_rip.store(0, Ordering::Release);
+    /// Clears this exact recovery record without disturbing a later record.
+    pub fn clear_recovery(&self, recovery: &UserCopyRecovery) {
+        let _ = self.user_copy_recovery.compare_exchange(
+            recovery as *const _ as *mut _,
+            core::ptr::null_mut(),
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        );
     }
 
     /// Takes the active recovery context, clearing it if one was set.
     pub fn take_recovery(&self) -> Option<UserCopyRecovery> {
-        let rip = self.user_copy_recovery_rip.swap(0, Ordering::Acquire);
-        if rip != 0 {
-            Some(UserCopyRecovery {
-                fault_resume_rip: rip,
-            })
-        } else {
-            None
+        let recovery = self
+            .user_copy_recovery
+            .swap(core::ptr::null_mut(), Ordering::AcqRel);
+        if recovery.is_null() {
+            return None;
         }
+
+        // SAFETY: `install_recovery` accepts only a stack record that remains
+        // live until this CPU clears it or resumes through its recovery label.
+        Some(unsafe { *recovery })
     }
 }
 
