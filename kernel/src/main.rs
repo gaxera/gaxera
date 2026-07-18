@@ -381,7 +381,23 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     #[cfg(feature = "test-apic-timer")]
     arch::x86_64::apic::run_timer_delivery_test();
 
-    #[cfg(not(feature = "test-apic-timer"))]
+    #[cfg(any(
+        feature = "test-user-transition",
+        feature = "test-user-privilege",
+        feature = "test-user-invalid-frame"
+    ))]
+    {
+        let probe = arch::x86_64::probe::M2AProbe::build(&page_tables, physical_frames)
+            .expect("GAXERA ERROR: M2A probe construction failed");
+        probe.execute();
+    }
+
+    #[cfg(not(any(
+        feature = "test-apic-timer",
+        feature = "test-user-transition",
+        feature = "test-user-privilege",
+        feature = "test-user-invalid-frame"
+    )))]
     {
         x86_64::instructions::interrupts::enable();
         serial::idle();

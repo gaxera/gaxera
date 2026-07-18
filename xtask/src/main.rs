@@ -30,6 +30,9 @@ enum KernelProfile {
     MemoryFoundation,
     HeapGuard,
     ApicTimer,
+    UserTransition,
+    UserPrivilege,
+    UserInvalidFrame,
     Exception(ExceptionTest),
 }
 
@@ -42,6 +45,9 @@ impl KernelProfile {
             Self::MemoryFoundation => Some("test-memory"),
             Self::HeapGuard => Some("test-heap-guard"),
             Self::ApicTimer => Some("test-apic-timer"),
+            Self::UserTransition => Some("test-user-transition"),
+            Self::UserPrivilege => Some("test-user-privilege"),
+            Self::UserInvalidFrame => Some("test-user-invalid-frame"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -66,6 +72,9 @@ impl KernelProfile {
             Self::MemoryFoundation => &["GAXERA: MEMORY_FOUNDATION_OK"],
             Self::HeapGuard => &["GAXERA: HEAP_GUARD_PAGE_FAULT_CAUGHT"],
             Self::ApicTimer => &["GAXERA: APIC_TIMER_DELIVERY_OK"],
+            Self::UserTransition => &["GAXERA: USER_TRANSITION_OK"],
+            Self::UserPrivilege => &["GAXERA: USER_PRIVILEGE_DENIED_OK"],
+            Self::UserInvalidFrame => &["GAXERA: USER_INVALID_FRAME_REJECTED"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -95,6 +104,9 @@ impl KernelProfile {
             Self::MemoryFoundation => "memory",
             Self::HeapGuard => "heap-guard",
             Self::ApicTimer => "apic-timer",
+            Self::UserTransition => "user-transition",
+            Self::UserPrivilege => "user-privilege",
+            Self::UserInvalidFrame => "user-invalid-frame",
             Self::Exception(ExceptionTest::Breakpoint) => "breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -154,7 +166,7 @@ fn print_help() {
     println!("  --firmware   Select uefi, or bios for an optional packaging diagnostic");
     println!("  --test       Run one deterministic proof: panic, memory, heap-guard, breakpoint,");
     println!(
-        "               apic-timer, divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
+        "               apic-timer, user-transition, user-privilege, user-invalid-frame, divide-error, invalid-opcode, general-protection, page-fault, or double-fault"
     );
 }
 
@@ -168,6 +180,9 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "memory" => Ok(KernelProfile::MemoryFoundation),
         "heap-guard" => Ok(KernelProfile::HeapGuard),
         "apic-timer" => Ok(KernelProfile::ApicTimer),
+        "user-transition" => Ok(KernelProfile::UserTransition),
+        "user-privilege" => Ok(KernelProfile::UserPrivilege),
+        "user-invalid-frame" => Ok(KernelProfile::UserInvalidFrame),
         "breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -754,6 +769,9 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::MemoryFoundation,
         KernelProfile::HeapGuard,
         KernelProfile::ApicTimer,
+        KernelProfile::UserTransition,
+        KernelProfile::UserPrivilege,
+        KernelProfile::UserInvalidFrame,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -770,6 +788,9 @@ fn handle_test() -> Result<(), &'static str> {
     handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::HeapGuard)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::ApicTimer)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserTransition)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserPrivilege)?;
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserInvalidFrame)?;
     handle_run(
         true,
         Some(Firmware::Uefi),

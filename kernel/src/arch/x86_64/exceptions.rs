@@ -32,7 +32,18 @@ pub unsafe fn init() {
     // static allocation remains at a fixed address for the kernel lifetime.
     let idt = unsafe { &mut *IDT.get() };
     idt.divide_error.set_handler_fn(divide_error_handler);
-    idt.breakpoint.set_handler_fn(breakpoint_handler);
+    
+    #[cfg(any(feature = "test-user-transition", feature = "test-user-privilege", feature = "test-user-invalid-frame"))]
+    {
+        idt.breakpoint
+            .set_handler_fn(breakpoint_handler)
+            .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+    }
+    #[cfg(not(any(feature = "test-user-transition", feature = "test-user-privilege", feature = "test-user-invalid-frame")))]
+    {
+        idt.breakpoint.set_handler_fn(breakpoint_handler);
+    }
+
     idt.invalid_opcode.set_handler_fn(invalid_opcode_handler);
     idt.general_protection_fault
         .set_handler_fn(general_protection_fault_handler);
@@ -40,6 +51,14 @@ pub unsafe fn init() {
     idt.page_fault.set_handler_fn(page_fault_handler);
     idt[apic::TIMER_VECTOR].set_handler_fn(local_apic_timer_handler);
     idt[apic::SPURIOUS_VECTOR].set_handler_fn(local_apic_spurious_handler);
+
+    #[cfg(feature = "test-user-transition")]
+    {
+        // SAFETY: The M2A probe requires a DPL-3 test return gate.
+        idt[crate::arch::x86_64::user::USER_RETURN_VECTOR]
+            .set_handler_fn(user_return_handler)
+            .set_privilege_level(x86_64::PrivilegeLevel::Ring3);
+    }
 
     // SAFETY: IST index 0 names the unique, initialized double-fault stack in
     // the already-loaded TSS. No other Phase 3 IDT gate selects that stack.
@@ -67,6 +86,19 @@ extern "x86-interrupt" fn local_apic_spurious_handler(_frame: InterruptStackFram
 }
 
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptStackFrame) {
+    #[cfg(feature = "test-user-transition")]
+    {
+        let stack_pointer = current_stack_pointer();
+        let (start, end) = descriptors::user_transition_stack_bounds();
+        if stack_pointer >= start && stack_pointer < end {
+            println!(
+                "GAXERA: EXCEPTION_BREAKPOINT_CAUGHT ip={:#018x} (user transition)",
+                frame.instruction_pointer.as_u64()
+            );
+            return;
+        }
+    }
+
     println!(
         "GAXERA: EXCEPTION_BREAKPOINT_CAUGHT ip={:#018x}",
         frame.instruction_pointer.as_u64()
@@ -85,6 +117,21 @@ extern "x86-interrupt" fn general_protection_fault_handler(
     frame: InterruptStackFrame,
     error_code: u64,
 ) {
+    #[cfg(feature = "test-user-privilege")]
+    {
+        if frame.code_segment.0 & 0b11 == 0b11 {
+            let stack_pointer = current_stack_pointer();
+            let (start, end) = descriptors::user_transition_stack_bounds();
+            if stack_pointer >= start && stack_pointer < end {
+                println!(
+                    "GAXERA: USER_PRIVILEGE_DENIED_OK ip={:#018x}",
+                    frame.instruction_pointer.as_u64()
+                );
+                terminal_test_exit();
+            }
+        }
+    }
+
     fatal_exception("GENERAL_PROTECTION", frame, Some(error_code));
 }
 
@@ -190,4 +237,25 @@ fn terminal_test_failure() -> ! {
 
     #[cfg(not(feature = "qemu-test"))]
     serial::halt()
+}
+
+#[cfg(feature = "test-user-transition")]
+extern "x86-interrupt" fn user_return_handler(frame: InterruptStackFrame) {
+    let stack_pointer = current_stack_pointer();
+    let (start, end) = descriptors::user_transition_stack_bounds();
+    if stack_pointer < start || stack_pointer >= end {
+        println!(
+            "GAXERA ERROR: USER_RETURN_STACK_MISMATCH rsp={:#018x}",
+            stack_pointer
+        );
+        terminal_test_failure();
+    }
+
+    unsafe { crate::arch::x86_64::probe::M2AProbe::restore_kernel_cr3() };
+
+    println!(
+        "GAXERA: USER_TRANSITION_OK ip={:#018x}",
+        frame.instruction_pointer.as_u64()
+    );
+    terminal_test_exit();
 }

@@ -1,4 +1,5 @@
 use core::fmt;
+use core::ptr;
 
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr3, Cr3Flags, Cr4, Cr4Flags};
 use x86_64::registers::model_specific::{Efer, EferFlags};
@@ -11,9 +12,11 @@ use x86_64::{PhysAddr, VirtAddr};
 use crate::memory::boot::{BootContext, FramebufferInfo, MemoryKind};
 use crate::memory::mapping::{
     ACPI_TABLE_WINDOW, FRAMEBUFFER_BASE, HEAP_SIZE, HEAP_START, HHDM_BASE, HHDM_PHYSICAL_LIMIT,
-    KERNEL_VIRTUAL_BASE, LOCAL_APIC_WINDOW,
+    KERNEL_VIRTUAL_BASE, LOCAL_APIC_WINDOW, USER_PROBE_CODE, USER_STACK_PAGE,
 };
-use crate::memory::physical::{BootstrapFrameAllocator, PAGE_SIZE, PhysicalAllocatorError};
+use crate::memory::physical::{
+    BootstrapFrameAllocator, PAGE_SIZE, PhysicalAllocatorError, SegmentedBitmapFrameAllocator,
+};
 use crate::println;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,6 +40,11 @@ pub enum PagingError {
     PageUnmappingFailed {
         virtual_address: u64,
     },
+    KernelMappingUserAccessible {
+        pml4_index: usize,
+    },
+    UserProbeFrameAllocationFailed,
+    UserStackFrameAllocationFailed,
     Physical(PhysicalAllocatorError),
 }
 
@@ -85,6 +93,15 @@ impl fmt::Display for PagingError {
             Self::PageUnmappingFailed { virtual_address } => {
                 write!(f, "failed to unmap virtual page {virtual_address:#018x}")
             }
+            Self::KernelMappingUserAccessible { pml4_index } => {
+                write!(f, "kernel PML4 entry {pml4_index} is user accessible")
+            }
+            Self::UserProbeFrameAllocationFailed => {
+                f.write_str("physical allocator exhausted for the user probe page")
+            }
+            Self::UserStackFrameAllocationFailed => {
+                f.write_str("physical allocator exhausted for the user stack page")
+            }
             Self::Physical(error) => error.fmt(f),
         }
     }
@@ -105,6 +122,17 @@ unsafe impl PageTableFrameMapping for FrameMapping {
 
 pub struct KernelPageTables {
     root: PhysFrame,
+}
+
+/// M2A's one fixed, kernel-owned lower-half address space.
+///
+/// This is not yet the capability-managed `AddressSpace` object. Its mapping
+/// surface is deliberately limited to the static probe and stack defined by
+/// ADR 0011.
+pub(crate) struct UserPageTables {
+    root: PhysFrame,
+    probe_code: PhysFrame,
+    stack: PhysFrame,
 }
 
 pub fn framebuffer_virtual_address(framebuffer: FramebufferInfo) -> Result<u64, PagingError> {
@@ -262,6 +290,20 @@ impl KernelPageTables {
             return Err(PagingError::NoExecuteUnavailable);
         }
         // SAFETY: caller proved the complete transition continuity set.
+        unsafe { self.switch_to() }
+    }
+
+    /// Re-activate the already configured kernel root.
+    ///
+    /// # Safety
+    /// The caller must be executing through a mapping shared by this root and
+    /// exclude concurrent page-table mutation. M2A invokes this only from its
+    /// dedicated return path with interrupts disabled.
+    pub(crate) unsafe fn switch_to(&self) -> Result<(), PagingError> {
+        if Cr4::read().contains(Cr4Flags::PCID) {
+            return Err(PagingError::PcidEnabled);
+        }
+        // SAFETY: caller proved execution continuity for this owned root.
         unsafe { Cr3::write(self.root, Cr3Flags::empty()) };
         Ok(())
     }
@@ -459,6 +501,180 @@ impl KernelPageTables {
         let mapper = unsafe { MappedPageTable::new(root, FrameMapping { offset: HHDM_BASE }) };
         mapper.translate_addr(VirtAddr::new(virtual_address))
     }
+}
+
+impl UserPageTables {
+    /// Build the fixed M2A probe address space.
+    ///
+    /// # Safety
+    /// The Gaxera HHDM must be active, `allocator` must be exclusively owned,
+    /// and interrupts must remain disabled. `kernel` must be the active root
+    /// while the new hierarchy is populated through the HHDM.
+    pub(crate) unsafe fn build(
+        kernel: &KernelPageTables,
+        allocator: &mut SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<Self, PagingError> {
+        let root = allocator
+            .allocate()
+            .ok_or(PagingError::FrameAllocationFailed)?;
+        // SAFETY: `root` is a unique allocator frame reached through the active
+        // HHDM and is not visible through any page-table entry yet.
+        unsafe { zero_frame(root) };
+
+        // SAFETY: both root frames are HHDM mapped. The new root is private;
+        // the active kernel root is read only for this copy.
+        let root_table = unsafe { frame_table_mut(root)? };
+        let kernel_root = unsafe { frame_table(kernel.root)? };
+        for index in 256..512 {
+            if kernel_root[index]
+                .flags()
+                .contains(PageTableFlags::USER_ACCESSIBLE)
+            {
+                return Err(PagingError::KernelMappingUserAccessible { pml4_index: index });
+            }
+            root_table[index] = kernel_root[index].clone();
+        }
+
+        let probe_code = allocator
+            .allocate()
+            .ok_or(PagingError::UserProbeFrameAllocationFailed)?;
+        // SAFETY: `probe_code` is private, HHDM reachable, and receives only
+        // the fixed instruction sequence before it is mapped executable.
+        unsafe {
+            zero_frame(probe_code);
+            let destination = HHDM_BASE
+                .checked_add(probe_code.start_address().as_u64())
+                .ok_or(PagingError::AddressOverflow)? as *mut u8;
+            ptr::copy_nonoverlapping(
+                crate::arch::x86_64::user::PROBE_BYTES.as_ptr(),
+                destination,
+                crate::arch::x86_64::user::PROBE_BYTES.len(),
+            );
+        }
+
+        let stack = allocator
+            .allocate()
+            .ok_or(PagingError::UserStackFrameAllocationFailed)?;
+        // SAFETY: `stack` is a unique private frame reached through the HHDM.
+        unsafe { zero_frame(stack) };
+
+        // SAFETY: the new root is private and only these fixed, unmapped
+        // lower-half pages are installed. The helper fixes the exact flags.
+        unsafe {
+            map_fixed_user_page(
+                root,
+                USER_PROBE_CODE,
+                probe_code,
+                PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE,
+                allocator,
+            )?;
+            map_fixed_user_page(
+                root,
+                USER_STACK_PAGE,
+                stack,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::USER_ACCESSIBLE
+                    | PageTableFlags::NO_EXECUTE,
+                allocator,
+            )?;
+        }
+
+        Ok(Self {
+            root,
+            probe_code,
+            stack,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub(crate) const fn root_frame(&self) -> PhysFrame {
+        self.root
+    }
+
+    #[allow(dead_code)] // Used by M2A runtime mapping diagnostics next.
+    pub(crate) const fn probe_code_frame(&self) -> PhysFrame {
+        self.probe_code
+    }
+
+    #[allow(dead_code)] // Used by M2A runtime mapping diagnostics next.
+    pub(crate) const fn stack_frame(&self) -> PhysFrame {
+        self.stack
+    }
+
+    /// # Safety
+    /// The caller must execute through mappings shared by this root and the
+    /// kernel root. No user-controlled instruction may run before the TSS
+    /// transition stack and validated `iretq` frame are installed.
+    #[allow(dead_code)]
+    pub(crate) unsafe fn activate(&self) -> Result<(), PagingError> {
+        if Cr4::read().contains(Cr4Flags::PCID) {
+            return Err(PagingError::PcidEnabled);
+        }
+        // SAFETY: caller established M2A's shared-kernel continuity set.
+        unsafe { Cr3::write(self.root, Cr3Flags::empty()) };
+        Ok(())
+    }
+}
+
+/// # Safety
+/// `frame` must be a unique, HHDM-mapped usable frame not visible through an
+/// active mapping that another execution context can access.
+unsafe fn zero_frame(frame: PhysFrame) {
+    let address = HHDM_BASE + frame.start_address().as_u64();
+    // SAFETY: caller provides a unique HHDM-reachable frame of exactly one page.
+    unsafe { ptr::write_bytes(address as *mut u8, 0, PAGE_SIZE as usize) };
+}
+
+/// # Safety
+/// The active HHDM must map `frame`; the caller must exclude concurrent table
+/// mutation and ensure the frame contains a valid page table.
+unsafe fn frame_table<'a>(frame: PhysFrame) -> Result<&'a PageTable, PagingError> {
+    let address = HHDM_BASE
+        .checked_add(frame.start_address().as_u64())
+        .ok_or(PagingError::AddressOverflow)?;
+    // SAFETY: caller establishes table validity and lifetime.
+    Ok(unsafe { &*(address as *const PageTable) })
+}
+
+/// # Safety
+/// Same contract as `frame_table`, plus unique mutable ownership of `frame`.
+unsafe fn frame_table_mut<'a>(frame: PhysFrame) -> Result<&'a mut PageTable, PagingError> {
+    let address = HHDM_BASE
+        .checked_add(frame.start_address().as_u64())
+        .ok_or(PagingError::AddressOverflow)?;
+    // SAFETY: caller establishes unique mutable table ownership.
+    Ok(unsafe { &mut *(address as *mut PageTable) })
+}
+
+/// # Safety
+/// `root` is a private user root, `virtual_address` is one of the exact M2A
+/// pages, the destination is unmapped, and the allocator is exclusively owned.
+unsafe fn map_fixed_user_page(
+    root: PhysFrame,
+    virtual_address: u64,
+    frame: PhysFrame,
+    flags: PageTableFlags,
+    allocator: &mut SegmentedBitmapFrameAllocator<'_>,
+) -> Result<(), PagingError> {
+    if !matches!(virtual_address, USER_PROBE_CODE | USER_STACK_PAGE) {
+        return Err(PagingError::AddressOverflow);
+    }
+    let root_table = unsafe { frame_table_mut(root)? };
+    let mapping = FrameMapping { offset: HHDM_BASE };
+    // SAFETY: root is private and every table frame is HHDM reachable.
+    let mut mapper = unsafe { MappedPageTable::new(root_table, mapping) };
+    let page = Page::<Size4KiB>::containing_address(VirtAddr::new(virtual_address));
+    // SAFETY: caller owns the physical frame and this private root has no
+    // lower-half mappings except ones installed by this function.
+    let flush = unsafe { mapper.map_to(page, frame, flags, allocator) }.map_err(|_| {
+        PagingError::PageTableMappingFailed {
+            virtual_address,
+            physical_address: frame.start_address().as_u64(),
+        }
+    })?;
+    flush.flush();
+    Ok(())
 }
 
 fn validate_boot_hhdm(context: &BootContext, boot_hhdm_offset: u64) -> Result<(), PagingError> {

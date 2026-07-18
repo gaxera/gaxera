@@ -16,6 +16,9 @@ test-double-fault = ["qemu-test"]
 test-memory = ["qemu-test"]
 test-heap-guard = ["qemu-test"]
 test-apic-timer = ["qemu-test"]
+test-user-transition = ["qemu-test"]
+test-user-privilege = ["qemu-test"]
+test-user-invalid-frame = ["qemu-test"]
 
 [dependencies]
 limine = "=0.6.5"

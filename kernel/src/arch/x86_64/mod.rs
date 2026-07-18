@@ -9,3 +9,4 @@ pub mod paging;
 pub mod qemu;
 pub mod test;
 pub mod user;
+pub mod probe;
