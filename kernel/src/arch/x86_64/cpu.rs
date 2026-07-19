@@ -31,6 +31,12 @@ pub struct CpuLocal {
 
     /// The processor-local thread scheduler.
     pub scheduler: core::cell::UnsafeCell<Option<kernel_core::scheduler::Scheduler>>,
+
+    /// The processor-local monotonic clock.
+    pub monotonic_clock: kernel_core::time::MonotonicClock,
+
+    /// The processor-local timer queue.
+    pub timer_queue: core::cell::UnsafeCell<Option<kernel_core::timer::TimerQueue>>,
 }
 
 impl CpuLocal {
@@ -40,6 +46,8 @@ impl CpuLocal {
             scratch_user_rsp: 0,
             user_copy_recovery: AtomicPtr::new(core::ptr::null_mut()),
             scheduler: core::cell::UnsafeCell::new(None),
+            monotonic_clock: kernel_core::time::MonotonicClock::new(),
+            timer_queue: core::cell::UnsafeCell::new(None),
         }
     }
 

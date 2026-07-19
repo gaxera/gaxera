@@ -9,6 +9,8 @@ pub mod object;
 pub mod resource;
 pub mod scheduler;
 pub mod thread;
+pub mod time;
+pub mod timer;
 
 #[cfg(test)]
 mod tests {

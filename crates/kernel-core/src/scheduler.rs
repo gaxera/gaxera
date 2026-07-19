@@ -18,9 +18,12 @@ pub struct Scheduler {
     run_queue: VecDeque<ObjectId>,
     current_thread: Option<ObjectId>,
     capacity: usize,
+    quantum_remaining: u32,
+    quantum_size: u32,
 }
 
 impl Scheduler {
+    pub const QUANTUM_TICKS: u32 = 10;
     pub fn try_new(capacity: usize) -> Result<Self, SchedulerError> {
         if capacity > u32::MAX as usize {
             return Err(SchedulerError::CapacityTooLarge);
@@ -33,6 +36,8 @@ impl Scheduler {
             run_queue,
             current_thread: None,
             capacity,
+            quantum_remaining: Self::QUANTUM_TICKS,
+            quantum_size: Self::QUANTUM_TICKS,
         })
     }
 
@@ -153,6 +158,17 @@ impl Scheduler {
             }
             _ => Err(SchedulerError::InvalidState),
         }
+    }
+
+    /// Decrements the current thread's quantum, returning true if it has expired.
+    pub fn tick(&mut self) -> bool {
+        self.quantum_remaining = self.quantum_remaining.saturating_sub(1);
+        self.quantum_remaining == 0
+    }
+
+    /// Resets the current thread's quantum to the configured size.
+    pub fn reset_quantum(&mut self) {
+        self.quantum_remaining = self.quantum_size;
     }
 }
 
@@ -313,5 +329,27 @@ mod tests {
         assert_eq!(sched.commit_yield(t0.id(), t1.id()), Ok(()));
         assert_eq!(sched.current_thread(), Some(t1.id()));
         assert_eq!(sched.next_runnable(), Some(t0.id()));
+    }
+
+    #[test]
+    fn scheduler_quantum_tracking() {
+        let mut sched = Scheduler::try_new(2).unwrap();
+        assert_eq!(sched.quantum_remaining, Scheduler::QUANTUM_TICKS);
+
+        // Tick 9 times
+        for _ in 0..9 {
+            assert_eq!(sched.tick(), false);
+        }
+
+        // 10th tick should expire
+        assert_eq!(sched.tick(), true);
+
+        // Saturation at 0
+        assert_eq!(sched.tick(), true);
+
+        // Reset restores it
+        sched.reset_quantum();
+        assert_eq!(sched.quantum_remaining, Scheduler::QUANTUM_TICKS);
+        assert_eq!(sched.tick(), false);
     }
 }

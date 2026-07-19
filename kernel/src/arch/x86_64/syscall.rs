@@ -177,6 +177,15 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             Ok(()) => 0,
             Err(()) => u64::MAX,
         },
+        2 => {
+            #[cfg(feature = "test-preemption")]
+            {
+                crate::println!("GAXERA: PREEMPTION_OK");
+                unsafe { crate::arch::x86_64::qemu::exit_success() };
+            }
+            #[cfg(not(feature = "test-preemption"))]
+            u64::MAX
+        }
         _ => u64::MAX, // Error / unknown syscall
     };
 
@@ -208,38 +217,7 @@ fn yield_current_thread() -> Result<(), ()> {
         None => return Ok(()),
     };
 
-    unsafe {
-        crate::arch::x86_64::thread::THREADS
-            .with_two_mut(current_id, next_id, |current, next| {
-                if current.state() != kernel_core::thread::ThreadState::Running
-                    || next.state() != kernel_core::thread::ThreadState::Runnable
-                {
-                    return Err(());
-                }
-
-                scheduler
-                    .commit_yield(current_id, next_id)
-                    .map_err(|_| ())?;
-                current.make_runnable().map_err(|_| ())?;
-                next.make_running().map_err(|_| ())?;
-
-                let current_context = &mut current.arch.context as *mut _;
-                let next_context = &next.arch.context as *const _;
-                let next_stack_top = next.arch.stack.top().as_u64();
-                let next_cr3 = next.arch.cr3;
-
-                // SAFETY: queue and thread state are committed as one BSP-only
-                // transition; both contexts and the incoming stack are live.
-                crate::arch::x86_64::context::switch_thread(
-                    current_context,
-                    next_context,
-                    next_stack_top,
-                    next_cr3,
-                );
-                Ok(())
-            })
-            .ok_or(())?
-    }
+    crate::arch::x86_64::preemption::reschedule(scheduler, current_id, next_id)
 }
 
 #[cfg(test)]

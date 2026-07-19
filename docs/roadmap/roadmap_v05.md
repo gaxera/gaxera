@@ -627,7 +627,7 @@ notification coalescing profiles.
 **Exit:** the kernel transports bytes and capability references only; no test
 depends on kernel interpretation of a service protocol.
 
-### M5: Time source, timer object, and preemptive single-CPU scheduler
+### M5: Time source, timer object, and preemptive single-CPU scheduler (Complete)
 
 **Objective:** turn the Phase 5 delivery proof into an accepted, bounded
 preemption mechanism without claiming production timekeeping.

@@ -68,6 +68,11 @@ leak simply don't exist, because they were never built.
   * Synchronous `Endpoint` rendezvous with atomic capability transfer rollback.
   * Asynchronous `Notification` signals with bitwise coalescing.
   * Verified via headless integration test running in QEMU `ipc-test` profile.
+* [x] **M5: Time Source and Preemptive Scheduler**
+  * APIC timer calibration and tick tracking via PIT channel 2.
+  * Lock-free `CpuLocal` scheduler preemption logic.
+  * Shared yield and preemption context switch routines.
+  * Verified via headless integration test running in QEMU `preemption` profile.
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

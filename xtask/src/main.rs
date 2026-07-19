@@ -38,6 +38,7 @@ enum KernelProfile {
     CooperativeYield,
     ContextPreservation,
     IpcTest,
+    PreemptionTest,
     Exception(ExceptionTest),
 }
 
@@ -58,6 +59,7 @@ impl KernelProfile {
             Self::CooperativeYield => Some("test-cooperative-yield"),
             Self::ContextPreservation => Some("test-context-preservation"),
             Self::IpcTest => Some("test-ipc"),
+            Self::PreemptionTest => Some("test-preemption"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -90,6 +92,7 @@ impl KernelProfile {
             Self::CooperativeYield => &["GAXERA: COOPERATIVE_YIELD_OK"],
             Self::ContextPreservation => &["GAXERA: CONTEXT_PRESERVATION_OK"],
             Self::IpcTest => &["GAXERA: IPC_TEST_OK"],
+            Self::PreemptionTest => &["GAXERA: PREEMPTION_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -127,6 +130,7 @@ impl KernelProfile {
             Self::CooperativeYield => "cooperative-yield",
             Self::ContextPreservation => "context-preservation",
             Self::IpcTest => "ipc-test",
+            Self::PreemptionTest => "preemption",
             Self::Exception(ExceptionTest::Breakpoint) => "exception-breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -208,6 +212,7 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "cooperative-yield" => Ok(KernelProfile::CooperativeYield),
         "context-preservation" => Ok(KernelProfile::ContextPreservation),
         "ipc-test" => Ok(KernelProfile::IpcTest),
+        "preemption" => Ok(KernelProfile::PreemptionTest),
         "exception-breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -802,6 +807,7 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::CooperativeYield,
         KernelProfile::ContextPreservation,
         KernelProfile::IpcTest,
+        KernelProfile::PreemptionTest,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -818,20 +824,29 @@ fn handle_test() -> Result<(), &'static str> {
     handle_run(true, Some(Firmware::Uefi), KernelProfile::UserInvalidFrame)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::SyscallRoundTrip)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::UserCopyFault)?;
+
+    println!("\n--- Cooperative Yield Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::CooperativeYield)?;
+
+    println!("\n--- Context Preservation Test ---");
     handle_run(
         true,
         Some(Firmware::Uefi),
         KernelProfile::ContextPreservation,
     )?;
+
+    println!("\n--- IPC Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcTest)?;
+
+    println!("\n--- Preemption Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::PreemptionTest)?;
+
+    println!("\n--- Hardware Exceptions ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PanicTest)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryFoundation)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::HeapGuard)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::ApicTimer)?;
-    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserTransition)?;
-    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserPrivilege)?;
     handle_run(true, Some(Firmware::Uefi), KernelProfile::UserInvalidFrame)?;
     handle_run(
         true,

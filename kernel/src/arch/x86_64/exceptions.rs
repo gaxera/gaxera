@@ -49,7 +49,15 @@ pub unsafe fn init() {
         .set_handler_fn(general_protection_fault_handler);
     #[cfg(not(feature = "test-double-fault"))]
     idt.page_fault.set_handler_fn(page_fault_handler);
+    #[cfg(feature = "test-apic-timer")]
     idt[apic::TIMER_VECTOR].set_handler_fn(local_apic_timer_handler);
+
+    #[cfg(not(feature = "test-apic-timer"))]
+    unsafe {
+        idt[apic::TIMER_VECTOR].set_handler_addr(x86_64::VirtAddr::new(
+            crate::arch::x86_64::timer_entry::timer_interrupt_entry as *const () as usize as u64,
+        ));
+    }
     idt[apic::SPURIOUS_VECTOR].set_handler_fn(local_apic_spurious_handler);
 
     #[cfg(any(
@@ -80,6 +88,7 @@ pub unsafe fn init() {
     }
 }
 
+#[allow(dead_code)]
 extern "x86-interrupt" fn local_apic_timer_handler(_frame: InterruptStackFrame) {
     apic::on_timer_interrupt();
 }

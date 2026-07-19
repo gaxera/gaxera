@@ -17,6 +17,7 @@ extern crate alloc;
             feature = "test-page-fault",
             feature = "test-double-fault",
             feature = "test-apic-timer",
+            feature = "test-preemption",
         )
     ),
     all(
@@ -29,6 +30,7 @@ extern crate alloc;
             feature = "test-page-fault",
             feature = "test-double-fault",
             feature = "test-apic-timer",
+            feature = "test-preemption",
         )
     ),
     all(
@@ -44,6 +46,7 @@ extern crate alloc;
             feature = "test-double-fault",
             feature = "test-heap-guard",
             feature = "test-apic-timer",
+            feature = "test-preemption",
         )
     ),
     all(
@@ -58,6 +61,7 @@ extern crate alloc;
             feature = "test-page-fault",
             feature = "test-double-fault",
             feature = "test-apic-timer",
+            feature = "test-preemption",
         )
     ),
     all(
@@ -73,6 +77,23 @@ extern crate alloc;
             feature = "test-general-protection",
             feature = "test-page-fault",
             feature = "test-double-fault",
+            feature = "test-preemption",
+        )
+    ),
+    all(
+        feature = "test-preemption",
+        any(
+            feature = "panic-test",
+            feature = "test-boot",
+            feature = "test-memory",
+            feature = "test-heap-guard",
+            feature = "test-breakpoint",
+            feature = "test-divide-error",
+            feature = "test-invalid-opcode",
+            feature = "test-general-protection",
+            feature = "test-page-fault",
+            feature = "test-double-fault",
+            feature = "test-apic-timer",
         )
     ),
 ))]
@@ -380,6 +401,34 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         arch::x86_64::apic::TIMER_VECTOR
     );
 
+    #[cfg(not(feature = "test-apic-timer"))]
+    {
+        let cal = match arch::x86_64::apic::calibrate_timer() {
+            Ok(c) => c,
+            Err(e) => {
+                println!("GAXERA ERROR: APIC timer calibration failed: {e}");
+                serial::halt();
+            }
+        };
+
+        let cpu_local = unsafe { arch::x86_64::cpu::get_cpu_local() };
+        let timer_queue =
+            kernel_core::timer::TimerQueue::try_new(16).expect("TimerQueue allocation failed");
+        unsafe {
+            *cpu_local.timer_queue.get() = Some(timer_queue);
+        }
+
+        if let Err(e) = arch::x86_64::apic::start_preemption_timer(cal, 1) {
+            println!("GAXERA ERROR: Failed to start preemption timer: {e}");
+            serial::halt();
+        }
+
+        println!(
+            "GAXERA: PREEMPTION_TIMER_READY ticks_per_ms={}",
+            cal.ticks_per_ms
+        );
+    }
+
     #[cfg(feature = "test-apic-timer")]
     arch::x86_64::apic::run_timer_delivery_test();
 
@@ -428,6 +477,11 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         arch::x86_64::test_ipc::run_ipc_test();
     }
 
+    #[cfg(feature = "test-preemption")]
+    {
+        arch::x86_64::test_preemption::run_preemption_test(&mut page_tables, physical_frames);
+    }
+
     #[cfg(not(any(
         feature = "test-apic-timer",
         feature = "test-user-transition",
@@ -437,7 +491,8 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         feature = "test-user-copy-fault",
         feature = "test-cooperative-yield",
         feature = "test-context-preservation",
-        feature = "test-ipc"
+        feature = "test-ipc",
+        feature = "test-preemption"
     )))]
     {
         x86_64::instructions::interrupts::enable();

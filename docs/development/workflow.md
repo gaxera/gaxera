@@ -135,9 +135,10 @@ This command runs:
     yield, context-switches to a second thread and back, then mathematically
     verifies every sentinel survived the round-trip.
 14. An IPC proof that instantiates the core capability system, verifies synchronous endpoint rendezvous, executes an exact atomic capability-transfer rollback, and checks notification signaling.
-15. UEFI breakpoint, divide error, invalid opcode, general protection fault,
+15. A preemption proof that spins in user mode until the calibrated APIC timer interrupts it, causing a preemptive context switch into a second user thread that signals success.
+16. UEFI breakpoint, divide error, invalid opcode, general protection fault,
     page fault, and double-fault probes.
-16. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+17. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
     never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real

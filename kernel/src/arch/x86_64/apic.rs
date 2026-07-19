@@ -22,6 +22,7 @@ const APIC_REGISTER_EOI: u64 = 0x0b0;
 const APIC_REGISTER_SPURIOUS_INTERRUPT: u64 = 0x0f0;
 const APIC_REGISTER_LVT_TIMER: u64 = 0x320;
 const APIC_REGISTER_TIMER_INITIAL_COUNT: u64 = 0x380;
+const APIC_REGISTER_TIMER_CURRENT_COUNT: u64 = 0x390;
 const APIC_REGISTER_TIMER_DIVIDE_CONFIGURATION: u64 = 0x3e0;
 const APIC_SOFTWARE_ENABLE: u32 = 1 << 8;
 const APIC_TIMER_MASKED: u32 = 1 << 16;
@@ -62,6 +63,7 @@ pub enum LocalApicError {
     TimerTargetIsZero,
     NotInitialized,
     Paging(PagingError),
+    CalibrationSanityCheck { ticks_per_ms: u32 },
 }
 
 impl From<PagingError> for LocalApicError {
@@ -98,9 +100,16 @@ impl fmt::Display for LocalApicError {
                 f,
                 "PAT entry 3 is {actual:#04x}, not the UC memory type required for Local APIC MMIO"
             ),
-            Self::TimerTargetIsZero => f.write_str("Local APIC timer target must be non-zero"),
-            Self::NotInitialized => f.write_str("Local APIC has not been initialized"),
-            Self::Paging(error) => error.fmt(f),
+            Self::TimerTargetIsZero => f.write_str("timer test was given a target count of zero"),
+            Self::NotInitialized => {
+                f.write_str("Local APIC access attempted before initialization")
+            }
+            Self::Paging(error) => write!(f, "Local APIC mapping failed: {}", error),
+            Self::CalibrationSanityCheck { ticks_per_ms } => write!(
+                f,
+                "APIC timer calibration failed sanity check: {} ticks/ms is out of range",
+                ticks_per_ms
+            ),
         }
     }
 }
@@ -202,6 +211,90 @@ pub unsafe fn start_periodic_timer_test(target: u64) -> Result<(), LocalApicErro
             u32::from(TIMER_VECTOR) | APIC_TIMER_PERIODIC,
         );
         write_register(APIC_REGISTER_TIMER_INITIAL_COUNT, TIMER_TEST_INITIAL_COUNT);
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CalibrationResult {
+    pub ticks_per_ms: u32,
+}
+
+pub fn calibrate_timer() -> Result<CalibrationResult, LocalApicError> {
+    if !INITIALIZED.load(Ordering::Relaxed) {
+        return Err(LocalApicError::NotInitialized);
+    }
+
+    // SAFETY: Single BSP initialization phase, interrupts must be disabled
+    unsafe {
+        let mut port_61 = x86_64::instructions::port::Port::<u8>::new(0x61);
+        let mut p43 = x86_64::instructions::port::PortWriteOnly::<u8>::new(0x43);
+        let mut p42 = x86_64::instructions::port::PortWriteOnly::<u8>::new(0x42);
+
+        // Turn off PIT channel 2 gate (bit 0)
+        let mask = port_61.read() & 0xfd;
+        port_61.write(mask);
+
+        // Command byte: Channel 2, LSB then MSB, Mode 0 (interrupt on terminal count), Binary
+        p43.write(0b10110000);
+
+        // Count for 10ms (11932 ticks of 1.193182 MHz)
+        let count: u16 = 11932;
+        p42.write((count & 0xff) as u8);
+        p42.write((count >> 8) as u8);
+
+        // Setup APIC timer (Divide by 16)
+        write_register(
+            APIC_REGISTER_TIMER_DIVIDE_CONFIGURATION,
+            APIC_TIMER_DIVIDE_BY_16,
+        );
+        write_register(APIC_REGISTER_LVT_TIMER, APIC_TIMER_MASKED);
+        write_register(APIC_REGISTER_TIMER_INITIAL_COUNT, u32::MAX);
+
+        // Turn on PIT channel 2 gate (bit 0) to start counting
+        port_61.write(mask | 1);
+
+        // Spin until PIT channel 2 out goes high (bit 5)
+        while (port_61.read() & 0x20) == 0 {
+            core::hint::spin_loop();
+        }
+
+        let end_ticks = read_register(APIC_REGISTER_TIMER_CURRENT_COUNT);
+        let elapsed = u32::MAX - end_ticks;
+
+        // Turn off PIT channel 2
+        port_61.write(mask);
+
+        let ticks_per_ms = elapsed / 10;
+
+        if !(100..=1_000_000).contains(&ticks_per_ms) {
+            return Err(LocalApicError::CalibrationSanityCheck { ticks_per_ms });
+        }
+
+        Ok(CalibrationResult { ticks_per_ms })
+    }
+}
+
+pub fn start_preemption_timer(
+    cal: CalibrationResult,
+    period_ms: u32,
+) -> Result<(), LocalApicError> {
+    if !INITIALIZED.load(Ordering::Relaxed) {
+        return Err(LocalApicError::NotInitialized);
+    }
+    unsafe {
+        write_register(
+            APIC_REGISTER_TIMER_DIVIDE_CONFIGURATION,
+            APIC_TIMER_DIVIDE_BY_16,
+        );
+        write_register(
+            APIC_REGISTER_LVT_TIMER,
+            u32::from(TIMER_VECTOR) | APIC_TIMER_PERIODIC,
+        );
+        write_register(
+            APIC_REGISTER_TIMER_INITIAL_COUNT,
+            cal.ticks_per_ms * period_ms,
+        );
     }
     Ok(())
 }
@@ -323,6 +416,14 @@ unsafe fn write_register(offset: u64, value: u32) {
     // SAFETY: callers establish that this is the unique permanent UC mapping
     // and that `offset` names a 32-bit Local APIC register within its page.
     unsafe { write_volatile((base + offset) as *mut u32, value) };
+}
+
+unsafe fn read_register(offset: u64) -> u32 {
+    let base = APIC_VIRTUAL_ADDRESS.load(Ordering::Acquire);
+    debug_assert_ne!(base, 0);
+    // SAFETY: callers establish that this is the unique permanent UC mapping
+    // and that `offset` names a 32-bit Local APIC register within its page.
+    unsafe { core::ptr::read_volatile((base + offset) as *const u32) }
 }
 
 unsafe fn mask_legacy_pics() {

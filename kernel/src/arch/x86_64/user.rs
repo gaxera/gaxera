@@ -5,7 +5,8 @@
 
 use crate::memory::mapping::{USER_ADDRESS_MAX, USER_PROBE_CODE, USER_STACK_PAGE, USER_STACK_TOP};
 
-pub const USER_INITIAL_RFLAGS: u64 = 1 << 1;
+pub const USER_INITIAL_RFLAGS: u64 = (1 << 1) | (1 << 9); // Reserved bit 1 + IF
+#[allow(dead_code)]
 pub(crate) const USER_RETURN_VECTOR: u8 = 0x81;
 
 // Default probe: int3, int 0x81 (return gate), ud2
@@ -13,7 +14,8 @@ pub(crate) const USER_RETURN_VECTOR: u8 = 0x81;
     feature = "test-cooperative-yield",
     feature = "test-context-preservation",
     feature = "test-syscall-round-trip",
-    feature = "test-user-privilege"
+    feature = "test-user-privilege",
+    feature = "test-preemption"
 )))]
 pub(crate) const PROBE_BYTES: [u8; 5] = [0xcc, 0xcd, USER_RETURN_VECTOR, 0x0f, 0x0b];
 
@@ -63,6 +65,15 @@ pub(crate) const PROBE_BYTES: [u8; 12] = [
     0x0f,
     0x0b, // ud2
 ];
+// Preemption probe: spin forever (offset 0), or exit success (offset 2)
+#[cfg(feature = "test-preemption")]
+pub(crate) const PROBE_BYTES: [u8; 11] = [
+    0xeb, 0xfe, // jmp -2 (offset 0)
+    0xb8, 0x02, 0x00, 0x00, 0x00, // mov eax, 2 (offset 2)
+    0x0f, 0x05, // syscall
+    0x0f, 0x0b, // ud2
+];
+
 const RFLAGS_FIXED_ONE: u64 = 1 << 1;
 const RFLAGS_FORBIDDEN: u64 = (3 << 12) | (1 << 14) | (1 << 17) | (1 << 18);
 
