@@ -63,16 +63,9 @@ leak simply don't exist, because they were never built.
 * **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
 * **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
 * **M3 (Cooperative Execution & Thread Hardening):** Completed and verified under UEFI QEMU (thread generation, explicit trap frames, cooperative yield mechanics).
-* [x] **M4: First-Class Core IPC**
-  * `InlineMessage`, `TransferDescriptor`, and `ReplyToken` primitives.
-  * Synchronous `Endpoint` rendezvous with atomic capability transfer rollback.
-  * Asynchronous `Notification` signals with bitwise coalescing.
-  * Verified via headless integration test running in QEMU `ipc-test` profile.
-* [x] **M5: Time Source and Preemptive Scheduler**
-  * APIC timer calibration and tick tracking via PIT channel 2.
-  * Lock-free `CpuLocal` scheduler preemption logic.
-  * Shared yield and preemption context switch routines.
-  * Verified via headless integration test running in QEMU `preemption` profile.
+* **M4 (First-Class Core IPC):** Completed and verified under UEFI QEMU (`Endpoint` rendezvous, asynchronous `Notification` signals, and capability transfer).
+* **M5 (Time Source & Preemptive Scheduler):** Completed and verified under UEFI QEMU (APIC timer calibration, tick tracking, and lock-free `CpuLocal` preemption).
+* **M6 (Boot Payload & Init Supervisor):** Completed and verified under UEFI QEMU (isolated ELF parser, `W^X` mapped userspace segments, and `sys_invoke` capability handoff to the `init` process).
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

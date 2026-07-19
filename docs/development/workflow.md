@@ -86,6 +86,7 @@ cargo xtask run -- --headless --test user-copy-fault
 cargo xtask run -- --headless --test cooperative-yield
 cargo xtask run -- --headless --test context-preservation
 cargo xtask run -- --headless --test ipc-test
+cargo xtask run -- --headless --test init-scenario
 ```
 
 ### D. Running Verification Tests
