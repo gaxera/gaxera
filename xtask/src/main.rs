@@ -698,6 +698,8 @@ fn handle_run(
     let marker_seen = markers_seen.iter().all(|seen| *seen);
     if profile.requires_guest_exit() {
         if !marker_seen {
+            println!("DEBUG: Markers seen: {:?}", markers_seen);
+            println!("DEBUG: Expected markers: {:?}", expected_markers);
             return Err("QEMU exited without the expected kernel test marker");
         }
         if status.code() != Some(QEMU_DEBUG_EXIT_SUCCESS) {

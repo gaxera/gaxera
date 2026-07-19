@@ -649,7 +649,7 @@ trace. Record calibration source and limits in evidence.
 **Exit:** a non-yielding user task cannot starve a second runnable task on the
 BSP. No EEVDF or real-time latency claim is made.
 
-### M6: Boot payload and init supervisor
+### M6: Boot payload and init supervisor (Complete)
 
 **Objective:** replace test-only user probes with a bounded init process and
 explicit initial authority.

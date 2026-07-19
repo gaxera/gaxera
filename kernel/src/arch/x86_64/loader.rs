@@ -52,12 +52,12 @@ pub fn map_elf_segments(
         }
 
         // Calculate page-aligned boundaries
-        let start_page = segment.p_vaddr & !(PAGE_SIZE as u64 - 1);
+        let start_page = segment.p_vaddr & !(PAGE_SIZE - 1);
         let end_vaddr = segment
             .p_vaddr
             .checked_add(segment.p_memsz)
             .ok_or(LoaderError::AddressOverflow)?;
-        let end_page = (end_vaddr + PAGE_SIZE as u64 - 1) & !(PAGE_SIZE as u64 - 1);
+        let end_page = (end_vaddr + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
 
         let mut current_vaddr = start_page;
 
@@ -79,12 +79,12 @@ pub fn map_elf_segments(
 
             // If this page overlaps with the segment's file data, copy it
             if current_vaddr < segment.p_vaddr + segment.p_filesz
-                && current_vaddr + PAGE_SIZE as u64 > segment.p_vaddr
+                && current_vaddr + PAGE_SIZE > segment.p_vaddr
             {
                 // Determine the intersection between the page and the file data
                 let overlap_start_vaddr = core::cmp::max(current_vaddr, segment.p_vaddr);
                 let overlap_end_vaddr = core::cmp::min(
-                    current_vaddr + PAGE_SIZE as u64,
+                    current_vaddr + PAGE_SIZE,
                     segment.p_vaddr + segment.p_filesz,
                 );
                 let overlap_len = (overlap_end_vaddr - overlap_start_vaddr) as usize;
@@ -101,7 +101,7 @@ pub fn map_elf_segments(
                 }
             }
 
-            current_vaddr += PAGE_SIZE as u64;
+            current_vaddr += PAGE_SIZE;
         }
     }
 

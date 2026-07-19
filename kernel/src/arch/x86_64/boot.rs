@@ -166,9 +166,7 @@ pub fn capture_handoff() -> Result<BootHandoff, BootHandoffError> {
         context.set_rsdp(rsdp_info(rsdp.address, hhdm.offset, base_revision)?);
     }
     for module in modules.modules() {
-        let physical_address = (module.data().as_ptr() as u64)
-            .checked_sub(hhdm.offset)
-            .unwrap_or(0); // If not in HHDM, something is wrong, but typically modules are.
+        let physical_address = (module.data().as_ptr() as u64).saturating_sub(hhdm.offset);
         context.push_boot_module(physical_address, module.data().len() as u64, module.path());
     }
 
