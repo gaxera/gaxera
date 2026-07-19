@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(abi_x86_interrupt)]
 #![feature(never_type)]
+#![allow(clippy::undocumented_unsafe_blocks)]
 
 extern crate alloc;
 

@@ -8,3 +8,6 @@ gaxera-abi = { path = "../gaxera-abi" }
 
 [lib]
 path = "src/lib.rs"
+
+[lints]
+workspace = true

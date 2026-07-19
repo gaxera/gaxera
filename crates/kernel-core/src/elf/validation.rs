@@ -2,6 +2,8 @@ use crate::elf::error::ElfError;
 use crate::elf::types::Elf64_Ehdr;
 
 pub fn validate_header(header: &Elf64_Ehdr) -> Result<(), ElfError> {
+    use crate::elf::types::Elf64_Phdr;
+    use core::mem::size_of;
     if header.e_ident[0..4] != [0x7f, b'E', b'L', b'F'] {
         return Err(ElfError::InvalidMagic);
     }
@@ -24,6 +26,14 @@ pub fn validate_header(header: &Elf64_Ehdr) -> Result<(), ElfError> {
     }
     if header.e_version != 1 {
         return Err(ElfError::UnsupportedVersion);
+    }
+
+    if header.e_ehsize as usize != size_of::<Elf64_Ehdr>() {
+        return Err(ElfError::MalformedHeaderSize);
+    }
+
+    if header.e_phentsize as usize != size_of::<Elf64_Phdr>() {
+        return Err(ElfError::MalformedHeaderSize);
     }
 
     Ok(())

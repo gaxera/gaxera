@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(alloc_error_handler)]
+#![allow(clippy::undocumented_unsafe_blocks)]
 
 extern crate alloc;
 

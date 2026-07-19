@@ -8,4 +8,6 @@ pub enum ElfError {
     UnsupportedAbi,
     UnsupportedMachine,
     ProgramHeaderOutOfBounds,
+    MalformedHeaderSize,
+    InvalidAlignment,
 }

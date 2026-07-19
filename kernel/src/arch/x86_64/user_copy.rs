@@ -32,6 +32,10 @@ pub fn copy_from_user(dst: &mut [u8], src_user_ptr: u64, len: usize) -> Result<(
 
     let end_ptr = validate_user_range(src_user_ptr, len)?;
 
+    // SAFETY: We have validated that the source range is entirely within the canonical
+    // lower half (user space). The recovery struct registers the exact instruction pointer
+    // where the page fault may occur. If a fault occurs, the #PF handler intercepts it
+    // and jumps to the recovery IP, which safely aborts the copy without panicking.
     unsafe {
         let cpu_local = get_cpu_local();
         let mut fault_occurred: u64 = 0;
@@ -91,6 +95,10 @@ pub fn copy_to_user(dst_user_ptr: u64, src: &[u8], len: usize) -> Result<(), Use
 
     let end_ptr = validate_user_range(dst_user_ptr, len)?;
 
+    // SAFETY: We have validated that the destination range is entirely within the canonical
+    // lower half (user space). Similar to `copy_from_user`, the recovery struct catches
+    // #PF during the `rep movsb` instruction and safely resumes execution at the recovery IP,
+    // avoiding a kernel panic on invalid user memory access.
     unsafe {
         let cpu_local = get_cpu_local();
         let mut fault_occurred: u64 = 0;
