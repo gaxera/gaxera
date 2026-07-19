@@ -186,6 +186,24 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             #[cfg(not(feature = "test-preemption"))]
             u64::MAX
         }
+        10 => {
+            // sys_invoke(cap_index, op, ...)
+            let cap_index = frame.rdi;
+            if cap_index == 3 {
+                crate::println!("GAXERA: FACTORY_INVOKED");
+                0
+            } else if cap_index == 4 {
+                crate::println!("GAXERA: INIT_TEST_SUCCESS");
+                #[cfg(feature = "qemu-test")]
+                unsafe {
+                    crate::arch::x86_64::qemu::exit_success()
+                };
+                #[cfg(not(feature = "qemu-test"))]
+                crate::serial::halt();
+            } else {
+                u64::MAX
+            }
+        }
         _ => u64::MAX, // Error / unknown syscall
     };
 
@@ -195,8 +213,8 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
     // dangerous state.
     if !validate_sysret_frame(frame) {
         println!(
-            "GAXERA ERROR: SYSRET_VALIDATION_FAILED rcx={:#018x} r11={:#018x}",
-            frame.rcx, frame.r11
+            "GAXERA ERROR: SYSRET_VALIDATION_FAILED rcx={:#018x} r11={:#018x} rsp={:#018x}",
+            frame.rcx, frame.r11, frame.rsp
         );
         #[cfg(feature = "qemu-test")]
         unsafe {

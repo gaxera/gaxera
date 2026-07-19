@@ -25,6 +25,10 @@ name = "gaxera-abi"
 version = "0.1.0"
 
 [[package]]
+name = "init"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [

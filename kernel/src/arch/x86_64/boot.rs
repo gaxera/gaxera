@@ -6,7 +6,7 @@ use limine::memmap;
 use limine::paging::PagingMode;
 use limine::request::{
     EntryPointRequest, ExecutableAddressRequest, FramebufferRequest, HhdmRequest, MemmapRequest,
-    PagingModeRequest, RsdpRequest,
+    ModulesRequest, PagingModeRequest, RsdpRequest,
 };
 
 use crate::memory::boot::{
@@ -51,6 +51,10 @@ static MEMMAP_REQUEST: MemmapRequest = MemmapRequest::new();
 #[unsafe(link_section = ".requests")]
 static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
 
+#[used]
+#[unsafe(link_section = ".requests")]
+static MODULES_REQUEST: ModulesRequest = ModulesRequest::new();
+
 pub struct BootHandoff {
     context: &'static BootContext,
     pre_cr3_hhdm_offset: u64,
@@ -75,6 +79,7 @@ pub enum BootHandoffError {
     MissingHhdm,
     MissingPagingMode,
     MissingExecutableAddress,
+    MissingModules,
     BootContext(BootContextError),
 }
 
@@ -97,6 +102,7 @@ impl fmt::Display for BootHandoffError {
             Self::MissingExecutableAddress => {
                 f.write_str("Limine executable-address request failed")
             }
+            Self::MissingModules => f.write_str("Limine module request failed"),
             Self::BootContext(error) => error.fmt(f),
         }
     }
@@ -131,6 +137,9 @@ pub fn capture_handoff() -> Result<BootHandoff, BootHandoffError> {
             BootContextError::UnsupportedPagingMode,
         ));
     }
+    let modules = MODULES_REQUEST
+        .response()
+        .ok_or(BootHandoffError::MissingModules)?;
 
     let mut context = BootContextBuilder::new(KernelImageInfo {
         physical_base: executable.physical_base,
@@ -155,6 +164,12 @@ pub fn capture_handoff() -> Result<BootHandoff, BootHandoffError> {
     }
     if let Some(rsdp) = RSDP_REQUEST.response() {
         context.set_rsdp(rsdp_info(rsdp.address, hhdm.offset, base_revision)?);
+    }
+    for module in modules.modules() {
+        let physical_address = (module.data().as_ptr() as u64)
+            .checked_sub(hhdm.offset)
+            .unwrap_or(0); // If not in HHDM, something is wrong, but typically modules are.
+        context.push_boot_module(physical_address, module.data().len() as u64, module.path());
     }
 
     Ok(BootHandoff {

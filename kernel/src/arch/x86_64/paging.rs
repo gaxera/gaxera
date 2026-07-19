@@ -176,7 +176,7 @@ impl KernelPageTables {
         let mut mapper = unsafe { MappedPageTable::new(root_table, mapping) };
 
         for region in context.memory_regions() {
-            if !region.kind.is_allocator_eligible() {
+            if !region.kind.is_hhdm_eligible() {
                 continue;
             }
             let start = align_up(region.start)?;
@@ -461,6 +461,22 @@ impl KernelPageTables {
     /// used as page tables by the supplied allocator. The caller must also
     /// prove that the destination is currently unmapped and that its flags
     /// satisfy a reviewed mapping policy.
+    pub unsafe fn map_user_page<A>(
+        &mut self,
+        virtual_address: u64,
+        frame: PhysFrame,
+        flags: PageTableFlags,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        if !flags.contains(PageTableFlags::USER_ACCESSIBLE) {
+            return Err(PagingError::KernelMappingUserAccessible { pml4_index: 0 });
+        }
+        unsafe { self.map_page(virtual_address, frame, flags, allocator) }
+    }
+
     unsafe fn map_page<A>(
         &mut self,
         virtual_address: u64,

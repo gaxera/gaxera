@@ -40,6 +40,7 @@ enum KernelProfile {
     IpcTest,
     PreemptionTest,
     Exception(ExceptionTest),
+    InitTest,
 }
 
 impl KernelProfile {
@@ -66,6 +67,7 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::GeneralProtection) => Some("test-general-protection"),
             Self::Exception(ExceptionTest::PageFault) => Some("test-page-fault"),
             Self::Exception(ExceptionTest::DoubleFault) => Some("test-double-fault"),
+            Self::InitTest => Some("qemu-test"),
         }
     }
 
@@ -107,6 +109,7 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::DoubleFault) => {
                 &["GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT"]
             }
+            Self::InitTest => &["GAXERA: FACTORY_INVOKED", "GAXERA: INIT_TEST_SUCCESS"],
         }
     }
 
@@ -137,6 +140,7 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::GeneralProtection) => "general-protection",
             Self::Exception(ExceptionTest::PageFault) => "page-fault",
             Self::Exception(ExceptionTest::DoubleFault) => "double-fault",
+            Self::InitTest => "init-scenario",
         }
     }
 }
@@ -219,6 +223,7 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "general-protection" => Ok(KernelProfile::Exception(ExceptionTest::GeneralProtection)),
         "page-fault" => Ok(KernelProfile::Exception(ExceptionTest::PageFault)),
         "double-fault" => Ok(KernelProfile::Exception(ExceptionTest::DoubleFault)),
+        "init-scenario" => Ok(KernelProfile::InitTest),
         _ => Err("unknown deterministic test name"),
     }
 }
@@ -394,6 +399,31 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         return Err("kernel compilation failed");
     }
 
+    // Step 1.5: Compile init binary (if present)
+    let init_path = Path::new("crates/init");
+    if init_path.exists() {
+        println!("Compiling init binary...");
+        let status = Command::new("cargo")
+            .args([
+                "build",
+                "--locked",
+                "--package",
+                "init",
+                "--target",
+                "x86_64-unknown-none",
+                "-Z",
+                "build-std=core,compiler_builtins,alloc",
+                "-Z",
+                "build-std-features=compiler-builtins-mem",
+            ])
+            .status()
+            .map_err(|_| "failed to execute cargo build for init")?;
+
+        if !status.success() {
+            return Err("init compilation failed");
+        }
+    }
+
     // Step 2: Assemble ISO root directory
     println!("Assembling ISO directory structure...");
     let iso_root = Path::new("target/iso_root");
@@ -410,6 +440,15 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         boot_dir.join("gaxera.elf"),
     )
     .map_err(|_| "failed to copy kernel ELF to boot segment")?;
+
+    // Copy built init ELF
+    if init_path.exists() {
+        fs::copy(
+            "target/x86_64-unknown-none/debug/init",
+            boot_dir.join("init.elf"),
+        )
+        .map_err(|_| "failed to copy init ELF to boot segment")?;
+    }
 
     // Copy limine configuration
     fs::copy("kernel/limine.conf", boot_dir.join("limine.conf"))

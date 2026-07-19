@@ -25,6 +25,17 @@ impl MemoryKind {
         matches!(self, Self::Usable)
     }
 
+    pub const fn is_hhdm_eligible(self) -> bool {
+        matches!(
+            self,
+            Self::Usable
+                | Self::AcpiReclaimable
+                | Self::AcpiNvs
+                | Self::BootloaderReclaimable
+                | Self::ExecutableAndModules
+        )
+    }
+
     const fn label(self) -> &'static str {
         match self {
             Self::Usable => "usable",
@@ -133,9 +144,20 @@ impl fmt::Display for BootContextError {
     }
 }
 
+pub const MAX_BOOT_MODULES: usize = 8;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BootModule {
+    pub physical_address: u64,
+    pub size: u64,
+    pub path: &'static str,
+}
+
 pub struct BootContext {
     regions: [MemoryRegion; MAX_MEMORY_REGIONS],
     region_count: usize,
+    modules: [BootModule; MAX_BOOT_MODULES],
+    module_count: usize,
     kernel_image: KernelImageInfo,
     framebuffer: Option<FramebufferInfo>,
     rsdp: Option<RsdpInfo>,
@@ -145,6 +167,12 @@ impl BootContext {
     const EMPTY: Self = Self {
         regions: [MemoryRegion::EMPTY; MAX_MEMORY_REGIONS],
         region_count: 0,
+        modules: [BootModule {
+            physical_address: 0,
+            size: 0,
+            path: "",
+        }; MAX_BOOT_MODULES],
+        module_count: 0,
         kernel_image: KernelImageInfo {
             physical_base: 0,
             virtual_base: 0,
@@ -155,6 +183,26 @@ impl BootContext {
 
     pub fn memory_regions(&self) -> &[MemoryRegion] {
         &self.regions[..self.region_count]
+    }
+
+    pub fn boot_modules(&self) -> &[BootModule] {
+        &self.modules[..self.module_count]
+    }
+
+    /// Finds a boot module by its normalized name (e.g. "init", ignoring paths and extensions).
+    pub fn find_module(&self, name: &str) -> Option<&BootModule> {
+        self.modules[..self.module_count].iter().find(|m| {
+            let path = m.path;
+            // Get the part after the last slash
+            let base_name = path.rsplit('/').next().unwrap_or(path);
+            // Strip the extension
+            let normalized = if let Some(dot_idx) = base_name.rfind('.') {
+                &base_name[..dot_idx]
+            } else {
+                base_name
+            };
+            normalized == name
+        })
     }
 
     pub const fn kernel_image(&self) -> KernelImageInfo {
@@ -258,6 +306,22 @@ impl BootContextBuilder {
         };
         self.context.region_count += 1;
         Ok(())
+    }
+
+    pub(crate) fn push_boot_module(
+        &mut self,
+        physical_address: u64,
+        size: u64,
+        path: &'static str,
+    ) {
+        if self.context.module_count < MAX_BOOT_MODULES {
+            self.context.modules[self.context.module_count] = BootModule {
+                physical_address,
+                size,
+                path,
+            };
+            self.context.module_count += 1;
+        }
     }
 
     pub(crate) fn set_framebuffer(&mut self, framebuffer: FramebufferInfo) {

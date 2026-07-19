@@ -174,6 +174,11 @@ extern "x86-interrupt" fn page_fault_handler(
 
     #[cfg(not(feature = "test-heap-guard"))]
     {
+        let came_from_user = (frame.code_segment.0 & 3) == 3;
+        if came_from_user {
+            unsafe { core::arch::asm!("swapgs", options(nostack, preserves_flags)) };
+        }
+
         // Check if this fault occurred during a recoverable user copy operation.
         // ADR 0009 requires only a matching kernel-mode copy fault to be
         // redirected. User-mode faults or kernel-address faults with an active
@@ -196,6 +201,9 @@ extern "x86-interrupt" fn page_fault_handler(
                     frame.as_mut().update(|val| {
                         val.instruction_pointer = x86_64::VirtAddr::new(recovery.fault_resume_rip);
                     });
+                    if came_from_user {
+                        core::arch::asm!("swapgs", options(nostack, preserves_flags));
+                    }
                     return;
                 }
                 // Fall through to terminal fault — this is NOT a matching
@@ -210,6 +218,9 @@ extern "x86-interrupt" fn page_fault_handler(
             Cr2::read_raw(),
             error_code
         );
+        if came_from_user {
+            unsafe { core::arch::asm!("swapgs", options(nostack, preserves_flags)) };
+        }
         terminal_test_exit();
     }
 }

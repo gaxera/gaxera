@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use gaxera_abi::{ObjectType, ObjectTypeSet};
 
-use crate::resource::{ResourceDomain, ResourceDomainId, ResourceError};
+pub use crate::resource::{ResourceDomain, ResourceDomainId, ResourceError, ResourceLimits};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ObjectId {

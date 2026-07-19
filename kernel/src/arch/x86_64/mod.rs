@@ -7,6 +7,7 @@ pub mod descriptors;
 pub mod diagnostics;
 pub mod entry;
 pub mod exceptions;
+pub mod loader;
 pub mod paging;
 pub mod preemption;
 pub mod probe;

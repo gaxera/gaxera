@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/gaxera-abi",
+    "crates/gaxera-abi", "crates/init",
     "crates/kernel-core",
     "kernel",
     "xtask",

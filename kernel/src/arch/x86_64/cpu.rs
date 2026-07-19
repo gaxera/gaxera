@@ -116,10 +116,14 @@ pub unsafe fn init_bsp_cpu_local() {
 /// # Safety
 /// Must only be called when `GSBase` contains the `CpuLocal` pointer (i.e. in ring 0).
 pub unsafe fn get_cpu_local() -> &'static CpuLocal {
-    unsafe {
-        let gs_base = x86_64::registers::model_specific::GsBase::read().as_u64();
-        &*(gs_base as *const CpuLocal)
-    }
+    let ptr = x86_64::registers::model_specific::GsBase::read().as_u64() as *const CpuLocal;
+    &*ptr
+}
+
+/// Returns a mutable reference to the active `CpuLocal`.
+pub unsafe fn get_cpu_local_mut() -> &'static mut CpuLocal {
+    let ptr = x86_64::registers::model_specific::GsBase::read().as_u64() as *mut CpuLocal;
+    &mut *ptr
 }
 
 /// Sets the top of the kernel stack for the active processor.
@@ -131,5 +135,6 @@ pub unsafe fn set_kernel_stack_top(top: u64) {
         let gs_base = x86_64::registers::model_specific::GsBase::read().as_u64();
         let cpu_local = &mut *(gs_base as *mut CpuLocal);
         cpu_local.kernel_stack_top = top;
+        crate::arch::x86_64::descriptors::set_tss_rsp0(top);
     }
 }

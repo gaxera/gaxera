@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod boot;
 pub mod ipc;
 
 use core::ops::{BitAnd, BitOr, BitOrAssign};
@@ -73,7 +74,11 @@ impl ObjectTypeSet {
     pub const ALL: Self = Self((1_u16 << 11) - 1);
 
     pub const fn of(object_type: ObjectType) -> Self {
-        Self(object_type.bit())
+        Self(1 << (object_type as u8))
+    }
+
+    pub const fn from_bits(bits: u16) -> Self {
+        Self(bits)
     }
 
     pub const fn contains(self, object_type: ObjectType) -> bool {

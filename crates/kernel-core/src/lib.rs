@@ -3,7 +3,9 @@
 extern crate alloc;
 
 pub mod capability;
+pub mod elf;
 pub mod ipc;
+pub mod memory;
 pub mod notification;
 pub mod object;
 pub mod resource;

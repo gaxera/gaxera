@@ -444,6 +444,21 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         probe.execute();
     }
 
+    let mut arena = match kernel_core::object::ObjectArena::try_new(1024) {
+        Ok(a) => a,
+        Err(e) => {
+            println!("GAXERA ERROR: ObjectArena initialization failed: {:?}", e);
+            serial::halt();
+        }
+    };
+
+    match kernel::init::spawn_init(boot_context, &mut page_tables, physical_frames, &mut arena) {
+        Err(e) => {
+            println!("GAXERA ERROR: Failed to spawn init: {:?}", e);
+            serial::halt();
+        }
+    }
+
     #[cfg(any(
         feature = "test-cooperative-yield",
         feature = "test-context-preservation"
