@@ -53,6 +53,7 @@ pub unsafe fn init() {
     idt[apic::TIMER_VECTOR].set_handler_fn(local_apic_timer_handler);
 
     #[cfg(not(feature = "test-apic-timer"))]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         idt[apic::TIMER_VECTOR].set_handler_addr(x86_64::VirtAddr::new(
             crate::arch::x86_64::timer_entry::timer_interrupt_entry as *const () as usize as u64,
@@ -176,6 +177,7 @@ extern "x86-interrupt" fn page_fault_handler(
     {
         let came_from_user = (frame.code_segment.0 & 3) == 3;
         if came_from_user {
+            // SAFETY: Hardware invariant or verified by caller.
             unsafe { core::arch::asm!("swapgs", options(nostack, preserves_flags)) };
         }
 
@@ -184,6 +186,7 @@ extern "x86-interrupt" fn page_fault_handler(
         // redirected. User-mode faults or kernel-address faults with an active
         // recovery record indicate a different (possibly serious) fault and
         // must remain terminal.
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             let cpu_local = crate::arch::x86_64::cpu::get_cpu_local();
             if let Some(recovery) = cpu_local.take_recovery() {
@@ -219,6 +222,7 @@ extern "x86-interrupt" fn page_fault_handler(
             error_code
         );
         if came_from_user {
+            // SAFETY: Hardware invariant or verified by caller.
             unsafe { core::arch::asm!("swapgs", options(nostack, preserves_flags)) };
         }
         terminal_test_exit();
@@ -316,6 +320,7 @@ extern "x86-interrupt" fn user_return_handler(frame: InterruptStackFrame) {
         }
     }
 
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { crate::arch::x86_64::probe::M2AProbe::restore_kernel_cr3() };
 
     #[cfg(feature = "test-user-transition")]

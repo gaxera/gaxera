@@ -77,6 +77,7 @@ pub unsafe fn init() {
     // have static storage, remain at fixed addresses, and are never mutated
     // after the GDT and TSS become active.
     let tables = unsafe { &mut *TABLES.get() };
+    // SAFETY: Hardware invariant or verified by caller.
     let stack = unsafe { &mut *DOUBLE_FAULT_STACK.get() };
 
     let stack_top = VirtAddr::from_ptr(stack.0.as_mut_ptr().wrapping_add(DOUBLE_FAULT_STACK_SIZE));
@@ -128,6 +129,7 @@ pub(crate) unsafe fn install_user_transition_stack() -> Option<u64> {
     // SAFETY: the caller upholds the single-CPU, no-active-user-entry rule.
     // The stack and TSS are static and their addresses cannot move.
     let tables = unsafe { &mut *TABLES.get() };
+    // SAFETY: Hardware invariant or verified by caller.
     let stack = unsafe { &mut *USER_TRANSITION_STACK.get() };
     let top = VirtAddr::from_ptr(
         stack

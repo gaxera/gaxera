@@ -17,3 +17,4 @@ logs/
 .internal/ 
 .agents/
 
+.internal_tooling/

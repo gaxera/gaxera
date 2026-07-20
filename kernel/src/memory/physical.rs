@@ -579,6 +579,7 @@ mod tests {
                 .unwrap();
         let frame = allocator.allocate().unwrap();
 
+        // SAFETY: The frame was legally allocated and is being returned to the allocator.
         unsafe { allocator.deallocate(frame).unwrap() };
 
         assert_eq!(allocator.allocate().unwrap(), frame);

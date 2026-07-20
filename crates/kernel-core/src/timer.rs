@@ -240,7 +240,7 @@ mod tests {
     fn timer_object_close() {
         let mut t1 = TimerObject::new(test_id(1));
         let effects1 = t1.close();
-        assert_eq!(effects1.cancel_queue, false);
+        assert!(!effects1.cancel_queue);
         assert_eq!(
             t1.arm(Deadline::new(Ticks(10)), test_id(2)),
             Err(TimerError::Closed)
@@ -249,7 +249,7 @@ mod tests {
         let mut t2 = TimerObject::new(test_id(2));
         t2.arm(Deadline::new(Ticks(10)), test_id(3)).unwrap();
         let effects2 = t2.close();
-        assert_eq!(effects2.cancel_queue, true);
+        assert!(effects2.cancel_queue);
     }
 
     #[test]

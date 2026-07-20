@@ -63,7 +63,7 @@ impl ResourceDomain {
         Self::new(id, limits)
     }
 
-    pub(crate) const fn id(&self) -> ResourceDomainId {
+    pub const fn id(&self) -> ResourceDomainId {
         self.id
     }
 

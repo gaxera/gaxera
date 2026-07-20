@@ -80,7 +80,7 @@ impl Endpoint {
             }
             EndpointState::ReceiverWaiting { receiver } => {
                 self.reply_sequence += 1;
-                let token = ReplyToken::from_raw(self.reply_sequence);
+                let token = ReplyToken::from_raw(caller.raw());
                 self.state = EndpointState::ReplyOutstanding {
                     caller,
                     token,
@@ -108,8 +108,7 @@ impl Endpoint {
                 Ok(Err(IpcEffect::Block))
             }
             EndpointState::CallerPending { caller, message } => {
-                self.reply_sequence += 1;
-                let token = ReplyToken::from_raw(self.reply_sequence);
+                let token = ReplyToken::from_raw(caller.raw());
                 self.state = EndpointState::ReplyOutstanding {
                     caller,
                     token,

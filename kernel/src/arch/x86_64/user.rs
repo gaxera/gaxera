@@ -149,6 +149,41 @@ const fn is_canonical_lower_half(address: u64) -> bool {
     address <= USER_ADDRESS_MAX
 }
 
+/// Hands off control to user space via `sysretq`.
+///
+/// # Safety
+/// This function executes an unprotected hardware privilege transition. `entry_point`
+/// and `stack_pointer` must be valid canonical user addresses properly mapped in the
+/// current page table.
+pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64) -> ! {
+    // SAFETY: Hardware invariant or verified by caller.
+    unsafe {
+        core::arch::asm!(
+            "swapgs",         // swap to user GS base
+            "mov rsp, {stack}", // set user stack pointer
+            // Clear remaining caller-saved and callee-saved registers to prevent kernel information leak
+            "xor rax, rax",
+            "xor rbx, rbx",
+            "xor rdx, rdx",
+            "xor rsi, rsi",
+            "xor r8, r8",
+            "xor r9, r9",
+            "xor r10, r10",
+            "xor r12, r12",
+            "xor r13, r13",
+            "xor r14, r14",
+            "xor r15, r15",
+            "xor rbp, rbp",
+            "sysretq",
+            stack = in(reg) stack_pointer,
+            in("rcx") entry_point,
+            in("r11") USER_INITIAL_RFLAGS,
+            in("rdi") arg0,
+            options(noreturn)
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,40 +235,6 @@ mod tests {
             }
             .validate(SELECTORS),
             Err(UserTransitionError::InvalidCodeSelector)
-        );
-    }
-}
-
-/// Hands off control to user space via `sysretq`.
-///
-/// # Safety
-/// This function executes an unprotected hardware privilege transition. `entry_point`
-/// and `stack_pointer` must be valid canonical user addresses properly mapped in the
-/// current page table.
-pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64) -> ! {
-    unsafe {
-        core::arch::asm!(
-            "swapgs",         // swap to user GS base
-            "mov rsp, {stack}", // set user stack pointer
-            // Clear remaining caller-saved and callee-saved registers to prevent kernel information leak
-            "xor rax, rax",
-            "xor rbx, rbx",
-            "xor rdx, rdx",
-            "xor rsi, rsi",
-            "xor r8, r8",
-            "xor r9, r9",
-            "xor r10, r10",
-            "xor r12, r12",
-            "xor r13, r13",
-            "xor r14, r14",
-            "xor r15, r15",
-            "xor rbp, rbp",
-            "sysretq",
-            stack = in(reg) stack_pointer,
-            in("rcx") entry_point,
-            in("r11") USER_INITIAL_RFLAGS,
-            in("rdi") arg0,
-            options(noreturn)
         );
     }
 }

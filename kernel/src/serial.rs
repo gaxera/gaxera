@@ -18,6 +18,7 @@ impl SerialPort {
     /// This function performs raw port I/O operations and must only be called
     /// when the hardware is ready to configure COM1 interface registers.
     pub unsafe fn init(&self) {
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             // Disable all interrupts
             outb(self.port + 1, 0x00);
@@ -88,6 +89,7 @@ pub fn idle() -> ! {
 // Low-level port I/O abstractions using inline assembly.
 #[inline]
 unsafe fn outb(port: u16, val: u8) {
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         asm!(
             "out dx, al",

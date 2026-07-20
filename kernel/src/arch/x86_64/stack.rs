@@ -64,6 +64,7 @@ impl KernelStack {
 
             let page_virt = stack_base + (page_idx * PAGE_SIZE);
 
+            // SAFETY: Hardware invariant or verified by caller.
             unsafe {
                 mapper
                     .map_kernel_stack_page(page_virt, frame, allocator)

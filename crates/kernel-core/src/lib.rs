@@ -2,12 +2,16 @@
 
 extern crate alloc;
 
+pub mod address_space;
+
 pub mod capability;
+pub mod debug_console;
 pub mod elf;
 pub mod ipc;
 pub mod memory;
 pub mod notification;
 pub mod object;
+pub mod registry;
 pub mod resource;
 pub mod scheduler;
 pub mod thread;

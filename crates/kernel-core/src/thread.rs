@@ -20,7 +20,9 @@ pub struct Thread<T> {
     id: ObjectId,
     state: ThreadState,
     address_space: Option<ObjectId>,
+    cspace: Option<ObjectId>,
     pub arch: T,
+    pub ipc_receive_buffer: Option<gaxera_abi::ipc::InlineMessage>,
 }
 
 impl<T> Thread<T> {
@@ -29,7 +31,9 @@ impl<T> Thread<T> {
             id,
             state: ThreadState::New,
             address_space,
+            cspace: None,
             arch,
+            ipc_receive_buffer: None,
         }
     }
 
@@ -43,6 +47,18 @@ impl<T> Thread<T> {
 
     pub fn address_space(&self) -> Option<ObjectId> {
         self.address_space
+    }
+
+    pub fn cspace(&self) -> Option<ObjectId> {
+        self.cspace
+    }
+
+    pub fn set_cspace(&mut self, cspace: ObjectId) {
+        self.cspace = Some(cspace);
+    }
+
+    pub fn set_aspace(&mut self, aspace: Option<ObjectId>) {
+        self.address_space = aspace;
     }
 
     pub fn make_runnable(&mut self) -> Result<(), ThreadError> {

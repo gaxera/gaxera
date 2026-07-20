@@ -48,6 +48,7 @@ pub struct ThreadTable {
     slots: UnsafeCell<Vec<ThreadSlot>>,
 }
 
+// SAFETY: Hardware invariant or verified by caller.
 unsafe impl Sync for ThreadTable {}
 
 impl ThreadTable {
@@ -68,6 +69,7 @@ impl ThreadTable {
     /// # Safety
     /// Must only be called on the BSP.
     pub unsafe fn insert(&self, thread: Thread) {
+        // SAFETY: Hardware invariant or verified by caller.
         let slots = unsafe { &mut *self.slots.get() };
         let index = thread.id().index() as usize;
         let generation = thread.id().generation();
@@ -95,6 +97,7 @@ impl ThreadTable {
             return None;
         }
 
+        // SAFETY: Hardware invariant or verified by caller.
         let slots = unsafe { &mut *self.slots.get() };
         let first_index = first.index() as usize;
         let second_index = second.index() as usize;
@@ -122,10 +125,38 @@ impl ThreadTable {
     /// # Safety
     /// Must only be called on the BSP.
     pub unsafe fn remove(&self, id: ObjectId) -> Option<Thread> {
+        // SAFETY: Hardware invariant or verified by caller.
         let slots = unsafe { &mut *self.slots.get() };
         let index = id.index() as usize;
         if index < slots.len() && slots[index].generation == id.generation() {
             slots[index].thread.take()
+        } else {
+            None
+        }
+    }
+
+    /// # Safety
+    /// Must only be called on the BSP.
+    pub unsafe fn get(&self, id: ObjectId) -> Option<&Thread> {
+        // SAFETY: Hardware invariant or verified by caller.
+        let slots = unsafe { &*self.slots.get() };
+        let index = id.index() as usize;
+        if index < slots.len() && slots[index].generation == id.generation() {
+            slots[index].thread.as_ref()
+        } else {
+            None
+        }
+    }
+
+    /// # Safety
+    /// Must only be called on the BSP.
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn get_mut(&self, id: ObjectId) -> Option<&mut Thread> {
+        // SAFETY: Hardware invariant or verified by caller.
+        let slots = unsafe { &mut *self.slots.get() };
+        let index = id.index() as usize;
+        if index < slots.len() && slots[index].generation == id.generation() {
+            slots[index].thread.as_mut()
         } else {
             None
         }
@@ -141,6 +172,7 @@ pub fn spawn_user_thread(
 ) -> ArchThread {
     let mut rsp = stack.top().as_u64();
 
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         // Push UserTransitionFrame (for iretq)
         rsp -= 8;

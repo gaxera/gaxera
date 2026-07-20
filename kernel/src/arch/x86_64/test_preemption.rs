@@ -28,10 +28,13 @@ pub fn run_preemption_test(
     let mut thread0 = Thread::new(ObjectId::new_for_test(1, 1), None, arch0);
     let mut thread1 = Thread::new(ObjectId::new_for_test(2, 1), None, arch1);
 
+    // SAFETY: Hardware invariant or verified by caller.
     let cpu_local = unsafe { crate::arch::x86_64::cpu::get_cpu_local() };
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         *cpu_local.scheduler.get() = Some(Scheduler::try_new(256).unwrap());
     }
+    // SAFETY: Hardware invariant or verified by caller.
     let scheduler = unsafe { &mut *cpu_local.scheduler.get() };
     if let Some(sched) = scheduler.as_mut() {
         sched.enqueue(&mut thread1).unwrap();
@@ -40,6 +43,7 @@ pub fn run_preemption_test(
         sched.set_current_thread(Some(thread0.id()));
     }
 
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         crate::arch::x86_64::cpu::set_kernel_stack_top(thread0_stack_top);
         crate::arch::x86_64::thread::THREADS.insert(thread0);

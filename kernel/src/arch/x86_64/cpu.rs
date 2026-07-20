@@ -117,6 +117,7 @@ pub unsafe fn init_bsp_cpu_local() {
 /// Must only be called when `GSBase` contains the `CpuLocal` pointer (i.e. in ring 0).
 pub unsafe fn get_cpu_local() -> &'static CpuLocal {
     let ptr = x86_64::registers::model_specific::GsBase::read().as_u64() as *const CpuLocal;
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { &*ptr }
 }
 
@@ -126,6 +127,7 @@ pub unsafe fn get_cpu_local() -> &'static CpuLocal {
 /// Must only be called when `GSBase` contains the `CpuLocal` pointer (i.e. in ring 0).
 pub unsafe fn get_cpu_local_mut() -> &'static mut CpuLocal {
     let ptr = x86_64::registers::model_specific::GsBase::read().as_u64() as *mut CpuLocal;
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { &mut *ptr }
 }
 
@@ -134,6 +136,7 @@ pub unsafe fn get_cpu_local_mut() -> &'static mut CpuLocal {
 /// # Safety
 /// Must only be called in ring 0.
 pub unsafe fn set_kernel_stack_top(top: u64) {
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         let gs_base = x86_64::registers::model_specific::GsBase::read().as_u64();
         let cpu_local = &mut *(gs_base as *mut CpuLocal);

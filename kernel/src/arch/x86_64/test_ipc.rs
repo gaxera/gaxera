@@ -130,6 +130,7 @@ pub fn run_ipc_test() -> ! {
     println!("GAXERA: IPC_TEST_OK");
 
     #[cfg(feature = "qemu-test")]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         crate::arch::x86_64::qemu::exit_success();
     }

@@ -1,4 +1,5 @@
 pub mod acpi;
+pub mod address_space;
 pub mod apic;
 pub mod boot;
 pub mod context;
@@ -7,7 +8,6 @@ pub mod descriptors;
 pub mod diagnostics;
 pub mod entry;
 pub mod exceptions;
-pub mod loader;
 pub mod paging;
 pub mod preemption;
 pub mod probe;

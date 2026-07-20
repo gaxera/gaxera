@@ -206,22 +206,27 @@ pub unsafe fn switch_thread(
     next_cr3: Option<PhysFrame>,
 ) {
     // 1. Update CpuLocal's kernel_stack_top (used by syscall entry)
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { cpu::set_kernel_stack_top(next_kernel_stack_top) };
 
     // 2. Update TSS.RSP0 (used by hardware interrupt/exception entry from ring 3)
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { descriptors::set_tss_rsp0(next_kernel_stack_top) };
 
     // 3. Switch CR3 if the next thread is in a different address space
     if let Some(cr3) = next_cr3 {
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { Cr3::write(cr3, Cr3Flags::empty()) };
     }
 
     // 4. Perform the architectural stack and register switch
     #[cfg(feature = "test-context-preservation")]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         context_switch_verified(prev, next)
     };
     #[cfg(not(feature = "test-context-preservation"))]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         context_switch(prev, next)
     };

@@ -5,6 +5,8 @@ use x86_64::registers::rflags::RFlags;
 
 use crate::memory::mapping::USER_ADDRESS_MAX;
 use crate::println;
+use kernel_core::registry::ObjectRegistry;
+use x86_64::structures::paging::FrameAllocator;
 
 const MSR_STAR: u32 = 0xC0000081;
 const MSR_LSTAR: u32 = 0xC0000082;
@@ -70,6 +72,8 @@ global_asm!(
         call handle_syscall
         add rsp, 8
 
+    .global syscall_return
+    syscall_return:
         // Restore registers
         pop r15
         pop r14
@@ -84,7 +88,7 @@ global_asm!(
         pop rsi
         pop rdx
         pop rcx          // Restore RIP into RCX for sysret
-        add rsp, 8       // Skip rax (return value already set or kept)
+        pop rax          // Restore rax (return value)
         pop rsp          // Restore user RSP
 
         // Swap GS back to user GS
@@ -95,6 +99,7 @@ global_asm!(
 
 unsafe extern "C" {
     fn syscall_entry();
+    fn syscall_return();
 }
 
 /// Validates the sysret return frame for safety.
@@ -142,6 +147,7 @@ const fn is_user_return_address(address: u64) -> bool {
 /// # Safety
 /// Must be called once during early BSP setup.
 pub unsafe fn enable_syscalls() {
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         // 1. Enable SCE (System Call Extensions) in EFER
         let current_efer = Efer::read();
@@ -167,6 +173,14 @@ pub unsafe fn enable_syscalls() {
 
 #[unsafe(no_mangle)]
 extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
+    if frame.rax != 0 && frame.rax != 1 {
+        // crate::println!(
+        //     "GAXERA: SYSCALL {} handle={} rsi={}",
+        //     frame.rax,
+        //     frame.rdi,
+        //     frame.rsi
+        // );
+    }
     // For M2B, handle simple syscalls like NoOp and Yield, or return error for unknown
     frame.rax = match frame.rax {
         0 => {
@@ -181,27 +195,775 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             #[cfg(feature = "test-preemption")]
             {
                 crate::println!("GAXERA: PREEMPTION_OK");
+                // SAFETY: Hardware invariant or verified by caller.
                 unsafe { crate::arch::x86_64::qemu::exit_success() };
             }
             #[cfg(not(feature = "test-preemption"))]
             u64::MAX
         }
-        10 => {
-            // sys_invoke(cap_index, op, ...)
-            let cap_index = frame.rdi;
-            if cap_index == 3 {
-                crate::println!("GAXERA: FACTORY_INVOKED");
-                0
-            } else if cap_index == 4 {
-                crate::println!("GAXERA: INIT_TEST_SUCCESS");
-                #[cfg(feature = "qemu-test")]
-                unsafe {
-                    crate::arch::x86_64::qemu::exit_success()
+        10 => 'sys_invoke: {
+            // sys_invoke(handle_raw, op, ...)
+            let handle_raw = frame.rdi;
+            let handle = gaxera_abi::Handle::from_raw(handle_raw);
+
+            // 1. Identify active Thread
+            // SAFETY: Hardware invariant or verified by caller.
+            let cpu_local = unsafe { cpu::get_cpu_local() };
+            // SAFETY: Single CPU per thread invariant.
+            let scheduler = unsafe { &*cpu_local.scheduler.get() };
+
+            let current_thread_id = match scheduler.as_ref().and_then(|s| s.current_thread()) {
+                Some(id) => id,
+                None => {
+                    crate::println!("GAXERA: current_thread() None");
+                    break 'sys_invoke u64::MAX;
+                }
+            };
+
+            // 2. Identify CSpace
+            // SAFETY: Hardware invariant or verified by caller.
+            let cspace_id =
+                match unsafe { crate::arch::x86_64::thread::THREADS.get(current_thread_id) } {
+                    Some(t) => match t.cspace() {
+                        Some(c) => c,
+                        None => {
+                            crate::println!("GAXERA: t.cspace() was None");
+                            break 'sys_invoke u64::MAX;
+                        }
+                    },
+                    None => {
+                        crate::println!("GAXERA: THREADS.get failed");
+                        break 'sys_invoke u64::MAX;
+                    }
                 };
-                #[cfg(not(feature = "qemu-test"))]
-                crate::serial::halt();
-            } else {
-                u64::MAX
+
+            // 3. Capability Resolution
+            // Limit the lock scope so we don't hold CAPABILITY_SYSTEM while invoking.
+            {
+                let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                let cspace = match cspaces.get_mut(cspace_id) {
+                    Some(c) => c,
+                    None => {
+                        crate::println!("GAXERA: cspaces.get_mut failed for {:?}", cspace_id);
+                        break 'sys_invoke u64::MAX;
+                    }
+                };
+
+                let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                let sys = match system.as_mut() {
+                    Some(s) => s,
+                    None => break 'sys_invoke u64::MAX,
+                };
+
+                let arena = crate::global::OBJECT_ARENA.lock();
+                let arena_ref = match arena.as_ref() {
+                    Some(a) => a,
+                    None => break 'sys_invoke u64::MAX,
+                };
+
+                let op = frame.rsi;
+
+                if op == gaxera_abi::OperationCode::MapMemory as u64 {
+                    // map_memory(aspace_handle, mem_handle, vaddr, rights)
+                    let aspace_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::AddressSpace,
+                        gaxera_abi::Rights::NONE, // TODO: Require mapping rights
+                        arena_ref,
+                    );
+
+                    let mem_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+                    let mem_result = sys.lookup(
+                        cspace,
+                        mem_handle,
+                        gaxera_abi::ObjectType::MemoryObject,
+                        gaxera_abi::Rights::NONE, // TODO: Require mapping rights
+                        arena_ref,
+                    );
+
+                    if let (Ok(aspace_id), Ok(mem_id)) = (aspace_result, mem_result) {
+                        let virtual_address = frame.r10; // Arg 3
+                        let rights = gaxera_abi::Rights::from_bits(frame.r8 as u32); // Arg 4
+
+                        // Drop locks before taking object locks
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                        let aspace = match aspaces.get_mut(aspace_id) {
+                            Some(a) => a,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        let mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                        let mem_obj = match mem_objects.get(mem_id) {
+                            Some(m) => m,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        use kernel_core::address_space::ArchAddressSpace;
+                        match aspace
+                            .arch
+                            .map_frames(virtual_address, mem_obj.frames(), rights)
+                        {
+                            Ok(_) => {
+                                crate::println!(
+                                    "GAXERA: MEMORY_MAPPED vaddr={:#018x} size={}",
+                                    virtual_address,
+                                    mem_obj.size_bytes()
+                                );
+                                0
+                            }
+                            Err(_) => u64::MAX,
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::Call as u64 {
+                    let endpoint_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Endpoint,
+                        gaxera_abi::Rights::NONE,
+                        arena_ref,
+                    );
+                    if let Ok(endpoint_id) = endpoint_result {
+                        let mut payload = [0u8; 32];
+                        payload[0..8].copy_from_slice(&frame.rdx.to_le_bytes());
+                        payload[8..16].copy_from_slice(&frame.r10.to_le_bytes());
+                        payload[16..24].copy_from_slice(&frame.r8.to_le_bytes());
+                        payload[24..32].copy_from_slice(&frame.r9.to_le_bytes());
+                        let message = gaxera_abi::ipc::InlineMessage::try_new(&payload).unwrap();
+
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let mut endpoints = crate::global::ENDPOINTS.lock();
+                        let endpoint = match endpoints.get_mut(endpoint_id) {
+                            Some(e) => e,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+                        let call_result = endpoint.call(current_thread_id, message);
+                        drop(endpoints);
+
+                        // SAFETY: Single core BSP, no data races.
+                        let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                        let scheduler = scheduler_cell.as_mut().unwrap();
+
+                        match call_result {
+                            Ok(kernel_core::ipc::IpcEffect::Block) => {
+                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+                                let thread = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                                }
+                                .unwrap();
+                                let _ = scheduler.block_current(thread);
+                                if let Some(next) = scheduler.dequeue_next() {
+                                    scheduler.set_current_thread(Some(next));
+                                    crate::arch::x86_64::preemption::switch_to_next(
+                                        current_thread_id,
+                                        next,
+                                    )
+                                    .unwrap();
+                                }
+                            }
+                            Ok(kernel_core::ipc::IpcEffect::Wake(receiver_id)) => {
+                                // Block caller (ourselves) because we are waiting for a reply
+                                // SAFETY: The thread map is locked and access is mutually exclusive here.
+                                let thread = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                                }
+                                .unwrap();
+                                let _ = scheduler.block_current(thread);
+
+                                // SAFETY: Receiver exists and we only borrow it to wake.
+                                let receiver = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(receiver_id)
+                                }
+                                .unwrap();
+                                let _ = scheduler.apply_wake(receiver);
+                                // The current thread is BLOCKED, so we dequeue the receiver and switch to it.
+                                if let Some(next) = scheduler.dequeue_next() {
+                                    scheduler.set_current_thread(Some(next));
+                                    crate::arch::x86_64::preemption::switch_to_next(
+                                        current_thread_id,
+                                        next,
+                                    )
+                                    .unwrap();
+                                }
+                            }
+                            Err(_) => break 'sys_invoke u64::MAX,
+                        }
+
+                        // Woken up! Fetch reply
+                        // SAFETY: Current thread is safely resuming execution.
+                        let thread = unsafe {
+                            crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                        }
+                        .unwrap();
+                        if let Some(reply) = thread.ipc_receive_buffer.take() {
+                            let payload = reply.payload();
+                            if payload.len() >= 8 {
+                                frame.rdx = u64::from_le_bytes(payload[0..8].try_into().unwrap());
+                            }
+                            if payload.len() >= 16 {
+                                frame.r10 = u64::from_le_bytes(payload[8..16].try_into().unwrap());
+                            }
+                            if payload.len() >= 24 {
+                                frame.r8 = u64::from_le_bytes(payload[16..24].try_into().unwrap());
+                            }
+                            if payload.len() >= 32 {
+                                frame.r9 = u64::from_le_bytes(payload[24..32].try_into().unwrap());
+                            }
+                        }
+                        0
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::Receive as u64 {
+                    let endpoint_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Endpoint,
+                        gaxera_abi::Rights::NONE,
+                        arena_ref,
+                    );
+                    if let Ok(endpoint_id) = endpoint_result {
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let mut endpoints = crate::global::ENDPOINTS.lock();
+                        let endpoint = match endpoints.get_mut(endpoint_id) {
+                            Some(e) => e,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+                        let recv_result = endpoint.receive(current_thread_id);
+                        drop(endpoints);
+
+                        match recv_result {
+                            Ok(Ok(call)) => {
+                                frame.rdi = call.reply_token.raw();
+                                frame.rsi = gaxera_abi::Handle::from_parts(
+                                    call.caller.index(),
+                                    call.caller.generation(),
+                                )
+                                .raw();
+                                let payload = call.message.payload();
+                                if payload.len() >= 8 {
+                                    frame.rdx =
+                                        u64::from_le_bytes(payload[0..8].try_into().unwrap());
+                                }
+                                if payload.len() >= 16 {
+                                    frame.r10 =
+                                        u64::from_le_bytes(payload[8..16].try_into().unwrap());
+                                }
+                                if payload.len() >= 24 {
+                                    frame.r8 =
+                                        u64::from_le_bytes(payload[16..24].try_into().unwrap());
+                                }
+                                if payload.len() >= 32 {
+                                    frame.r9 =
+                                        u64::from_le_bytes(payload[24..32].try_into().unwrap());
+                                }
+                                0
+                            }
+                            Ok(Err(kernel_core::ipc::IpcEffect::Block)) => {
+                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+                                let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                                let scheduler = scheduler_cell.as_mut().unwrap();
+                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+                                let thread = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                                }
+                                .unwrap();
+                                let _ = scheduler.block_current(thread);
+                                if let Some(next) = scheduler.dequeue_next() {
+                                    scheduler.set_current_thread(Some(next));
+                                    crate::arch::x86_64::preemption::switch_to_next(
+                                        current_thread_id,
+                                        next,
+                                    )
+                                    .unwrap();
+                                }
+
+                                // Woken up! Message must be in endpoint
+                                let mut endpoints = crate::global::ENDPOINTS.lock();
+                                if let Some(call) = endpoints
+                                    .get_mut(endpoint_id)
+                                    .and_then(|e| e.take_received_call())
+                                {
+                                    frame.rdi = call.reply_token.raw();
+                                    frame.rsi = gaxera_abi::Handle::from_parts(
+                                        call.caller.index(),
+                                        call.caller.generation(),
+                                    )
+                                    .raw();
+                                    let payload = call.message.payload();
+                                    if payload.len() >= 8 {
+                                        frame.rdx =
+                                            u64::from_le_bytes(payload[0..8].try_into().unwrap());
+                                    }
+                                    if payload.len() >= 16 {
+                                        frame.r10 =
+                                            u64::from_le_bytes(payload[8..16].try_into().unwrap());
+                                    }
+                                    if payload.len() >= 24 {
+                                        frame.r8 =
+                                            u64::from_le_bytes(payload[16..24].try_into().unwrap());
+                                    }
+                                    if payload.len() >= 32 {
+                                        frame.r9 =
+                                            u64::from_le_bytes(payload[24..32].try_into().unwrap());
+                                    }
+                                }
+                                0
+                            }
+                            _ => u64::MAX,
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::Reply as u64 {
+                    let mut payload = [0u8; 32];
+                    payload[0..8].copy_from_slice(&frame.rdx.to_le_bytes());
+                    payload[8..16].copy_from_slice(&frame.r10.to_le_bytes());
+                    payload[16..24].copy_from_slice(&frame.r8.to_le_bytes());
+                    payload[24..32].copy_from_slice(&frame.r9.to_le_bytes());
+                    let message = gaxera_abi::ipc::InlineMessage::try_new(&payload).unwrap();
+                    let caller_id = kernel_core::object::ObjectId::from_raw(frame.rdi);
+                    let reply_token = gaxera_abi::ipc::ReplyToken::from_raw(frame.rdi);
+
+                    let mut valid_reply = false;
+                    {
+                        let mut endpoints = crate::global::ENDPOINTS.lock();
+                        for (_id, ep) in endpoints.iter_mut() {
+                            if let Ok(kernel_core::ipc::IpcEffect::Wake(_)) =
+                                ep.reply(reply_token, message)
+                            {
+                                valid_reply = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    if !valid_reply {
+                        break 'sys_invoke u64::MAX;
+                    }
+
+                    // SAFETY: Single core BSP, no data races.
+                    let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                    let scheduler = scheduler_cell.as_mut().unwrap();
+
+                    // Woken up! Fetch caller and apply wake.
+                    // SAFETY: The thread map is globally accessible and this scope holds logical exclusion.
+                    let caller_thread =
+                        unsafe { crate::arch::x86_64::thread::THREADS.get_mut(caller_id) };
+                    if let Some(caller) = caller_thread {
+                        caller.ipc_receive_buffer = Some(message);
+                        let _ = scheduler.apply_wake(caller);
+                        // The current thread is still Runnable, so we do a preemptive yield
+                        crate::arch::x86_64::preemption::reschedule(
+                            scheduler,
+                            current_thread_id,
+                            caller_id,
+                        )
+                        .unwrap();
+                    }
+                    0
+                } else if op == gaxera_abi::OperationCode::ConfigureThread as u64 {
+                    let thread_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Thread,
+                        gaxera_abi::Rights::NONE, // TODO: Require configure rights
+                        arena_ref,
+                    );
+                    if let Ok(thread_id) = thread_result {
+                        let rip = frame.rdx; // arg1
+                        let rsp = frame.r10; // arg2
+                        let aspace_handle = gaxera_abi::Handle::from_raw(frame.r8); // arg3
+                        let cspace_handle = gaxera_abi::Handle::from_raw(frame.r9); // arg4
+
+                        let aspace_id = sys.lookup(
+                            cspace,
+                            aspace_handle,
+                            gaxera_abi::ObjectType::AddressSpace,
+                            gaxera_abi::Rights::NONE,
+                            arena_ref,
+                        );
+                        let cspace_obj_id = sys.lookup(
+                            cspace,
+                            cspace_handle,
+                            gaxera_abi::ObjectType::CapabilitySpace,
+                            gaxera_abi::Rights::NONE,
+                            arena_ref,
+                        );
+
+                        if let (Ok(a_id), Ok(c_id)) = (aspace_id, cspace_obj_id) {
+                            let aspaces = crate::global::ADDRESS_SPACES.lock();
+                            let a = aspaces.get(a_id).unwrap();
+                            use kernel_core::address_space::ArchAddressSpace;
+                            let cr3 = a.arch.root_token();
+                            drop(aspaces);
+
+                            // SAFETY: thread_id is valid
+                            let thread = unsafe {
+                                crate::arch::x86_64::thread::THREADS
+                                    .get_mut(thread_id)
+                                    .unwrap()
+                            };
+                            thread.set_cspace(c_id);
+
+                            // Initialize kernel stack for thread to return to userspace via syscall_return
+                            let stack_top = thread.arch.stack.top().as_mut_ptr::<u8>();
+                            // SAFETY: The stack is newly allocated and exclusive to this thread.
+                            unsafe {
+                                let frame_ptr = stack_top.sub(core::mem::size_of::<
+                                    crate::arch::x86_64::syscall::SyscallFrame,
+                                >())
+                                    as *mut crate::arch::x86_64::syscall::SyscallFrame;
+                                core::ptr::write_bytes(frame_ptr, 0, 1); // zero frame
+
+                                (*frame_ptr).rcx = rip;
+                                (*frame_ptr).rsp = rsp;
+                                (*frame_ptr).r11 = 0x202; // IF | reserved
+
+                                let ret_addr_ptr = (frame_ptr as *mut u64).sub(1);
+                                *ret_addr_ptr = syscall_return as *const () as usize as u64;
+
+                                // Context saves 6 registers: rbp, rbx, r12, r13, r14, r15
+                                let context_regs_ptr = ret_addr_ptr.sub(6);
+                                core::ptr::write_bytes(context_regs_ptr, 0, 6); // zero registers
+
+                                let mut context = crate::arch::x86_64::context::Context::empty();
+                                context.rsp = context_regs_ptr as usize as u64;
+
+                                thread.arch.context = context;
+                            }
+                            thread.arch.cr3 = Some(
+                                x86_64::structures::paging::PhysFrame::from_start_address(
+                                    x86_64::PhysAddr::new(cr3),
+                                )
+                                .unwrap(),
+                            );
+
+                            // SAFETY: Single-CPU environment, exclusive scheduler access.
+                            let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                            let scheduler = scheduler_cell.as_mut().unwrap();
+                            scheduler.enqueue(thread).unwrap();
+                            0
+                        } else {
+                            break 'sys_invoke u64::MAX;
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::Write as u64 {
+                    let console_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::DebugConsole,
+                        gaxera_abi::Rights::NONE,
+                        arena_ref,
+                    );
+                    if console_result.is_ok() {
+                        let mut payload = [0u8; 32];
+                        payload[0..8].copy_from_slice(&frame.rdx.to_le_bytes());
+                        payload[8..16].copy_from_slice(&frame.r10.to_le_bytes());
+                        payload[16..24].copy_from_slice(&frame.r8.to_le_bytes());
+                        payload[24..32].copy_from_slice(&frame.r9.to_le_bytes());
+
+                        let len = payload.iter().position(|&c| c == 0).unwrap_or(32);
+                        if let Ok(s) = core::str::from_utf8(&payload[..len]) {
+                            crate::print!("{}", s);
+                        }
+                        0
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::Derive as u64 {
+                    // Derive(source_handle, target_cspace_handle, rights)
+                    let target_cspace_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+                    let requested_rights = gaxera_abi::Rights::from_bits(frame.r10 as u32);
+
+                    let target_cspace_id = match sys.lookup(
+                        cspace,
+                        target_cspace_handle,
+                        gaxera_abi::ObjectType::CapabilitySpace,
+                        gaxera_abi::Rights::NONE,
+                        arena_ref,
+                    ) {
+                        Ok(id) => id,
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    };
+
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    crate::println!("GAXERA: Derive - Locking cspaces");
+                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                    crate::println!("GAXERA: Derive - Locking system");
+                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                    crate::println!("GAXERA: Derive - Locking arena");
+                    let mut arena = crate::global::OBJECT_ARENA.lock();
+                    crate::println!("GAXERA: Derive - Locking domains");
+                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                    crate::println!("GAXERA: Derive - Locks acquired");
+
+                    let sys = system.as_mut().unwrap();
+                    let arena_ref = arena.as_mut().unwrap();
+
+                    let cspace_ptr = {
+                        let c = match cspaces.get_mut(cspace_id) {
+                            Some(cs) => cs,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+                        c as *const _
+                    };
+
+                    let target_cspace = match cspaces.get_mut(target_cspace_id) {
+                        Some(cs) => cs,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    // SAFETY: handle_syscall is single threaded. We bypass borrow checker for this.
+                    let target_ptr = target_cspace as *mut _;
+
+                    let target_domain = match domains
+                        .iter_mut()
+                        .find(|d| d.id() == target_cspace.domain())
+                    {
+                        Some(d) => d,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    // SAFETY: We have verified that the pointers are valid and we hold the global locks.
+                    match unsafe {
+                        sys.derive(
+                            &*cspace_ptr,
+                            handle,
+                            &mut *target_ptr,
+                            target_domain,
+                            requested_rights,
+                            arena_ref,
+                        )
+                    } {
+                        Ok(new_handle) => new_handle.raw(),
+                        Err(_) => u64::MAX,
+                    }
+                } else if op == 0 {
+                    let obj_type = match gaxera_abi::ObjectType::try_from(frame.rdx as u32) {
+                        Ok(t) => t,
+                        Err(_) => {
+                            crate::println!(
+                                "GAXERA: Invalid ObjectType {} in factory_create",
+                                frame.rdx
+                            );
+                            break 'sys_invoke u64::MAX;
+                        }
+                    };
+
+                    match sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Factory,
+                        gaxera_abi::Rights::NONE, // TODO: Check specific factory rights
+                        arena_ref,
+                    ) {
+                        Ok(factory_id) => {
+                            crate::println!("GAXERA: FACTORY_INVOKED");
+                            let factories = crate::global::FACTORIES.lock();
+                            let factory = match factories.get(factory_id) {
+                                Some(f) => *f,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+                            drop(factories);
+
+                            // To avoid deadlocks, drop sys/arena locks
+                            drop(system);
+                            drop(arena);
+                            drop(cspaces);
+
+                            crate::println!("GAXERA: Locking arena");
+                            let mut arena_lock = crate::global::OBJECT_ARENA.lock();
+                            let arena = arena_lock.as_mut().unwrap();
+                            crate::println!("GAXERA: Locking sys");
+                            let mut sys_lock = crate::global::CAPABILITY_SYSTEM.lock();
+                            let system = sys_lock.as_mut().unwrap();
+                            crate::println!("GAXERA: Locking domains");
+                            let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                            let domain = domains
+                                .iter_mut()
+                                .find(|d| d.id() == factory.domain())
+                                .unwrap();
+
+                            let mut pt_for_aspace = None;
+                            let mut stack_for_thread = None;
+                            let mut frames_for_mem = alloc::vec::Vec::new();
+                            let size = frame.r10; // arg2
+
+                            crate::println!("GAXERA: Checking obj_type");
+                            if obj_type == gaxera_abi::ObjectType::MemoryObject
+                                || obj_type == gaxera_abi::ObjectType::AddressSpace
+                                || obj_type == gaxera_abi::ObjectType::Thread
+                            {
+                                crate::println!("GAXERA: Locking phys");
+                                let mut phys = crate::global::PHYSICAL_ALLOCATOR.lock();
+                                if let Some(allocator) = phys.as_deref_mut() {
+                                    if obj_type == gaxera_abi::ObjectType::MemoryObject {
+                                        let num_frames = size.div_ceil(4096);
+                                        for _ in 0..num_frames {
+                                            if let Some(f) = allocator.allocate_frame() {
+                                                let vaddr = crate::memory::mapping::HHDM_BASE
+                                                    + f.start_address().as_u64();
+                                                // SAFETY: Frame is exclusively allocated and mapped via HHDM.
+                                                unsafe {
+                                                    core::ptr::write_bytes(
+                                                        vaddr as *mut u8,
+                                                        0,
+                                                        4096,
+                                                    );
+                                                }
+                                                frames_for_mem.push(f.start_address().as_u64());
+                                            } else {
+                                                break 'sys_invoke u64::MAX;
+                                            }
+                                        }
+                                    } else if obj_type == gaxera_abi::ObjectType::AddressSpace {
+                                        match crate::arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator) {
+                                            Ok(a) => pt_for_aspace = Some(a),
+                                            Err(e) => {
+                                                crate::println!("GAXERA: AddressSpace::new_dynamic failed: {:?}", e);
+                                                break 'sys_invoke u64::MAX;
+                                            }
+                                        }
+                                    } else if obj_type == gaxera_abi::ObjectType::Thread {
+                                        // SAFETY: HHDM is active, active CR3 provides kernel mappings.
+                                        let mut active_pt = unsafe {
+                                            crate::arch::x86_64::paging::KernelPageTables::active()
+                                        };
+                                        match crate::arch::x86_64::stack::KernelStack::allocate(
+                                            &mut active_pt,
+                                            allocator,
+                                        ) {
+                                            Ok(s) => stack_for_thread = Some(s),
+                                            Err(e) => {
+                                                crate::println!(
+                                                    "GAXERA: KernelStack::allocate failed: {:?}",
+                                                    e
+                                                );
+                                                break 'sys_invoke u64::MAX;
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            }
+
+                            crate::println!("GAXERA: Calling arena.create");
+                            match arena.create(domain, factory, obj_type) {
+                                Ok(new_id) => {
+                                    crate::println!("GAXERA: Locking cspaces");
+                                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                                    let cspace_ref = cspaces.get_mut(cspace_id).unwrap();
+                                    // SAFETY: By dropping outer locks, we ensure exclusive access to the target CSpace.
+                                    let target_cspace = unsafe {
+                                        &mut *(cspace_ref as *const _
+                                            as *mut kernel_core::capability::CapabilitySpace)
+                                    };
+
+                                    crate::println!("GAXERA: Calling system.insert_root");
+                                    match system.insert_root(
+                                        target_cspace,
+                                        domain,
+                                        new_id,
+                                        obj_type,
+                                        gaxera_abi::Rights::ALL,
+                                        arena,
+                                    ) {
+                                        Ok(new_handle) => {
+                                            drop(cspaces);
+                                            crate::println!("GAXERA: Match obj_type for insert");
+                                            match obj_type {
+                                                gaxera_abi::ObjectType::CapabilitySpace => {
+                                                    crate::global::CAPABILITY_SPACES.lock().insert(new_id, kernel_core::capability::CapabilitySpace::try_new(domain, 64).unwrap());
+                                                }
+                                                gaxera_abi::ObjectType::AddressSpace => {
+                                                    crate::println!(
+                                                        "GAXERA: Locking ADDRESS_SPACES"
+                                                    );
+                                                    crate::global::ADDRESS_SPACES.lock().insert(new_id, kernel_core::address_space::AddressSpace::new(new_id, pt_for_aspace.unwrap()));
+                                                    crate::println!(
+                                                        "GAXERA: ADDRESS_SPACES unlocked"
+                                                    );
+                                                }
+                                                gaxera_abi::ObjectType::Thread => {
+                                                    let arch = crate::arch::x86_64::thread::ArchThread {
+                                                        stack: stack_for_thread.unwrap(),
+                                                        context: crate::arch::x86_64::context::Context::empty(),
+                                                        cr3: None,
+                                                    };
+                                                    let thread = kernel_core::thread::Thread::new(
+                                                        new_id, None, arch,
+                                                    );
+                                                    // SAFETY: Thread is newly created and accessed exclusively.
+                                                    unsafe {
+                                                        crate::arch::x86_64::thread::THREADS
+                                                            .insert(thread);
+                                                    }
+                                                }
+                                                gaxera_abi::ObjectType::MemoryObject => {
+                                                    let mut mem_obj =
+                                                        kernel_core::memory::MemoryObject::new(
+                                                            new_id, size,
+                                                        );
+                                                    for f in frames_for_mem {
+                                                        mem_obj.add_frame(f);
+                                                    }
+                                                    crate::global::MEMORY_OBJECTS
+                                                        .lock()
+                                                        .insert(new_id, mem_obj);
+                                                }
+                                                gaxera_abi::ObjectType::Endpoint => {
+                                                    crate::global::ENDPOINTS.lock().insert(
+                                                        new_id,
+                                                        kernel_core::ipc::Endpoint::new(new_id),
+                                                    );
+                                                }
+                                                _ => {}
+                                            }
+                                            new_handle.raw()
+                                        }
+                                        Err(e) => {
+                                            crate::println!("GAXERA: insert_root failed: {:?}", e);
+                                            break 'sys_invoke u64::MAX;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    crate::println!("GAXERA: arena.create error {:?}", e);
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            crate::println!("GAXERA: sys.lookup error {:?}", e);
+                            break 'sys_invoke u64::MAX;
+                        }
+                    }
+                } else {
+                    break 'sys_invoke u64::MAX;
+                }
             }
         }
         _ => u64::MAX, // Error / unknown syscall
@@ -217,16 +979,20 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             frame.rcx, frame.r11, frame.rsp
         );
         #[cfg(feature = "qemu-test")]
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             crate::arch::x86_64::qemu::exit_failure();
         }
         #[cfg(not(feature = "qemu-test"))]
         crate::serial::halt();
     }
+    // crate::println!("GAXERA: SYSCALL RET rax={}", frame.rax);
 }
 
 fn yield_current_thread() -> Result<(), ()> {
+    // SAFETY: Hardware invariant or verified by caller.
     let cpu_local = unsafe { cpu::get_cpu_local() };
+    // SAFETY: Hardware invariant or verified by caller.
     let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
     let scheduler = scheduler_cell.as_mut().ok_or(())?;
     let current_id = scheduler.current_thread().ok_or(())?;

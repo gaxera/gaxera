@@ -147,7 +147,7 @@ impl Scheduler {
                 thread
                     .make_runnable()
                     .map_err(|_| SchedulerError::InvalidState)?;
-                self.run_queue.push_back(thread.id());
+                self.run_queue.push_front(thread.id());
                 Ok(())
             }
             crate::thread::ThreadState::Dead => {
@@ -264,7 +264,7 @@ mod tests {
         // Normal wake
         assert_eq!(sched.apply_wake(&mut t1), Ok(()));
         assert_eq!(t1.state(), crate::thread::ThreadState::Runnable);
-        assert_eq!(sched.contains(t1.id()), true);
+        assert!(sched.contains(t1.id()));
 
         // Duplicate wake is ignored
         assert_eq!(sched.apply_wake(&mut t1), Ok(()));
@@ -275,7 +275,7 @@ mod tests {
         let _ = t2.make_dying();
         let _ = t2.make_dead();
         assert_eq!(sched.apply_wake(&mut t2), Ok(()));
-        assert_eq!(sched.contains(t2.id()), false);
+        assert!(!sched.contains(t2.id()));
     }
 
     #[test]
@@ -338,18 +338,18 @@ mod tests {
 
         // Tick 9 times
         for _ in 0..9 {
-            assert_eq!(sched.tick(), false);
+            assert!(!sched.tick());
         }
 
         // 10th tick should expire
-        assert_eq!(sched.tick(), true);
+        assert!(sched.tick());
 
         // Saturation at 0
-        assert_eq!(sched.tick(), true);
+        assert!(sched.tick());
 
         // Reset restores it
         sched.reset_quantum();
         assert_eq!(sched.quantum_remaining, Scheduler::QUANTUM_TICKS);
-        assert_eq!(sched.tick(), false);
+        assert!(!sched.tick());
     }
 }

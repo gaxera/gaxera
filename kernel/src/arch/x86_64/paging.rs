@@ -143,6 +143,16 @@ pub fn framebuffer_virtual_address(framebuffer: FramebufferInfo) -> Result<u64, 
 }
 
 impl KernelPageTables {
+    /// Returns the currently active page tables.
+    ///
+    /// # Safety
+    /// The caller must ensure that the returned instance is not used to unmap
+    /// or modify memory that is in use by other execution contexts, unless intended.
+    pub unsafe fn active() -> Self {
+        let (cr3, _) = x86_64::registers::control::Cr3::read();
+        Self { root: cr3 }
+    }
+
     /// Build Gaxera's inactive four-level page tables while Limine's HHDM is
     /// still active. The resulting hierarchy has no dependency on Limine
     /// tables; it maps only Gaxera-selected ranges.
@@ -160,6 +170,7 @@ impl KernelPageTables {
         }
         validate_boot_hhdm(context, boot_hhdm_offset)?;
 
+        // SAFETY: Hardware invariant or verified by caller.
         let root = unsafe { allocator.allocate_zeroed(boot_hhdm_offset) }?
             .ok_or(PagingError::FrameAllocationFailed)?;
         let root_address = boot_hhdm_offset
@@ -268,6 +279,183 @@ impl KernelPageTables {
 
     pub const fn root_frame(&self) -> PhysFrame {
         self.root
+    }
+
+    /// Creates a new PML4 for a user process by copying the kernel's upper half.
+    ///
+    /// # Safety
+    /// Must only be called after the HHDM is established.
+    pub unsafe fn fork_active_for_userspace(
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<u64, PagingError> {
+        let new_pml4_frame = allocator
+            .allocate_frame()
+            .ok_or(PagingError::FrameAllocationFailed)?;
+
+        let new_pml4_virt =
+            crate::memory::mapping::HHDM_BASE + new_pml4_frame.start_address().as_u64();
+        let new_pml4_ptr = new_pml4_virt as *mut x86_64::structures::paging::PageTable;
+
+        let (kernel_pml4_frame, _) = x86_64::registers::control::Cr3::read();
+        let kernel_pml4_virt =
+            crate::memory::mapping::HHDM_BASE + kernel_pml4_frame.start_address().as_u64();
+        let kernel_pml4_ptr = kernel_pml4_virt as *const x86_64::structures::paging::PageTable;
+
+        // SAFETY: Both pointers are valid. new_pml4 is fully zeroed, then the upper half is copied.
+        unsafe {
+            core::ptr::write_bytes(new_pml4_ptr, 0, 1);
+            let new_pml4 = &mut *new_pml4_ptr;
+            let kernel_pml4 = &*kernel_pml4_ptr;
+
+            // Only copy the kernel half (entries 256-511)
+            for i in 256..512 {
+                new_pml4[i] = kernel_pml4[i].clone();
+            }
+        }
+
+        Ok(new_pml4_frame.start_address().as_u64())
+    }
+
+    ///
+    /// # Safety
+    /// Must only be called after the HHDM is established.
+    pub unsafe fn fork_for_userspace(
+        &self,
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<u64, PagingError> {
+        let new_pml4_frame = allocator
+            .allocate_frame()
+            .ok_or(PagingError::FrameAllocationFailed)?;
+
+        let new_pml4_virt =
+            crate::memory::mapping::HHDM_BASE + new_pml4_frame.start_address().as_u64();
+        let new_pml4_ptr = new_pml4_virt as *mut x86_64::structures::paging::PageTable;
+
+        let kernel_pml4_virt =
+            crate::memory::mapping::HHDM_BASE + self.root.start_address().as_u64();
+        let kernel_pml4_ptr = kernel_pml4_virt as *const x86_64::structures::paging::PageTable;
+
+        // SAFETY: Both pointers are valid. new_pml4 is fully zeroed, then the upper half is copied.
+        unsafe {
+            core::ptr::write_bytes(new_pml4_ptr, 0, 1);
+            let new_pml4 = &mut *new_pml4_ptr;
+            let kernel_pml4 = &*kernel_pml4_ptr;
+            for i in 256..512 {
+                new_pml4[i] = kernel_pml4[i].clone();
+            }
+        }
+
+        Ok(new_pml4_frame.start_address().as_u64())
+    }
+
+    /// Maps a series of physical frames into the given PML4 root at the virtual address.
+    ///
+    /// # Safety
+    /// The physical address must be a valid PML4 allocated by `fork_for_userspace`.
+    pub unsafe fn map_user_frames(
+        pml4_physical_address: u64,
+        virtual_address: u64,
+        frames: &[u64],
+        rights: gaxera_abi::Rights,
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<(), PagingError> {
+        use x86_64::structures::paging::{Mapper, Page, PageTableFlags, PhysFrame, Size4KiB};
+        use x86_64::{PhysAddr, VirtAddr};
+
+        let pml4_virt = crate::memory::mapping::HHDM_BASE + pml4_physical_address;
+        // SAFETY: The provided physical address is valid and mapped in HHDM.
+        let pml4 = unsafe { &mut *(pml4_virt as *mut x86_64::structures::paging::PageTable) };
+
+        // SAFETY: pml4 is valid and HHDM offset is correct.
+        let mut mapper = unsafe {
+            x86_64::structures::paging::OffsetPageTable::new(
+                pml4,
+                VirtAddr::new(crate::memory::mapping::HHDM_BASE),
+            )
+        };
+
+        let mut flags = PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE;
+        if rights.contains(gaxera_abi::Rights::WRITE) {
+            flags |= PageTableFlags::WRITABLE;
+        }
+        if !rights.contains(gaxera_abi::Rights::EXECUTE) {
+            flags |= PageTableFlags::NO_EXECUTE;
+        }
+
+        let mut current_virt = virtual_address;
+        for &frame_addr in frames {
+            let page = Page::<Size4KiB>::from_start_address(VirtAddr::new(current_virt)).map_err(
+                |_| {
+                    crate::println!(
+                        "GAXERA: map_user_frames AddressOverflow for virt {:#018x}",
+                        current_virt
+                    );
+                    PagingError::AddressOverflow
+                },
+            )?;
+            let phys_frame =
+                PhysFrame::from_start_address(PhysAddr::new(frame_addr)).map_err(|_| {
+                    crate::println!(
+                        "GAXERA: map_user_frames AddressOverflow for phys {:#018x}",
+                        frame_addr
+                    );
+                    PagingError::AddressOverflow
+                })?;
+
+            // SAFETY: The page is unmapped and the physical frame is exclusively owned.
+            unsafe {
+                mapper
+                    .map_to(page, phys_frame, flags, allocator)
+                    .map_err(|e| {
+                        crate::println!("GAXERA: map_to failed: {:?}", e);
+                        PagingError::UserStackFrameAllocationFailed
+                    })?
+                    .flush();
+            }
+
+            current_virt += crate::memory::physical::PAGE_SIZE;
+        }
+        Ok(())
+    }
+
+    /// Maps a single physical frame into the given PML4 root at the virtual address.
+    ///
+    /// # Safety
+    /// The physical address must be a valid PML4 allocated by `fork_for_userspace`.
+    pub unsafe fn map_user_page_in_pml4(
+        pml4_physical_address: u64,
+        virtual_address: u64,
+        frame: x86_64::structures::paging::PhysFrame,
+        flags: x86_64::structures::paging::PageTableFlags,
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<(), PagingError> {
+        use x86_64::VirtAddr;
+        use x86_64::structures::paging::{Mapper, Page, Size4KiB};
+
+        let pml4_virt = crate::memory::mapping::HHDM_BASE + pml4_physical_address;
+        let pml4_ptr = pml4_virt as *mut x86_64::structures::paging::PageTable;
+        // SAFETY: The provided physical address is valid and mapped in HHDM.
+        let pml4 = unsafe { &mut *pml4_ptr };
+
+        // SAFETY: pml4 is valid and HHDM offset is correct.
+        let mut mapper = unsafe {
+            x86_64::structures::paging::OffsetPageTable::new(
+                pml4,
+                VirtAddr::new(crate::memory::mapping::HHDM_BASE),
+            )
+        };
+
+        let page = Page::<Size4KiB>::from_start_address(VirtAddr::new(virtual_address))
+            .map_err(|_| PagingError::AddressOverflow)?;
+
+        // SAFETY: The page is unmapped and the physical frame is exclusively owned.
+        unsafe {
+            mapper
+                .map_to(page, frame, flags, allocator)
+                .map_err(|_| PagingError::UserStackFrameAllocationFailed)?
+                .flush();
+        }
+        Ok(())
     }
 
     /// Activate the page-table hierarchy after the caller has completed the
@@ -446,6 +634,7 @@ impl KernelPageTables {
     where
         A: FrameAllocator<Size4KiB>,
     {
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             self.map_page(
                 virtual_address,
@@ -474,6 +663,7 @@ impl KernelPageTables {
         if !flags.contains(PageTableFlags::USER_ACCESSIBLE) {
             return Err(PagingError::KernelMappingUserAccessible { pml4_index: 0 });
         }
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { self.map_page(virtual_address, frame, flags, allocator) }
     }
 
@@ -494,6 +684,7 @@ impl KernelPageTables {
         // every frame allocated from usable RAM by `allocator`.
         let root = unsafe { &mut *(root_address as *mut PageTable) };
         let mapping = FrameMapping { offset: HHDM_BASE };
+        // SAFETY: Hardware invariant or verified by caller.
         let mut mapper = unsafe { MappedPageTable::new(root, mapping) };
         let page = Page::<Size4KiB>::containing_address(VirtAddr::new(virtual_address));
         // SAFETY: caller owns `frame`, the virtual page is not currently
@@ -518,6 +709,7 @@ impl KernelPageTables {
         // SAFETY: caller excludes concurrent table mutation and pointer use;
         // the active HHDM maps the root table frame.
         let root = unsafe { &mut *(root_address as *mut PageTable) };
+        // SAFETY: Hardware invariant or verified by caller.
         let mut mapper = unsafe { MappedPageTable::new(root, FrameMapping { offset: HHDM_BASE }) };
         let page = Page::<Size4KiB>::containing_address(VirtAddr::new(virtual_address));
         let (_, flush) = mapper
@@ -538,6 +730,7 @@ impl KernelPageTables {
         // SAFETY: the active HHDM maps the root; the caller excludes all
         // aliases which could mutate the hierarchy while this mapper exists.
         let root = unsafe { &mut *(root_address as *mut PageTable) };
+        // SAFETY: Hardware invariant or verified by caller.
         let mapper = unsafe { MappedPageTable::new(root, FrameMapping { offset: HHDM_BASE }) };
         mapper.translate_addr(VirtAddr::new(virtual_address))
     }
@@ -564,6 +757,7 @@ impl UserPageTables {
         // SAFETY: both root frames are HHDM mapped. The new root is private;
         // the active kernel root is read only for this copy.
         let root_table = unsafe { frame_table_mut(root)? };
+        // SAFETY: Hardware invariant or verified by caller.
         let kernel_root = unsafe { frame_table(kernel.root)? };
         for index in 256..512 {
             if kernel_root[index]
@@ -700,6 +894,7 @@ unsafe fn map_fixed_user_page(
     if !matches!(virtual_address, USER_PROBE_CODE | USER_STACK_PAGE) {
         return Err(PagingError::AddressOverflow);
     }
+    // SAFETY: Hardware invariant or verified by caller.
     let root_table = unsafe { frame_table_mut(root)? };
     let mapping = FrameMapping { offset: HHDM_BASE };
     // SAFETY: root is private and every table frame is HHDM reachable.

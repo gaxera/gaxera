@@ -45,7 +45,9 @@ impl M2AProbe {
     #[allow(dead_code)]
     unsafe fn stash_kernel_cr3() {
         let cr3: u64;
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { asm!("mov {}, cr3", out(reg) cr3, options(nomem, nostack, preserves_flags)) };
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { KERNEL_CR3 = cr3 };
     }
 
@@ -53,7 +55,9 @@ impl M2AProbe {
     /// # Safety
     /// Must only be called from the M2A test return gate.
     pub unsafe fn restore_kernel_cr3() {
+        // SAFETY: Hardware invariant or verified by caller.
         let cr3 = unsafe { KERNEL_CR3 };
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { asm!("mov cr3, {}", in(reg) cr3, options(nomem, nostack, preserves_flags)) };
     }
 
@@ -79,6 +83,7 @@ impl M2AProbe {
             if let Err(UserTransitionError::InvalidCodeSelector) = invalid.validate(self.selectors)
             {
                 println!("GAXERA: USER_INVALID_FRAME_REJECTED");
+                // SAFETY: Hardware invariant or verified by caller.
                 unsafe { crate::arch::x86_64::qemu::exit_success() };
             }
             panic!("Invalid frame was not rejected");

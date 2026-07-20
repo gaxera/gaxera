@@ -19,6 +19,17 @@ impl ObjectId {
         self.generation
     }
 
+    pub const fn raw(self) -> u64 {
+        ((self.generation as u64) << 32) | (self.index as u64)
+    }
+
+    pub const fn from_raw(raw: u64) -> Self {
+        Self {
+            index: (raw & 0xFFFF_FFFF) as u32,
+            generation: (raw >> 32) as u32,
+        }
+    }
+
     #[doc(hidden)]
     pub const fn new_for_test(index: u32, generation: u32) -> Self {
         Self { index, generation }

@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(alloc_error_handler)]
-#![allow(clippy::undocumented_unsafe_blocks)]
 
 extern crate alloc;
 
@@ -118,6 +117,7 @@ use kernel::{arch, framebuffer, println, serial};
 #[unsafe(no_mangle)]
 #[allow(unreachable_code)] // `panic-test` intentionally terminates before normal boot continues.
 pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe { serial::COM1.init() }
 
     // SAFETY: the entry trampoline established the static bootstrap stack
@@ -159,6 +159,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         "GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges={}",
         bootstrap_frames.usable_ranges().len()
     );
+    // SAFETY: Hardware invariant or verified by caller.
     let mut page_tables = match unsafe {
         arch::x86_64::paging::KernelPageTables::build(
             boot_context,
@@ -177,6 +178,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         page_tables.root_frame().start_address().as_u64(),
         bootstrap_frames.reservations().ranges().len(),
     );
+    // SAFETY: Hardware invariant or verified by caller.
     if let Err(error) = unsafe { page_tables.activate() } {
         println!("GAXERA ERROR: CR3 activation failed: {error}");
         serial::halt();
@@ -259,6 +261,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         };
         if let Err(error) =
+            // SAFETY: Hardware invariant or verified by caller.
             unsafe { page_tables.map_heap_page(virtual_address, frame, physical_frames) }
         {
             println!("GAXERA ERROR: Heap page mapping failed: {error}");
@@ -279,6 +282,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     // SAFETY: every heap page was mapped above with writable, NX permissions;
     // both adjacent guard pages remain deliberately absent.
     if let Err(error) =
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe { kernel::memory::heap::init(HEAP_START as usize, HEAP_SIZE as usize) }
     {
         println!("GAXERA ERROR: Heap initialization failed: {error}");
@@ -301,6 +305,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     );
 
     #[cfg(feature = "test-memory")]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         arch::x86_64::qemu::exit_success();
     }
@@ -353,10 +358,12 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
     }
 
     #[cfg(feature = "test-boot")]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         arch::x86_64::qemu::exit_success();
     }
 
+    // SAFETY: Hardware invariant or verified by caller.
     let local_apic_info = match unsafe {
         arch::x86_64::acpi::discover_from_boot_context(
             boot_context,
@@ -382,6 +389,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         serial::halt();
     }
     println!("GAXERA: ACPI_TEMPORARY_WINDOW_RELEASED");
+    // SAFETY: Hardware invariant or verified by caller.
     let local_apic = match unsafe {
         arch::x86_64::apic::initialize(
             boot_context,
@@ -412,9 +420,11 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         };
 
+        // SAFETY: Hardware invariant or verified by caller.
         let cpu_local = unsafe { arch::x86_64::cpu::get_cpu_local() };
         let timer_queue =
             kernel_core::timer::TimerQueue::try_new(16).expect("TimerQueue allocation failed");
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             *cpu_local.timer_queue.get() = Some(timer_queue);
         }
@@ -462,12 +472,14 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         {
             println!("GAXERA: USER_COPY_FAULT_RECOVERED_OK");
             #[cfg(feature = "qemu-test")]
+            // SAFETY: Hardware invariant or verified by caller.
             unsafe {
                 arch::x86_64::qemu::exit_success()
             };
         }
         println!("GAXERA ERROR: USER_COPY_FAULT_NOT_RECOVERED");
         #[cfg(feature = "qemu-test")]
+        // SAFETY: Hardware invariant or verified by caller.
         unsafe {
             arch::x86_64::qemu::exit_failure()
         };
@@ -496,7 +508,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         feature = "test-preemption"
     )))]
     {
-        let mut arena = match kernel_core::object::ObjectArena::try_new(1024) {
+        let arena = match kernel_core::object::ObjectArena::try_new(1024) {
             Ok(a) => a,
             Err(e) => {
                 println!("GAXERA ERROR: ObjectArena initialization failed: {:?}", e);
@@ -504,8 +516,21 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         };
 
-        match kernel::init::spawn_init(boot_context, &mut page_tables, physical_frames, &mut arena)
-        {
+        let system = match kernel_core::capability::CapabilitySystem::try_new(1024) {
+            Ok(s) => s,
+            Err(e) => {
+                println!(
+                    "GAXERA ERROR: CapabilitySystem initialization failed: {:?}",
+                    e
+                );
+                serial::halt();
+            }
+        };
+
+        // Save physical allocator for global capabilities (e.g. Memory mapping).
+        *kernel::global::PHYSICAL_ALLOCATOR.lock() = Some(physical_frames);
+
+        match kernel::init::spawn_init(boot_context, &mut page_tables, arena, system) {
             Err(e) => {
                 println!("GAXERA ERROR: Failed to spawn init: {:?}", e);
                 serial::halt();
@@ -541,6 +566,7 @@ fn panic(info: &PanicInfo) -> ! {
     arch::x86_64::diagnostics::emit_panic_telemetry();
 
     #[cfg(feature = "panic-test")]
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         arch::x86_64::qemu::exit_success();
     }

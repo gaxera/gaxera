@@ -1,11 +1,20 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/gaxera-abi", "crates/init",
+    "crates/gaxera-abi",
+    "crates/init",
     "crates/kernel-core",
+    "crates/ramfs",
+    "crates/script_session",
     "kernel",
     "xtask",
 ]
 
 [workspace.lints.clippy]
-undocumented_unsafe_blocks = "warn"
+undocumented_unsafe_blocks = "deny"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

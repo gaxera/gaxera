@@ -56,11 +56,47 @@ pub enum ObjectType {
     TimerObject = 8,
     SchedulingContext = 9,
     ResourceDomain = 10,
+    DebugConsole = 11,
+    Factory = 12,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[repr(u64)]
+pub enum OperationCode {
+    MapMemory = 1,
+    Call = 2,
+    Receive = 3,
+    Reply = 4,
+    ConfigureThread = 5,
+    Write = 6,
+    Derive = 7,
 }
 
 impl ObjectType {
     pub const fn bit(self) -> u16 {
         1_u16 << (self as u8)
+    }
+}
+
+impl core::convert::TryFrom<u32> for ObjectType {
+    type Error = ();
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Thread),
+            1 => Ok(Self::AddressSpace),
+            2 => Ok(Self::CapabilitySpace),
+            3 => Ok(Self::Endpoint),
+            4 => Ok(Self::Notification),
+            5 => Ok(Self::MemoryObject),
+            6 => Ok(Self::Mapping),
+            7 => Ok(Self::InterruptObject),
+            8 => Ok(Self::TimerObject),
+            9 => Ok(Self::SchedulingContext),
+            10 => Ok(Self::ResourceDomain),
+            11 => Ok(Self::DebugConsole),
+            12 => Ok(Self::Factory),
+            _ => Err(()),
+        }
     }
 }
 
@@ -71,7 +107,7 @@ pub struct ObjectTypeSet(u16);
 
 impl ObjectTypeSet {
     pub const NONE: Self = Self(0);
-    pub const ALL: Self = Self((1_u16 << 11) - 1);
+    pub const ALL: Self = Self((1_u16 << 13) - 1);
 
     pub const fn of(object_type: ObjectType) -> Self {
         Self(1 << (object_type as u8))
@@ -97,6 +133,7 @@ pub struct Rights(u32);
 
 impl Rights {
     pub const NONE: Self = Self(0);
+    pub const ALL: Self = Self(0xFFFF_FFFF);
     pub const READ: Self = Self(1 << 0);
     pub const WRITE: Self = Self(1 << 1);
     pub const MAP: Self = Self(1 << 2);

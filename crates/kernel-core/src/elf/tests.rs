@@ -46,6 +46,7 @@ fn test_valid_elf() {
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
     let data = &mut aligned.0[..total_size];
 
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(data.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(
@@ -84,6 +85,7 @@ fn test_invalid_alignment() {
     let offset = if ptr.align_offset(8) == 0 { 1 } else { 0 };
     let unaligned_slice = &mut data[offset..offset + size_of::<Elf64_Ehdr>()];
 
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write_unaligned(unaligned_slice.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
     }
@@ -99,6 +101,7 @@ fn test_invalid_ehsize() {
     let mut ehdr = create_valid_elf_header();
     ehdr.e_ehsize = (size_of::<Elf64_Ehdr>() - 1) as u16;
     let mut aligned = AlignedBuffer::<100>([0; 100]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
     }
@@ -112,6 +115,7 @@ fn test_invalid_phentsize() {
     let mut ehdr = create_valid_elf_header();
     ehdr.e_phentsize = 1;
     let mut aligned = AlignedBuffer::<100>([0; 100]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
     }
@@ -127,6 +131,7 @@ fn test_truncated_program_headers() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>();
     let mut aligned = AlignedBuffer::<1000>([0; 1000]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
     }
@@ -144,6 +149,7 @@ fn test_malformed_pt_load_filesz_greater_than_memsz() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x2000;
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(
@@ -165,6 +171,7 @@ fn test_malformed_pt_load_out_of_bounds_file_offset() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>();
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(
@@ -186,6 +193,7 @@ fn test_malformed_pt_load_arithmetic_overflow() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: Writing to a valid, appropriately sized local test buffer.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(

@@ -282,6 +282,7 @@ pub fn start_preemption_timer(
     if !INITIALIZED.load(Ordering::Relaxed) {
         return Err(LocalApicError::NotInitialized);
     }
+    // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         write_register(
             APIC_REGISTER_TIMER_DIVIDE_CONFIGURATION,

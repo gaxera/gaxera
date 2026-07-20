@@ -114,7 +114,7 @@ impl KernelProfile {
     }
 
     fn requires_guest_exit(self) -> bool {
-        !matches!(self, Self::Normal)
+        !matches!(self, Self::Normal | Self::InitTest)
     }
 
     fn log_name(self) -> &'static str {
@@ -441,14 +441,41 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
     )
     .map_err(|_| "failed to copy kernel ELF to boot segment")?;
 
-    // Copy built init ELF
-    if init_path.exists() {
-        fs::copy(
-            "target/x86_64-unknown-none/debug/init",
-            boot_dir.join("init.elf"),
-        )
-        .map_err(|_| "failed to copy init ELF to boot segment")?;
+    // Compile and copy boot modules
+    let modules = ["init", "ramfs", "script_session"];
+    for module in modules {
+        let path = Path::new("crates").join(module);
+        if path.exists() {
+            println!("Compiling {} binary...", module);
+            let status = Command::new("cargo")
+                .args([
+                    "build",
+                    "--package",
+                    module,
+                    "--target",
+                    "x86_64-unknown-none",
+                    "-Z",
+                    "build-std=core,compiler_builtins,alloc",
+                    "-Z",
+                    "build-std-features=compiler-builtins-mem",
+                ])
+                .status()
+                .map_err(|_| "failed to execute cargo build for module")?;
+            if !status.success() {
+                return Err("module compilation failed");
+            }
+
+            fs::copy(
+                format!("target/x86_64-unknown-none/debug/{}", module),
+                boot_dir.join(format!("{}.elf", module)),
+            )
+            .map_err(|_| "failed to copy module ELF to boot segment")?;
+        }
     }
+
+    // Pack GaxFS ramfs.img
+    println!("Packaging GaxFS ramfs.img...");
+    pack_gaxfs(&boot_dir.join("ramfs.img"))?;
 
     // Copy limine configuration
     fs::copy("kernel/limine.conf", boot_dir.join("limine.conf"))
@@ -924,5 +951,41 @@ fn handle_test() -> Result<(), &'static str> {
     handle_build()?;
 
     println!("All verification checks passed successfully!");
+    Ok(())
+}
+
+fn pack_gaxfs(output_path: &Path) -> Result<(), &'static str> {
+    use std::io::Write;
+    let mut file = fs::File::create(output_path).map_err(|_| "failed to create ramfs.img")?;
+
+    // Format: Magic GAXFS\0\0\0 (8), Version u32, NumFiles u32
+    // Dir Entry: [File ID (u32), Filename (32), Offset (u32), Size (u32)] (44 bytes)
+
+    let magic = b"GAXFS\0\0\0";
+    let version = 1u32;
+    let num_files = 1u32;
+
+    file.write_all(magic).unwrap();
+    file.write_all(&version.to_le_bytes()).unwrap();
+    file.write_all(&num_files.to_le_bytes()).unwrap();
+
+    // 1 Directory Entry
+    let file_id = 1u32;
+    let mut filename = [0u8; 32];
+    let name_bytes = b"hello.txt";
+    filename[..name_bytes.len()].copy_from_slice(name_bytes);
+
+    let offset: u32 = 8 + 4 + 4 + 44; // Header + 1 Dir Entry
+    let payload = b"Hello from GaxFS!";
+    let size = payload.len() as u32;
+
+    file.write_all(&file_id.to_le_bytes()).unwrap();
+    file.write_all(&filename).unwrap();
+    file.write_all(&offset.to_le_bytes()).unwrap();
+    file.write_all(&size.to_le_bytes()).unwrap();
+
+    // Payload
+    file.write_all(payload).unwrap();
+
     Ok(())
 }
