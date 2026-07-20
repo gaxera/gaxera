@@ -66,6 +66,7 @@ leak simply don't exist, because they were never built.
 * **M4 (First-Class Core IPC):** Completed.
 * **M5 (Time Source & Preemptive Scheduler):** Completed.
 * **M6 (Boot Payload & Init Supervisor):** Completed.
+* **M7 (Initial File System & IPC Foundation):** Completed. Includes `ramfs` file server and `script_session` client communicating over IPC endpoints.
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

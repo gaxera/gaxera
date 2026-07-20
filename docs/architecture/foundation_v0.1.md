@@ -32,9 +32,12 @@ v0.1 proves all of the following under UEFI QEMU:
 - Bounded allocation-free panic diagnostics with CPU state and raw
   frame-pointer backtrace output.
 
-It does not provide processes, ring-3 execution, a scheduler, IPC,
-capabilities, filesystems, persistent storage, drivers, SMP, timekeeping, or
-hardware-grade device support.
+It does not provide persistent storage, network drivers, SMP, timekeeping, or hardware-grade device support.
+
+However, as of Milestone 7, the foundation includes a capability-based userspace runtime:
+- **Object Registries**: Kernel objects are managed in strictly-typed, scalable registries (e.g. `ENDPOINTS`, `ADDRESS_SPACES`), replacing a monolithic state lock.
+- **Syscall ABI**: `sys_invoke` allows userspace to invoke methods on kernel objects.
+- **Process Manager (`init`)**: A minimal userspace process manager loads the `ramfs` and `script_session` boot modules, mapping their ELFs and configuring their threads using kernel capabilities.
 
 ## 2. Design Philosophy
 
@@ -53,9 +56,15 @@ The engineering philosophy is equally architectural:
 - Reproducibility relies on an exact Rust nightly, committed `Cargo.lock`,
   exact critical crate versions, and a committed Limine SHA-256 reference.
 
-These rules are formalized by ADRs 0000 through 0006 and the governance
-constitution. The project's long-term capability and privacy goals are not
-claimed as implemented security properties of v0.1.
+These rules are formalized by ADRs 0000 through 0006 and the governance constitution. 
+
+### Object Lifecycle and Modularity
+The kernel employs a scalable object-oriented lifecycle model:
+1. **Allocation**: `Factory` invocation provisions a new object and Identity in the `ObjectArena`.
+2. **Registration**: The object is inserted into its strongly-typed registry (e.g. `ENDPOINTS`), which manages concurrent lookups safely.
+3. **Capability**: The `CapabilitySystem` mints a capability index for the caller.
+4. **Invocation**: `sys_invoke` accesses objects with a multi-phase lock (CSpace -> Object Registry) to avoid deadlocks.
+5. **Reclamation**: Explicit destruction returns resources back to the kernel.
 
 ## 3. System Shape
 
