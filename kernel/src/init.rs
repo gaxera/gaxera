@@ -237,7 +237,7 @@ pub fn spawn_init(
         .map_err(|_| InitError::StackAllocationFailed)?;
 
     // Insert initial capabilities (Handles 0, 1, 2, 3)
-    let rights = gaxera_abi::Rights::NONE; // Will be refined later
+    let rights = gaxera_abi::Rights::ALL;
     let _h0 = system
         .insert_root(
             &mut cspace,

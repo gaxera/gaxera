@@ -266,3 +266,9 @@ pub fn debug_console_write(console: Handle, message: &str) -> Result<(), ()> {
     }
     Ok(())
 }
+
+pub fn thread_status(thread: Handle) -> Result<u64, ()> {
+    // SAFETY: Invoking kernel ABI to check thread status.
+    let res = unsafe { sys_invoke(thread.raw(), OperationCode::ThreadStatus as u64, 0, 0, 0, 0) };
+    if res == u64::MAX { Err(()) } else { Ok(res) }
+}

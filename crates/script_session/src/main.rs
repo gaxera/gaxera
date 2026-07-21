@@ -1,10 +1,12 @@
 #![no_std]
-#![no_main]
+#![cfg_attr(not(test), no_main)]
 
+#[cfg(not(test))]
 use core::arch::asm;
 #[cfg(not(test))]
 use core::panic::PanicInfo;
 
+#[cfg(not(test))]
 #[inline(always)]
 unsafe fn sys_invoke(rdi: u64, rsi: u64, rdx: u64, r10: u64, r8: u64, r9: u64) -> u64 {
     let result: u64;
@@ -27,6 +29,7 @@ unsafe fn sys_invoke(rdi: u64, rsi: u64, rdx: u64, r10: u64, r8: u64, r9: u64) -
     result
 }
 
+#[cfg(not(test))]
 fn debug_console_write(console: u64, message: &str) {
     let bytes = message.as_bytes();
     let mut offset = 0;
@@ -52,16 +55,17 @@ fn debug_console_write(console: u64, message: &str) {
     }
 }
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    let endpoint: u64 = 0x100000000;
-    let console: u64 = 0x100000001;
+    let endpoint = gaxera_abi::svc::ENDPOINT_RAMFS;
+    let console = gaxera_abi::svc::ENDPOINT_CONSOLE;
 
     // Call endpoint for file ID 1
     let mut msg = [0u64; 4];
     msg[0] = 1; // File ID
 
-    let _res =
+    let status =
         // SAFETY: Syscall uses valid Endpoint capability.
         unsafe {
         let mut status: u64;
@@ -82,19 +86,22 @@ pub extern "C" fn _start() -> ! {
     };
 
     // Parse response
-    let mut payload = [0u8; 32];
-    payload[0..8].copy_from_slice(&msg[0].to_le_bytes());
-    payload[8..16].copy_from_slice(&msg[1].to_le_bytes());
-    payload[16..24].copy_from_slice(&msg[2].to_le_bytes());
-    payload[24..32].copy_from_slice(&msg[3].to_le_bytes());
+    if status == 0 && msg[0] == gaxera_abi::svc::STATUS_OK {
+        let mut payload = [0u8; 24];
+        payload[0..8].copy_from_slice(&msg[1].to_le_bytes());
+        payload[8..16].copy_from_slice(&msg[2].to_le_bytes());
+        payload[16..24].copy_from_slice(&msg[3].to_le_bytes());
 
-    let len = payload.iter().position(|&c| c == 0).unwrap_or(32);
-    if let Ok(s) = core::str::from_utf8(&payload[..len]) {
-        debug_console_write(console, "[script_session] Successfully read from ramfs: \"");
-        debug_console_write(console, s);
-        debug_console_write(console, "\"\n");
+        let len = payload.iter().position(|&c| c == 0).unwrap_or(24);
+        if let Ok(s) = core::str::from_utf8(&payload[..len]) {
+            debug_console_write(console, "[script_session] Successfully read from ramfs: \"");
+            debug_console_write(console, s);
+            debug_console_write(console, "\"\n");
+        } else {
+            debug_console_write(console, "Failed to read UTF-8\n");
+        }
     } else {
-        debug_console_write(console, "Failed to read UTF-8\n");
+        debug_console_write(console, "Failed to read file from ramfs\n");
     }
 
     // Negative test: Invalid capability
@@ -156,7 +163,7 @@ pub extern "C" fn _start() -> ! {
         status
     };
 
-    if invalid_file_res != 0 || msg[0] != 0 {
+    if invalid_file_res != 0 || msg[0] != gaxera_abi::svc::STATUS_NOT_FOUND {
         debug_console_write(
             console,
             "[script_session] ERROR: Invalid file test failed!\n",
@@ -166,6 +173,16 @@ pub extern "C" fn _start() -> ! {
     }
 
     debug_console_write(console, "GAXERA: INIT_TEST_SUCCESS\n");
+    debug_console_write(
+        console,
+        "[script_session] Executing intentional crash (deref 0x0) to test restart logic...\n",
+    );
+
+    // SAFETY: We intentionally dereference an unmapped address to cause a page fault
+    // and test the supervisor's ability to detect thread death and restart it.
+    unsafe {
+        core::ptr::write_volatile(0x0 as *mut u8, 42);
+    }
 
     loop {
         // SAFETY: Halting execution safely.

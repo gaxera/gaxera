@@ -3,6 +3,15 @@
 pub mod boot;
 pub mod ipc;
 
+pub mod svc {
+    pub const RAMFS_BASE: u64 = 0x0000_6000_0000_0000;
+    pub const RAMFS_MAX_SIZE: usize = 16 * 1024 * 1024;
+    pub const ENDPOINT_RAMFS: u64 = 0x100000000;
+    pub const ENDPOINT_CONSOLE: u64 = 0x100000001;
+    pub const STATUS_OK: u64 = 0;
+    pub const STATUS_NOT_FOUND: u64 = 1;
+}
+
 use core::ops::{BitAnd, BitOr, BitOrAssign};
 
 /// Opaque capability handle carried across the future user/kernel ABI.
@@ -70,7 +79,11 @@ pub enum OperationCode {
     ConfigureThread = 5,
     Write = 6,
     Derive = 7,
+    ThreadStatus = 8,
 }
+
+pub const THREAD_STATE_RUNNABLE_OR_RUNNING: u64 = 0;
+pub const THREAD_STATE_DEAD: u64 = 1;
 
 impl ObjectType {
     pub const fn bit(self) -> u16 {

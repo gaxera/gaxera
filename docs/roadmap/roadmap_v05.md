@@ -1,7 +1,6 @@
 # Gaxera v0.5 Engineering Program
 
-> **Status:** Frozen implementation architecture. Changes require an ADR or
-> implementation evidence showing a genuine design flaw.
+> **Status:** Completed and Released as v0.5.0
 > **Baseline:** Gaxera Foundation v0.1, tag `v0.1.0`
 > **Purpose:** Define the path from a verified hardware foundation to a small,
 > single-processor capability microkernel that can run supervised user programs,
@@ -494,7 +493,7 @@ user-space work and must not enlarge the output-only console bridge.
 
 ## 7. Milestone Program
 
-### M0: Pre-Code Architecture Authorization
+### M0: Pre-Code Architecture Authorization (Complete)
 
 **Objective:** Authorize required contracts before the first implementation commit.
 
@@ -511,7 +510,7 @@ user-space work and must not enlarge the output-only console bridge.
 
 **Exit:** All documents are merged and accepted.
 
-### M1: Object lifecycle and capability-space model
+### M1: Object lifecycle and capability-space model (Complete)
 
 **Objective:** implement the accepted V5-A object arena and capability state
 machine in host-testable `kernel-core`.
@@ -536,7 +535,7 @@ v0.1 UEFI matrix is the required guest regression proof.
 revocation is immediate for future lookups; every creation path is fallible;
 no raw object pointer crosses an API boundary.
 
-### M2A: Privilege transition and isolated address space proof
+### M2A: Privilege transition and isolated address space proof (Complete)
 
 **Objective:** establish V5-B/V5-C and prove a fixed ring-3 probe can enter and
 return from an isolated address space before a public syscall ABI exists.
@@ -560,7 +559,7 @@ return to the kernel.
 **Exit:** an unprivileged probe cannot read/write kernel or HHDM addresses and
 every privilege transition uses the intended GDT/TSS/kernel-stack contract.
 
-### M2B: Syscall ABI and fault-recoverable user access
+### M2B: Syscall ABI and fault-recoverable user access (Complete)
 
 **Objective:** add the public syscall boundary only after privilege transition
 and user-copy recovery contracts are independently accepted.
@@ -584,7 +583,7 @@ profiles.
 **Exit:** every public syscall is capability checked and a malicious user
 pointer returns a defined error without corrupting or terminating the kernel.
 
-### M3: Threads and cooperative execution
+### M3: Threads and cooperative execution (Complete)
 
 **Objective:** prove context ownership and task lifecycle before timer-driven
 preemption.
@@ -606,7 +605,7 @@ markers from two isolated tasks and deliberate task exit/reap proof.
 **Exit:** two user tasks can yield in a deterministic order without corrupting
 kernel or each other's state.
 
-### M4: Endpoint IPC, notifications, and capability transfer
+### M4: Endpoint IPC, notifications, and capability transfer (Complete)
 
 **Objective:** implement V5-E mechanism without scheduler policy leakage.
 
@@ -671,7 +670,7 @@ least-authority manifest, service crash, revocation, and restart markers.
 **Exit:** the kernel loads only init from packaged data and knows no service
 name, archive format, shell, or ramfs protocol after that handoff.
 
-### M7: Ramfs service and developer shell
+### M7: Ramfs service and developer shell (Complete)
 
 **Objective:** reach the v0.5 usable developer surface without moving file or
 shell policy into the kernel.
@@ -695,7 +694,7 @@ proof.
 IPC and emits a verified serial transcript. The kernel contains neither
 filesystem paths nor commands.
 
-### M8: v0.5 audit and release
+### M8: v0.5 audit and release (Complete)
 
 **Objective:** independently audit architecture, unsafe boundaries, ABI,
 evidence, docs, reproducibility, and deferred work before release.

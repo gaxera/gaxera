@@ -269,7 +269,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::AddressSpace,
-                        gaxera_abi::Rights::NONE, // TODO: Require mapping rights
+                        gaxera_abi::Rights::MAP,
                         arena_ref,
                     );
 
@@ -278,7 +278,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         mem_handle,
                         gaxera_abi::ObjectType::MemoryObject,
-                        gaxera_abi::Rights::NONE, // TODO: Require mapping rights
+                        gaxera_abi::Rights::MAP,
                         arena_ref,
                     );
 
@@ -286,20 +286,35 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         let virtual_address = frame.r10; // Arg 3
                         let rights = gaxera_abi::Rights::from_bits(frame.r8 as u32); // Arg 4
 
-                        // Drop locks before taking object locks
+                        // Drop capability system locks BEFORE taking object locks
                         drop(arena);
                         drop(system);
                         drop(cspaces);
 
-                        let mut aspaces = crate::global::ADDRESS_SPACES.lock();
-                        let aspace = match aspaces.get_mut(aspace_id) {
-                            Some(a) => a,
-                            None => break 'sys_invoke u64::MAX,
-                        };
-
                         let mem_objects = crate::global::MEMORY_OBJECTS.lock();
                         let mem_obj = match mem_objects.get(mem_id) {
                             Some(m) => m,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        // 1. Enforce 4 KiB alignment and non-zero virtual address
+                        if virtual_address == 0 || (virtual_address & 0xFFF) != 0 {
+                            break 'sys_invoke u64::MAX;
+                        }
+
+                        // 2. Enforce upper bound within lower-half canonical user space
+                        let mem_size = mem_obj.size_bytes();
+                        let is_valid_user_range = virtual_address
+                            .checked_add(mem_size)
+                            .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
+
+                        if !is_valid_user_range {
+                            break 'sys_invoke u64::MAX;
+                        }
+
+                        let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                        let aspace = match aspaces.get_mut(aspace_id) {
+                            Some(a) => a,
                             None => break 'sys_invoke u64::MAX,
                         };
 
@@ -335,7 +350,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         payload[8..16].copy_from_slice(&frame.r10.to_le_bytes());
                         payload[16..24].copy_from_slice(&frame.r8.to_le_bytes());
                         payload[24..32].copy_from_slice(&frame.r9.to_le_bytes());
-                        let message = gaxera_abi::ipc::InlineMessage::try_new(&payload).unwrap();
+                        let message = match gaxera_abi::ipc::InlineMessage::try_new(&payload) {
+                            Ok(m) => m,
+                            Err(_) => break 'sys_invoke u64::MAX,
+                        };
 
                         drop(arena);
                         drop(system);
@@ -533,7 +551,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     payload[8..16].copy_from_slice(&frame.r10.to_le_bytes());
                     payload[16..24].copy_from_slice(&frame.r8.to_le_bytes());
                     payload[24..32].copy_from_slice(&frame.r9.to_le_bytes());
-                    let message = gaxera_abi::ipc::InlineMessage::try_new(&payload).unwrap();
+                    let message = match gaxera_abi::ipc::InlineMessage::try_new(&payload) {
+                        Ok(m) => m,
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    };
                     let caller_id = kernel_core::object::ObjectId::from_raw(frame.rdi);
                     let reply_token = gaxera_abi::ipc::ReplyToken::from_raw(frame.rdi);
 
@@ -583,7 +604,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Thread,
-                        gaxera_abi::Rights::NONE, // TODO: Require configure rights
+                        gaxera_abi::Rights::MANAGE,
                         arena_ref,
                     );
                     if let Ok(thread_id) = thread_result {
@@ -591,6 +612,11 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         let rsp = frame.r10; // arg2
                         let aspace_handle = gaxera_abi::Handle::from_raw(frame.r8); // arg3
                         let cspace_handle = gaxera_abi::Handle::from_raw(frame.r9); // arg4
+
+                        // Enforce non-zero lower-half canonical user addresses for thread RIP & RSP
+                        if !is_user_return_address(rip) || !is_user_return_address(rsp) {
+                            break 'sys_invoke u64::MAX;
+                        }
 
                         let aspace_id = sys.lookup(
                             cspace,
@@ -709,15 +735,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     drop(system);
                     drop(cspaces);
 
-                    crate::println!("GAXERA: Derive - Locking cspaces");
                     let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
-                    crate::println!("GAXERA: Derive - Locking system");
                     let mut system = crate::global::CAPABILITY_SYSTEM.lock();
-                    crate::println!("GAXERA: Derive - Locking arena");
                     let mut arena = crate::global::OBJECT_ARENA.lock();
-                    crate::println!("GAXERA: Derive - Locking domains");
                     let mut domains = crate::global::RESOURCE_DOMAINS.lock();
-                    crate::println!("GAXERA: Derive - Locks acquired");
 
                     let sys = system.as_mut().unwrap();
                     let arena_ref = arena.as_mut().unwrap();
@@ -776,11 +797,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Factory,
-                        gaxera_abi::Rights::NONE, // TODO: Check specific factory rights
+                        gaxera_abi::Rights::FACTORY,
                         arena_ref,
                     ) {
                         Ok(factory_id) => {
-                            crate::println!("GAXERA: FACTORY_INVOKED");
                             let factories = crate::global::FACTORIES.lock();
                             let factory = match factories.get(factory_id) {
                                 Some(f) => *f,
@@ -793,13 +813,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             drop(arena);
                             drop(cspaces);
 
-                            crate::println!("GAXERA: Locking arena");
                             let mut arena_lock = crate::global::OBJECT_ARENA.lock();
                             let arena = arena_lock.as_mut().unwrap();
-                            crate::println!("GAXERA: Locking sys");
                             let mut sys_lock = crate::global::CAPABILITY_SYSTEM.lock();
                             let system = sys_lock.as_mut().unwrap();
-                            crate::println!("GAXERA: Locking domains");
                             let mut domains = crate::global::RESOURCE_DOMAINS.lock();
                             let domain = domains
                                 .iter_mut()
@@ -811,12 +828,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             let mut frames_for_mem = alloc::vec::Vec::new();
                             let size = frame.r10; // arg2
 
-                            crate::println!("GAXERA: Checking obj_type");
                             if obj_type == gaxera_abi::ObjectType::MemoryObject
                                 || obj_type == gaxera_abi::ObjectType::AddressSpace
                                 || obj_type == gaxera_abi::ObjectType::Thread
                             {
-                                crate::println!("GAXERA: Locking phys");
                                 let mut phys = crate::global::PHYSICAL_ALLOCATOR.lock();
                                 if let Some(allocator) = phys.as_deref_mut() {
                                     if obj_type == gaxera_abi::ObjectType::MemoryObject {
@@ -960,6 +975,32 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             crate::println!("GAXERA: sys.lookup error {:?}", e);
                             break 'sys_invoke u64::MAX;
                         }
+                    }
+                } else if op == gaxera_abi::OperationCode::ThreadStatus as u64 {
+                    match sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Thread,
+                        gaxera_abi::Rights::NONE, // Any right can view status
+                        arena_ref,
+                    ) {
+                        Ok(target_thread_id) => {
+                            // SAFETY: Single-CPU environment, exclusive thread access.
+                            let target = unsafe {
+                                crate::arch::x86_64::thread::THREADS.get_mut(target_thread_id)
+                            };
+                            match target {
+                                Some(target) => {
+                                    if target.state() == kernel_core::thread::ThreadState::Dead {
+                                        gaxera_abi::THREAD_STATE_DEAD
+                                    } else {
+                                        gaxera_abi::THREAD_STATE_RUNNABLE_OR_RUNNING
+                                    }
+                                }
+                                None => break 'sys_invoke u64::MAX,
+                            }
+                        }
+                        Err(_) => break 'sys_invoke u64::MAX,
                     }
                 } else {
                     break 'sys_invoke u64::MAX;

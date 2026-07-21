@@ -109,7 +109,10 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::DoubleFault) => {
                 &["GAXERA: EXCEPTION_DOUBLE_FAULT_IST_CAUGHT"]
             }
-            Self::InitTest => &["GAXERA: FACTORY_INVOKED", "GAXERA: INIT_TEST_SUCCESS"],
+            Self::InitTest => &[
+                "GAXERA: INIT_TEST_SUCCESS",
+                "[init] Detected script_session crash! Restarting...",
+            ],
         }
     }
 

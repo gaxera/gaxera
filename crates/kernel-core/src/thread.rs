@@ -63,7 +63,7 @@ impl<T> Thread<T> {
 
     pub fn make_runnable(&mut self) -> Result<(), ThreadError> {
         match self.state {
-            ThreadState::New | ThreadState::Running | ThreadState::Blocked => {
+            ThreadState::New | ThreadState::Running | ThreadState::Blocked | ThreadState::Dead => {
                 self.state = ThreadState::Runnable;
                 Ok(())
             }

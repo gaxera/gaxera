@@ -1,6 +1,6 @@
 # Gaxera v0.5 Requirements Trace
 
-> **Status:** Canonical release-scope trace
+> **Status:** Canonical v0.5.0 Release Trace (Complete)
 > **Architecture baseline:** `docs/architecture/foundation_v0.1.md`
 > **Release program:** `docs/roadmap/roadmap_v05.md`
 > **Rule:** This document stages long-term commitments; it does not silently

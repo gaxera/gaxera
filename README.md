@@ -56,7 +56,7 @@ leak simply don't exist, because they were never built.
 **v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
 `f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
-**v0.5 — Capabilities & Microkernel Program.** Active development (tagged `v0.5-m4-complete`).
+**v0.5 — Capabilities & Microkernel Program.** Complete (v0.5.0 release).
 
 * **M0 (Setup & Baseline Preservation):** Completed.
 * **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
@@ -66,7 +66,10 @@ leak simply don't exist, because they were never built.
 * **M4 (First-Class Core IPC):** Completed.
 * **M5 (Time Source & Preemptive Scheduler):** Completed.
 * **M6 (Boot Payload & Init Supervisor):** Completed.
-* **M7 (Initial File System & IPC Foundation):** Completed. Includes `ramfs` file server and `script_session` client communicating over IPC endpoints.
+* **M7 (Initial File System & IPC Foundation):** Completed. Includes `ramfs` file server, bounds-checked parser, `proptest` parser fuzzing, and `script_session` IPC developer session.
+* **M8 (v0.5 Audit, Hardening & Release):** Completed. Full 6-pass security audit, 4 kernel boundary/sanitization fixes, exact-commit evidence logs, and v0.5.0 release.
+
+*Note: While the v0.5.0 milestone is formally complete, I will continue to address incremental improvements, performance refinements, and bug fixes to the v0.5.x lineage as they are encountered in the wild. Meanwhile, architectural planning and research for the next major phase of development are now underway.*
 
 Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
 The exact released architecture and proposed program are documented

@@ -7,5 +7,8 @@ edition = "2024"
 kernel-core = { path = "../kernel-core" }
 gaxera-abi = { path = "../gaxera-abi" }
 
+[dev-dependencies]
+proptest = "1.0"
+
 [lints]
 workspace = true

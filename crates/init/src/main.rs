@@ -1,6 +1,7 @@
 #![no_std]
-#![no_main]
+#![cfg_attr(not(test), no_main)]
 
+#[cfg(not(test))]
 use core::arch::asm;
 #[cfg(not(test))]
 use core::panic::PanicInfo;
@@ -23,6 +24,7 @@ static ALLOCATOR: DummyAllocator = DummyAllocator;
 mod syscall;
 use syscall::*;
 
+#[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_boot_info: *const ()) -> ! {
     if run_init().is_err() {
@@ -34,6 +36,7 @@ pub extern "C" fn _start(_boot_info: *const ()) -> ! {
     }
 }
 
+#[cfg(not(test))]
 fn run_init() -> Result<(), ()> {
     let self_aspace = Handle::from_parts(0, 1);
     let _self_cspace = Handle::from_parts(1, 1);
@@ -50,10 +53,15 @@ fn run_init() -> Result<(), ()> {
     let script_aspace = factory_create(factory, ObjectType::AddressSpace)?;
     let script_thread = factory_create(factory, ObjectType::Thread)?;
 
-    // 3. Map ramfs image (Handle 7) into ramfs_aspace at 0x6000_0000_0000
+    // 3. Map ramfs image (Handle 7) into ramfs_aspace at RAMFS_BASE
     // ramfs.img module is Handle 7.
     let ramfs_img = Handle::from_parts(7, 1);
-    map_memory(ramfs_aspace, ramfs_img, 0x0000_6000_0000_0000, Rights::READ)?;
+    map_memory(
+        ramfs_aspace,
+        ramfs_img,
+        gaxera_abi::svc::RAMFS_BASE,
+        Rights::READ,
+    )?;
 
     // 4. Create an Endpoint for them to communicate
     let endpoint = factory_create(factory, ObjectType::Endpoint)?;
@@ -167,7 +175,26 @@ fn run_init() -> Result<(), ()> {
         script_cspace,
     )?;
 
-    Ok(())
+    // 9. Supervisor Loop
+    loop {
+        if let Ok(gaxera_abi::THREAD_STATE_DEAD) = syscall::thread_status(script_thread) {
+            let _ = syscall::debug_console_write(
+                console,
+                "[init] Detected script_session crash! Restarting...\n",
+            );
+
+            // Reconfigure the thread (reset rip and rsp)
+            thread_configure(
+                script_thread,
+                script_parser.header().e_entry,
+                script_stack,
+                script_aspace,
+                script_cspace,
+            )?;
+        }
+        // SAFETY: Yield CPU slightly
+        unsafe { asm!("pause") }
+    }
 }
 
 #[cfg(not(test))]

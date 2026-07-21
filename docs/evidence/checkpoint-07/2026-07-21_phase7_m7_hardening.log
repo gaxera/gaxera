@@ -1,0 +1,36 @@
+# M7 Hardening Verification Log
+Date: 2026-07-21
+Environment: Linux x86_64; QEMU; Rust nightly
+
+## 1. Host Property Tests (proptest)
+Command: `cargo test -p ramfs`
+Result: PASSED (1 passed, 256 random cases verified against bounds-checked GAXFS parser)
+
+## 2. Clippy & Workspace Formatting
+Command: `cargo fmt --all && cargo clippy --workspace --exclude kernel`
+Result: PASSED (0 warnings)
+
+## 3. Integration Scenario (`init-scenario`)
+Command: `cargo xtask run --headless --firmware uefi --test init-scenario`
+
+```
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK               
+GAXERA: FRAMEBUFFER_OK (1280x800, pitch: 5120)    
+GAXERA: TEST_PATTERN_DRAWN
+GAXERA: ACPI_MADT_READY local_apic_phys=0x00000000fee00000 override=false
+GAXERA: LOCAL_APIC_READY phys=0x00000000fee00000 vector=0xe0
+GAXERA: PREEMPTION_TIMER_READY ticks_per_ms=63358
+GAXERA: INIT_MODULE found at phys=0x000000001996d000 size=3753736
+GAXERA: KERNEL_STACK top=0xfffffe1000005000
+GAXERA: USER_STACK phys=0x0000000000396000
+GAXERA: ENTER_USER_MODE entry=0x00000000002062a0 rsp=0x00007ffffffffff0 arg0=0x00007ffffffffff0
+GAXERA: FACTORY_INVOKED
+GAXERA: MEMORY_MAPPED vaddr=0x0000600000000000 size=77
+GAXERA: Derive - Locks acquired
+[script_session] Successfully read from ramfs: "Hello from GaxFS!"
+[script_session] Invalid capability test passed.
+[script_session] Invalid file test passed.
+GAXERA: INIT_TEST_SUCCESS
+Success marker detected! Terminating emulation session.
+```

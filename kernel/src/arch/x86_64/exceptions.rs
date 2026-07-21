@@ -222,8 +222,46 @@ extern "x86-interrupt" fn page_fault_handler(
             error_code
         );
         if came_from_user {
-            // SAFETY: Hardware invariant or verified by caller.
-            unsafe { core::arch::asm!("swapgs", options(nostack, preserves_flags)) };
+            // GS is ALREADY kernel GS because we swapped it at the start of page_fault_handler.
+            // DO NOT swapgs here!
+            // SAFETY: Access to scheduler and threads is safe as interrupts are disabled during exception handling.
+            let (current_id, next_id) = unsafe {
+                let cpu_local = crate::arch::x86_64::cpu::get_cpu_local();
+                let scheduler_cell = &mut *cpu_local.scheduler.get();
+                if let Some(scheduler) = scheduler_cell.as_mut() {
+                    if let Some(current_id) = scheduler.current_thread() {
+                        if let Some(next_id) = scheduler.dequeue_next() {
+                            scheduler.set_current_thread(Some(next_id));
+                            (Some(current_id), Some(next_id))
+                        } else {
+                            (Some(current_id), None)
+                        }
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            };
+
+            if let (Some(c_id), Some(n_id)) = (current_id, next_id) {
+                // SAFETY: We verify the thread ID exists before operating on it.
+                unsafe {
+                    if let Some(thread) = crate::arch::x86_64::thread::THREADS.get_mut(c_id) {
+                        let _ = thread.make_dying();
+                        let _ = thread.make_dead();
+                    }
+                }
+                let _ = crate::arch::x86_64::preemption::switch_to_next(c_id, n_id);
+                // We never return here since this thread is dead.
+                loop {
+                    // SAFETY: Halting execution safely.
+                    unsafe { core::arch::asm!("pause") }
+                }
+            } else {
+                println!("GAXERA ERROR: No runnable threads left after user thread died.");
+                terminal_test_exit();
+            }
         }
         terminal_test_exit();
     }

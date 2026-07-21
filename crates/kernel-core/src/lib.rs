@@ -300,7 +300,7 @@ mod tests {
 
     use crate::object::ObjectId;
     use crate::scheduler::{Scheduler, SchedulerError};
-    use crate::thread::{Thread, ThreadError, ThreadState};
+    use crate::thread::{Thread, ThreadState};
 
     fn test_object_id(index: u32) -> ObjectId {
         ObjectId::new_for_test(index, 1)
@@ -336,8 +336,9 @@ mod tests {
         assert_eq!(thread.make_dead(), Ok(()));
         assert_eq!(thread.state(), ThreadState::Dead);
 
-        // Invalid: Dead -> Runnable
-        assert_eq!(thread.make_runnable(), Err(ThreadError::InvalidTransition));
+        // Dead -> Runnable (used for supervisor restart)
+        assert_eq!(thread.make_runnable(), Ok(()));
+        assert_eq!(thread.state(), ThreadState::Runnable);
     }
 
     #[test]

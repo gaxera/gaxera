@@ -1,0 +1,156 @@
+limine: Loading executable `boot():/boot/gaxera.elf`...rom PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+limine: Loading module `boot():/boot/init.elf`...003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+limine: Loading module `boot():/boot/ramfs.elf`...                                   
+limine: Loading module `boot():/boot/script_session.elf`...
+limine: Loading module `boot():/boot/ramfs.img`...
+GAXERA: BOOT_STACK_READY                                               
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY kernel_phys=0x0000000019d02000 kernel_virt=0xffffffff80000000 rsdp_phys=0x000000001fb7e014
+GAXERA: MEMMAP_BEGIN count=34        
+GAXERA: MEMMAP_REGION index=0 start=0x0000000000000000 end=0x0000000000087000 len=0x0000000000087000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=1 start=0x0000000000087000 end=0x0000000000088000 len=0x0000000000001000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=2 start=0x0000000000088000 end=0x00000000000a0000 len=0x0000000000018000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=3 start=0x0000000000100000 end=0x0000000000800000 len=0x0000000000700000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=4 start=0x0000000000800000 end=0x0000000000808000 len=0x0000000000008000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=5 start=0x0000000000808000 end=0x000000000080b000 len=0x0000000000003000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=6 start=0x000000000080b000 end=0x000000000080c000 len=0x0000000000001000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=7 start=0x000000000080c000 end=0x0000000000814000 len=0x0000000000008000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=8 start=0x0000000000814000 end=0x0000000000900000 len=0x00000000000ec000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=9 start=0x0000000000900000 end=0x0000000001780000 len=0x0000000000e80000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=10 start=0x0000000001780000 end=0x00000000193ff000 len=0x0000000017c7f000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=11 start=0x00000000193ff000 end=0x000000001940c000 len=0x000000000000d000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=12 start=0x000000001940c000 end=0x00000000196b9000 len=0x00000000002ad000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=13 start=0x00000000196b9000 end=0x0000000019967000 len=0x00000000002ae000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=14 start=0x0000000019967000 end=0x0000000019d02000 len=0x000000000039b000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=15 start=0x0000000019d02000 end=0x0000000019dc8000 len=0x00000000000c6000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=16 start=0x0000000019dc8000 end=0x000000001a66c000 len=0x00000000008a4000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=17 start=0x000000001a66c000 end=0x000000001bf6c000 len=0x0000000001900000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=18 start=0x000000001bf6c000 end=0x000000001bfaa000 len=0x000000000003e000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=19 start=0x000000001bfaa000 end=0x000000001bfab000 len=0x0000000000001000 source_type=6 class=executable-and-modules allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=20 start=0x000000001bfab000 end=0x000000001bfaf000 len=0x0000000000004000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=21 start=0x000000001bfaf000 end=0x000000001e6a0000 len=0x00000000026f1000 source_type=0 class=usable allocator=eligible reservation=none
+GAXERA: MEMMAP_REGION index=22 start=0x000000001e6a0000 end=0x000000001ed3f000 len=0x000000000069f000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=23 start=0x000000001ed3f000 end=0x000000001ee00000 len=0x00000000000c1000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=24 start=0x000000001ee00000 end=0x000000001f8ed000 len=0x0000000000aed000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=25 start=0x000000001f8ed000 end=0x000000001faed000 len=0x0000000000200000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=26 start=0x000000001faed000 end=0x000000001fb6d000 len=0x0000000000080000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=27 start=0x000000001fb6d000 end=0x000000001fb7f000 len=0x0000000000012000 source_type=2 class=acpi-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=28 start=0x000000001fb7f000 end=0x000000001fbff000 len=0x0000000000080000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=29 start=0x000000001fbff000 end=0x000000001fef4000 len=0x00000000002f5000 source_type=5 class=bootloader-reclaimable allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=30 start=0x000000001fef4000 end=0x000000001ff78000 len=0x0000000000084000 source_type=8 class=mapped-reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=31 start=0x000000001ff78000 end=0x0000000020000000 len=0x0000000000088000 source_type=3 class=acpi-nvs allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=32 start=0x0000000080000000 end=0x00000000803e8000 len=0x00000000003e8000 source_type=7 class=framebuffer allocator=ineligible reservation=none
+GAXERA: MEMMAP_REGION index=33 start=0x000000fd00000000 end=0x0000010000000000 len=0x0000000300000000 source_type=1 class=reserved allocator=ineligible reservation=none
+GAXERA: MEMMAP_END                                                
+GAXERA: BOOTSTRAP_FRAME_ALLOCATOR_READY ranges=8                 
+GAXERA: PAGING_HHDM_MAPPED                
+GAXERA: PAGING_TEXT_MAPPED                                  
+GAXERA: PAGING_FRAMEBUFFER_MAPPED     
+GAXERA: PAGE_TABLES_READY root=0x0000000000000000 reservations=3
+GAXERA: CR3_GAXERA_OWNED
+GAXERA: PHYSICAL_FRAME_ALLOCATOR_READY frames=115738 bitmap_words=1809
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: FRAMEBUFFER_OK (1280x800, pitch: 5120)
+GAXERA: TEST_PATTERN_DRAWN
+GAXERA: ACPI_MADT_READY local_apic_phys=0x00000000fee00000 override=false
+GAXERA: ACPI_TEMPORARY_WINDOW_RELEASED
+GAXERA: LOCAL_APIC_READY phys=0x00000000fee00000 vector=0xe0
+GAXERA: PREEMPTION_TIMER_READY ticks_per_ms=63615
+GAXERA: INIT_MODULE found at phys=0x0000000019967000 size=3779000
+GAXERA: KERNEL_STACK top=0xfffffe1000005000
+GAXERA: USER_STACK phys=0x0000000000397000
+GAXERA: ENTER_USER_MODE entry=0x0000000000206970 rsp=0x00007ffffffffff0 arg0=0x00007ffffffffff0
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Locking ADDRESS_SPACES
+GAXERA: ADDRESS_SPACES unlocked
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Locking ADDRESS_SPACES
+GAXERA: ADDRESS_SPACES unlocked
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000600000000000 size=77
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000100000000000 size=2808432
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000200000 size=16384
+GAXERA: MEMORY_MAPPED vaddr=0x0000100001200000 size=16384
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000204000 size=57344
+GAXERA: MEMORY_MAPPED vaddr=0x0000100001204000 size=57344
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000212000 size=4096
+GAXERA: MEMORY_MAPPED vaddr=0x0000100001212000 size=4096
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x00007fffffff8000 size=16384
+GAXERA: MEMORY_MAPPED vaddr=0x0000200000000000 size=2803432
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000200000 size=16384
+GAXERA: MEMORY_MAPPED vaddr=0x0000200001200000 size=16384
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000204000 size=61440
+GAXERA: MEMORY_MAPPED vaddr=0x0000200001204000 size=61440
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x0000000000213000 size=4096
+GAXERA: MEMORY_MAPPED vaddr=0x0000200001213000 size=4096
+GAXERA: Calling arena.create
+GAXERA: Locking cspaces
+GAXERA: Calling system.insert_root
+GAXERA: Match obj_type for insert
+GAXERA: MEMORY_MAPPED vaddr=0x00007ffeffff8000 size=16384
+[script_session] Successfully read from ramfs: "Hello from GaxFS!"
+[script_session] Invalid capability test passed.
+[script_session] Invalid file test passed.
+GAXERA: INIT_TEST_SUCCESS
+[script_session] Executing intentional crash (deref 0x0) to test restart logic...
+GAXERA: EXCEPTION_PAGE_FAULT_CAUGHT ip=0x000000000020504d cr2=0x0000000000000000 error=PageFaultErrorCode(CAUSED_BY_WRITE | USER_MODE)
+[init] Detected script_session crash! Restarting...
+Success marker detected! Terminating emulation session.
