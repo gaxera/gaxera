@@ -14,28 +14,39 @@ pub enum SchedulerError {
     QueueInvariant,
 }
 
+pub const PRIORITY_LEVELS: usize = 32;
+
 pub struct Scheduler {
-    run_queue: VecDeque<ObjectId>,
+    queues: [VecDeque<ObjectId>; PRIORITY_LEVELS],
+    active_bitmap: u32,
     current_thread: Option<ObjectId>,
     capacity: usize,
+    count: usize,
     quantum_remaining: u32,
     quantum_size: u32,
 }
 
 impl Scheduler {
     pub const QUANTUM_TICKS: u32 = 10;
+
     pub fn try_new(capacity: usize) -> Result<Self, SchedulerError> {
         if capacity > u32::MAX as usize {
             return Err(SchedulerError::CapacityTooLarge);
         }
-        let mut run_queue = VecDeque::new();
-        run_queue
-            .try_reserve_exact(capacity)
-            .map_err(|_| SchedulerError::AllocationFailed)?;
+
+        // Initialize array of queues with pre-reserved capacity
+        let mut queues: [VecDeque<ObjectId>; PRIORITY_LEVELS] = Default::default();
+        for q in queues.iter_mut() {
+            q.try_reserve_exact(capacity)
+                .map_err(|_| SchedulerError::AllocationFailed)?;
+        }
+
         Ok(Self {
-            run_queue,
+            queues,
+            active_bitmap: 0,
             current_thread: None,
             capacity,
+            count: 0,
             quantum_remaining: Self::QUANTUM_TICKS,
             quantum_size: Self::QUANTUM_TICKS,
         })
@@ -46,59 +57,87 @@ impl Scheduler {
         thread: &mut crate::thread::Thread<T>,
     ) -> Result<(), SchedulerError> {
         let id = thread.id();
-        if self.run_queue.contains(&id) {
+        if thread.state() == crate::thread::ThreadState::Runnable
+            || self.contains(id)
+            || self.current_thread == Some(id)
+        {
             return Err(SchedulerError::DuplicateEntry);
         }
-        if self.current_thread == Some(id) {
-            return Err(SchedulerError::DuplicateEntry);
-        }
-        if self.run_queue.len() >= self.capacity {
+        if self.count >= self.capacity {
             return Err(SchedulerError::QueueFull);
         }
         thread
             .make_runnable()
             .map_err(|_| SchedulerError::InvalidState)?;
-        self.run_queue.push_back(id);
+
+        let prio = (thread.effective_priority() as usize).min(PRIORITY_LEVELS - 1);
+        self.queues[prio].push_back(id);
+        self.active_bitmap |= 1u32 << prio;
+        self.count += 1;
         Ok(())
     }
 
     pub fn dequeue_next(&mut self) -> Option<ObjectId> {
-        // The caller is responsible for fetching the thread from the arena and
-        // transitioning its state to Running using thread.make_running().
-        self.run_queue.pop_front()
+        if self.active_bitmap == 0 {
+            return None;
+        }
+        let highest_prio = (31 - self.active_bitmap.leading_zeros()) as usize;
+        let dequeued = self.queues[highest_prio].pop_front();
+        if self.queues[highest_prio].is_empty() {
+            self.active_bitmap &= !(1u32 << highest_prio);
+        }
+        if dequeued.is_some() {
+            self.count = self.count.saturating_sub(1);
+        }
+        dequeued
     }
 
     /// Returns the next runnable ID without changing scheduler state.
     pub fn next_runnable(&self) -> Option<ObjectId> {
-        self.run_queue.front().copied()
+        if self.active_bitmap == 0 {
+            return None;
+        }
+        let highest_prio = (31 - self.active_bitmap.leading_zeros()) as usize;
+        self.queues[highest_prio].front().copied()
     }
 
     /// Commits the queue portion of a cooperative yield.
-    ///
-    /// Thread-state validation and transitions remain owned by the caller so
-    /// the scheduler does not acquire ownership of thread storage. This method
-    /// performs no allocation: it removes one entry and reuses that capacity
-    /// to place the former current thread at the FIFO tail.
     pub fn commit_yield(
         &mut self,
         current: ObjectId,
         next: ObjectId,
     ) -> Result<(), SchedulerError> {
+        self.commit_yield_with_priority(current, 0, next)
+    }
+
+    /// Commits the queue portion of a cooperative yield with explicit priority.
+    pub fn commit_yield_with_priority(
+        &mut self,
+        current: ObjectId,
+        current_prio: u8,
+        next: ObjectId,
+    ) -> Result<(), SchedulerError> {
         if self.current_thread != Some(current) {
             return Err(SchedulerError::NoCurrentThread);
         }
-        if current == next || self.run_queue.front().copied() != Some(next) {
+        let highest = match self.next_runnable() {
+            Some(id) => id,
+            None => return Err(SchedulerError::NoRunnableThread),
+        };
+        if current == next || highest != next {
             return Err(SchedulerError::NoRunnableThread);
         }
-        if self.run_queue.iter().skip(1).any(|id| *id == current) {
-            return Err(SchedulerError::QueueInvariant);
-        }
 
-        let dequeued = self.run_queue.pop_front();
+        let dequeued = self.dequeue_next();
         if dequeued != Some(next) {
             return Err(SchedulerError::QueueInvariant);
         }
-        self.run_queue.push_back(current);
+
+        let prio = (current_prio as usize).min(PRIORITY_LEVELS - 1);
+        self.queues[prio].push_back(current);
+        self.active_bitmap |= 1u32 << prio;
+        self.count += 1;
+
         self.current_thread = Some(next);
         Ok(())
     }
@@ -111,9 +150,17 @@ impl Scheduler {
         self.current_thread = thread;
     }
 
-    /// Returns true if the given thread ID is already in the run queue.
+    /// Returns true if the given thread ID is already in any priority run queue.
     pub fn contains(&self, id: ObjectId) -> bool {
-        self.run_queue.contains(&id)
+        if self.count == 0 {
+            return false;
+        }
+        for q in &self.queues {
+            if q.contains(&id) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Blocks the current thread and unsets it from the scheduler.
@@ -133,12 +180,11 @@ impl Scheduler {
     }
 
     /// Applies a wake effect to the target thread.
-    /// Ignores duplicate wakes on runnable/running threads and dead threads.
     pub fn apply_wake<T>(
         &mut self,
         thread: &mut crate::thread::Thread<T>,
     ) -> Result<(), SchedulerError> {
-        if self.run_queue.len() >= self.capacity {
+        if self.count >= self.capacity {
             return Err(SchedulerError::QueueFull);
         }
 
@@ -147,15 +193,14 @@ impl Scheduler {
                 thread
                     .make_runnable()
                     .map_err(|_| SchedulerError::InvalidState)?;
-                self.run_queue.push_front(thread.id());
+                let prio = (thread.effective_priority() as usize).min(PRIORITY_LEVELS - 1);
+                self.queues[prio].push_front(thread.id());
+                self.active_bitmap |= 1u32 << prio;
+                self.count += 1;
                 Ok(())
             }
-            crate::thread::ThreadState::Dead => {
-                Ok(()) // dead thread ignores
-            }
-            crate::thread::ThreadState::Running | crate::thread::ThreadState::Runnable => {
-                Ok(()) // duplicate wake ignores
-            }
+            crate::thread::ThreadState::Dead => Ok(()),
+            crate::thread::ThreadState::Running | crate::thread::ThreadState::Runnable => Ok(()),
             _ => Err(SchedulerError::InvalidState),
         }
     }
@@ -329,6 +374,30 @@ mod tests {
         assert_eq!(sched.commit_yield(t0.id(), t1.id()), Ok(()));
         assert_eq!(sched.current_thread(), Some(t1.id()));
         assert_eq!(sched.next_runnable(), Some(t0.id()));
+    }
+
+    #[test]
+    fn scheduler_priority_ordering() {
+        let mut sched = Scheduler::try_new(4).unwrap();
+        let mut t_low = Thread::new(test_id(1), None, MockArch);
+        t_low.set_base_priority(5);
+
+        let mut t_med = Thread::new(test_id(2), None, MockArch);
+        t_med.set_base_priority(12);
+
+        let mut t_high = Thread::new(test_id(3), None, MockArch);
+        t_high.set_base_priority(25);
+
+        // Enqueue in arbitrary order: low, high, med
+        assert_eq!(sched.enqueue(&mut t_low), Ok(()));
+        assert_eq!(sched.enqueue(&mut t_high), Ok(()));
+        assert_eq!(sched.enqueue(&mut t_med), Ok(()));
+
+        // Dequeue should select strictly highest priority first: high (25) -> med (12) -> low (5)
+        assert_eq!(sched.dequeue_next(), Some(t_high.id()));
+        assert_eq!(sched.dequeue_next(), Some(t_med.id()));
+        assert_eq!(sched.dequeue_next(), Some(t_low.id()));
+        assert_eq!(sched.dequeue_next(), None);
     }
 
     #[test]

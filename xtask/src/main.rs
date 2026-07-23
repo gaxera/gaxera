@@ -43,6 +43,9 @@ enum KernelProfile {
     SlabAllocation,
     UnmapMemory,
     SharedMemory,
+    IpcMultiClient,
+    IpcWaitSet,
+    IpcPriorityInheritance,
     Exception(ExceptionTest),
     InitTest,
 }
@@ -69,6 +72,9 @@ impl KernelProfile {
             Self::SlabAllocation => Some("test-slab-allocation"),
             Self::UnmapMemory => Some("test-unmap-memory"),
             Self::SharedMemory => Some("test-shared-memory"),
+            Self::IpcMultiClient => Some("test-ipc-multiclient"),
+            Self::IpcWaitSet => Some("test-ipc-waitset"),
+            Self::IpcPriorityInheritance => Some("test-ipc-priority-inheritance"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -107,6 +113,9 @@ impl KernelProfile {
             Self::SlabAllocation => &["GAXERA: SLAB_ALLOCATION_OK"],
             Self::UnmapMemory => &["GAXERA: UNMAP_MEMORY_OK"],
             Self::SharedMemory => &["GAXERA: SHARED_MEMORY_OK"],
+            Self::IpcMultiClient => &["GAXERA: IPC_MULTICLIENT_OK"],
+            Self::IpcWaitSet => &["GAXERA: IPC_WAITSET_OK"],
+            Self::IpcPriorityInheritance => &["GAXERA: IPC_PRIORITY_INHERITANCE_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -153,6 +162,9 @@ impl KernelProfile {
             Self::SlabAllocation => "slab-allocation",
             Self::UnmapMemory => "unmap-memory",
             Self::SharedMemory => "shared-memory",
+            Self::IpcMultiClient => "ipc-multiclient",
+            Self::IpcWaitSet => "ipc-waitset",
+            Self::IpcPriorityInheritance => "ipc-priority-inheritance",
             Self::Exception(ExceptionTest::Breakpoint) => "exception-breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -240,6 +252,9 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "slab-allocation" => Ok(KernelProfile::SlabAllocation),
         "unmap-memory" => Ok(KernelProfile::UnmapMemory),
         "shared-memory" => Ok(KernelProfile::SharedMemory),
+        "ipc-multiclient" => Ok(KernelProfile::IpcMultiClient),
+        "ipc-waitset" => Ok(KernelProfile::IpcWaitSet),
+        "ipc-priority-inheritance" => Ok(KernelProfile::IpcPriorityInheritance),
         "exception-breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -903,6 +918,9 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::SlabAllocation,
         KernelProfile::UnmapMemory,
         KernelProfile::SharedMemory,
+        KernelProfile::IpcMultiClient,
+        KernelProfile::IpcWaitSet,
+        KernelProfile::IpcPriorityInheritance,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -947,6 +965,19 @@ fn handle_test() -> Result<(), &'static str> {
 
     println!("\n--- Shared Memory Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::SharedMemory)?;
+
+    println!("\n--- IPC Multi-Client Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcMultiClient)?;
+
+    println!("\n--- IPC WaitSet Multiplexing Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcWaitSet)?;
+
+    println!("\n--- IPC Priority Inheritance Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::IpcPriorityInheritance,
+    )?;
 
     println!("\n--- Hardware Exceptions ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;

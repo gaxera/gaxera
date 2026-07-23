@@ -18,6 +18,7 @@ pub mod slab;
 pub mod thread;
 pub mod time;
 pub mod timer;
+pub mod waitset;
 
 #[cfg(test)]
 mod tests {

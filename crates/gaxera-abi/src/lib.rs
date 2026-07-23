@@ -67,6 +67,7 @@ pub enum ObjectType {
     ResourceDomain = 10,
     DebugConsole = 11,
     Factory = 12,
+    WaitSet = 13,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -81,6 +82,27 @@ pub enum OperationCode {
     Derive = 7,
     ThreadStatus = 8,
     UnmapMemory = 9,
+    CreateWaitSet = 10,
+    WaitSetControl = 11,
+    WaitSetWait = 12,
+    DeleteHandle = 13,
+    Revoke = 14,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u64)]
+pub enum WaitSetOp {
+    Add = 1,
+    Remove = 2,
+    Modify = 3,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(C)]
+pub struct WaitSetEvent {
+    pub cookie: u64,
+    pub signals: u32,
+    pub _reserved: u32,
 }
 
 pub const THREAD_STATE_RUNNABLE_OR_RUNNING: u64 = 0;
@@ -109,6 +131,7 @@ impl core::convert::TryFrom<u32> for ObjectType {
             10 => Ok(Self::ResourceDomain),
             11 => Ok(Self::DebugConsole),
             12 => Ok(Self::Factory),
+            13 => Ok(Self::WaitSet),
             _ => Err(()),
         }
     }

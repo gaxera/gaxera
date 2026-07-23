@@ -57,15 +57,16 @@ leak simply don't exist, because they were never built.
 
 **v0.5 — Capabilities & Microkernel Program.** Tagged `v0.5.0` at `e7f89ab`. Implemented capability derivation/revocation state machines, ring-3 privilege transitions, fault-recoverable syscall ABI (`copy_from_user`), preemptive thread scheduler, core IPC, and `ramfs` supervisor.
 
-**v0.6 — Core Memory Foundation.** Tagged `v0.6.0`. Post-v0.5 development officially operates under the finalized Gaxera Engineering Workflow (Program Charter → Living Architecture Document → ADRs → Tactical Milestones → Empirical QEMU Verification).
+**v0.6 — Core Memory Foundation.** Tagged `v0.6.0` at `2ccd6fc`. Implemented physical frame recycling, recursive PML4 page-table reclamation (ADR 0018), O(1) typed `SlabCache<T>` allocators with dynamic heap growth (ADR 0019), subregion memory mapping, and `UnmapMemory` opcode with TLB flushing (ADR 0020).
 
-* **Milestone 0.6.1 (Physical Frame Recycling & Page-Table Reclamation):** Reclaimed memory object physical payload frames back to `SegmentedBitmapFrameAllocator` upon destruction and implemented recursive lower-half PML4..PML1 page-table frame teardown (`ADR 0018`).
-* **Milestone 0.6.2 (Two-Tier Kernel Slab Arenas & General Heap Evolution):** Introduced `SlabCache<T>` typed slab allocators with O(1) object allocation and dynamic slab page frame recycling, backed by a growable general kernel heap (`ADR 0019`).
-* **Milestone 0.6.3 (Subregion Memory Mapping & Unmap Primitive):** Implemented page-aligned memory subregion window projections, `OperationCode::UnmapMemory` syscall handler (`Opcode 9`), and TLB invalidation (`ADR 0020`).
-* **Milestone 0.6.4 (Zero-Copy Shared Memory Verification):** Verified zero-copy bidirectional read/write channels across multiple isolated address spaces under UEFI QEMU.
+**v0.7 — Multi-Client IPC & Event Multiplexing.** Tagged `v0.7.0`. Epoch 2 evolves IPC from 1:1 rendezvous into a high-performance $N:1$ multi-client server architecture:
 
-Detailed v0.1, v0.5, and v0.6 milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), and [v0.6 Roadmap](docs/roadmap/roadmap_v06.md).
-The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), and [Memory Architecture Reference](docs/architecture/memory.md).
+* **Milestone 0.7.1 (Multi-Client Endpoint Call Queueing & Bounded Caller Waiting):** Expanded `Endpoint` state machine to queue up to 32 caller threads in FIFO order with clean thread cancellation (`cancel_caller`) and server crash recovery (`ADR 0021`).
+* **Milestone 0.7.2 (First-Class `WaitSet` Kernel Object & Event Multiplexing):** Introduced `ObjectType::WaitSet = 13` and ABI opcodes (`CreateWaitSet`, `WaitSetControl`, `WaitSetWait`), allowing servers to block on multiple endpoints, notifications, and timers atomically without fast-path heap allocations (`ADR 0021`).
+* **Milestone 0.7.3 (IPC Priority Inheritance & Fast-Path Optimization):** Added `base_priority` and `effective_priority` tracking to `Thread` to dynamically boost server thread priority to match high-priority callers during IPC rendezvous, preventing priority inversion.
+
+Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), and [v0.7 Roadmap](docs/roadmap/roadmap_v07.md).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), and [IPC Architecture Reference](docs/architecture/ipc.md).
 
 ## Getting Started
 

@@ -799,6 +799,153 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         }
 
+        #[cfg(feature = "test-ipc-multiclient")]
+        {
+            use gaxera_abi::ipc::InlineMessage;
+            use kernel_core::ipc::{Endpoint, IpcEffect};
+            use kernel_core::object::ObjectId;
+
+            println!("GAXERA: IPC_MULTICLIENT_TEST_START");
+
+            let mut ep = Endpoint::new(ObjectId::new_for_test(1, 1));
+            let dummy_msg = InlineMessage::try_new(&[]).unwrap();
+
+            // Queue 16 distinct client calls
+            for i in 2..=17 {
+                let caller_id = ObjectId::new_for_test(i, 1);
+                assert_eq!(ep.call(caller_id, dummy_msg), Ok(IpcEffect::Block));
+            }
+
+            assert_eq!(ep.pending_caller_count(), 16);
+
+            let receiver_id = ObjectId::new_for_test(100, 1);
+
+            // Pop callers FIFO and reply
+            for i in 2..=17 {
+                let expected_caller = ObjectId::new_for_test(i, 1);
+                let rec = ep.receive(receiver_id).unwrap().unwrap();
+                assert_eq!(rec.caller, expected_caller);
+
+                assert_eq!(
+                    ep.reply(rec.reply_token, dummy_msg),
+                    Ok(IpcEffect::Wake(expected_caller))
+                );
+            }
+
+            assert_eq!(ep.pending_caller_count(), 0);
+
+            println!("GAXERA: IPC_MULTICLIENT_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-ipc-waitset")]
+        {
+            use kernel_core::object::ObjectId;
+            use kernel_core::waitset::WaitSet;
+
+            println!("GAXERA: IPC_WAITSET_TEST_START");
+
+            let mut ws = WaitSet::new(ObjectId::new_for_test(1, 1));
+            let target1 = ObjectId::new_for_test(10, 1);
+            let target2 = ObjectId::new_for_test(20, 1);
+            let test_thread = ObjectId::new_for_test(100, 1);
+
+            ws.add_subscription(target1, 0x1000, 0b01).unwrap();
+            ws.add_subscription(target2, 0x2000, 0b10).unwrap();
+
+            assert_eq!(ws.subscription_count(), 2);
+
+            // 1. Initial wait returns Blocked thread
+            assert_eq!(ws.wait(test_thread), Ok(Err(test_thread)));
+
+            // 2. Post events for target1 and target2
+            let woken1 = ws.post_event(target1, 0b01);
+            assert_eq!(woken1, Some(test_thread));
+
+            let woken2 = ws.post_event(target2, 0b10);
+            assert_eq!(woken2, None);
+
+            // 3. Second wait delivers events atomically
+            let events = ws.wait(test_thread).unwrap().unwrap();
+            assert_eq!(events.len(), 2);
+            assert_eq!(events[0].cookie, 0x1000);
+            assert_eq!(events[1].cookie, 0x2000);
+
+            println!("GAXERA: IPC_WAITSET_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-ipc-priority-inheritance")]
+        {
+            use kernel_core::ipc::Endpoint;
+            use kernel_core::object::ObjectId;
+            use kernel_core::scheduler::Scheduler;
+            use kernel_core::thread::Thread;
+
+            println!("GAXERA: IPC_PRIORITY_INHERITANCE_TEST_START");
+
+            let mut sched = Scheduler::try_new(8).unwrap();
+            let mut server = Thread::new(ObjectId::new_for_test(10, 1), None, ());
+            server.set_base_priority(5);
+
+            let mut med_thread = Thread::new(ObjectId::new_for_test(20, 1), None, ());
+            med_thread.set_base_priority(12);
+
+            let mut high_client = Thread::new(ObjectId::new_for_test(30, 1), None, ());
+            high_client.set_base_priority(20);
+
+            // 1. Enqueue medium-priority competing thread
+            sched.enqueue(&mut med_thread).unwrap();
+
+            // 2. High priority client calls server endpoint
+            let mut ep = Endpoint::new(ObjectId::new_for_test(1, 1));
+            let msg = gaxera_abi::ipc::InlineMessage::try_new(&[42u8; 32]).unwrap();
+
+            // Server is waiting on endpoint
+            assert!(ep.receive(server.id()).is_ok());
+
+            // High client calls endpoint
+            let call_res = ep.call(high_client.id(), msg);
+            assert!(
+                matches!(call_res, Ok(kernel_core::ipc::IpcEffect::Wake(woken)) if woken == server.id())
+            );
+
+            // Boost server priority to match high client (20) and enqueue server
+            server.boost_priority(high_client.effective_priority());
+            assert_eq!(server.effective_priority(), 20);
+            sched.enqueue(&mut server).unwrap();
+
+            // 3. Scheduler MUST select server (20) BEFORE med_thread (12)
+            assert_eq!(sched.dequeue_next(), Some(server.id()));
+            assert_eq!(sched.dequeue_next(), Some(med_thread.id()));
+
+            // 4. Server replies and restores base priority
+            assert!(
+                ep.reply(
+                    gaxera_abi::ipc::ReplyToken::from_raw(high_client.id().raw()),
+                    msg
+                )
+                .is_ok()
+            );
+            server.restore_priority();
+            assert_eq!(server.effective_priority(), 5);
+
+            println!("GAXERA: IPC_PRIORITY_INHERITANCE_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
         match kernel::init::spawn_init(boot_context, &mut page_tables, _arena, _system) {
             Err(e) => {
                 println!("GAXERA ERROR: Failed to spawn init: {:?}", e);

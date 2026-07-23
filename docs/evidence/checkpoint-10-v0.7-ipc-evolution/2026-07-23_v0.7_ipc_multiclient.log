@@ -1,0 +1,12 @@
+limine: Loading executable `boot():/boot/gaxera.elf`...
+limine: Loading module `boot():/boot/init.elf`...
+GAXERA: BOOT_STACK_READY
+GAXERA: DESCRIPTORS_AND_IDT_READY
+GAXERA: BOOT_CONTEXT_READY
+GAXERA: MEMORY_FOUNDATION_OK heap=0xfffffe8000001000 size=2097152 lower_guard=0xfffffe8000000000
+GAXERA: KERNEL_ENTRY_OK
+GAXERA: LOCAL_APIC_READY phys=0x00000000fee00000 vector=0xe0
+GAXERA: PREEMPTION_TIMER_READY ticks_per_ms=63301
+GAXERA: IPC_MULTICLIENT_TEST_START
+GAXERA: IPC_MULTICLIENT_OK
+Guest-confirmed QEMU test passed.

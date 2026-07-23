@@ -36,6 +36,8 @@ pub static DEBUG_CONSOLES: Spinlock<BTreeRegistry<DebugConsole>> =
     Spinlock::new(BTreeRegistry::new());
 pub static FACTORIES: Spinlock<BTreeRegistry<kernel_core::object::Factory>> =
     Spinlock::new(BTreeRegistry::new());
+pub static WAIT_SETS: Spinlock<BTreeRegistry<kernel_core::waitset::WaitSet>> =
+    Spinlock::new(BTreeRegistry::new());
 
 // Note: `THREADS` registry is currently maintained in `arch::x86_64::thread::THREADS`
 // due to specialized context-switching borrowing requirements.

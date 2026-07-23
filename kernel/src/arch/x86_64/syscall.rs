@@ -381,6 +381,160 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     } else {
                         break 'sys_invoke u64::MAX;
                     }
+                } else if op == gaxera_abi::OperationCode::CreateWaitSet as u64 {
+                    let mut domain_guard = crate::global::RESOURCE_DOMAINS.lock();
+                    let domain = match domain_guard.first_mut() {
+                        Some(d) => d,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                    let arena = match arena_guard.as_mut() {
+                        Some(a) => a,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    let factory = kernel_core::object::Factory::new_for_test(
+                        domain,
+                        gaxera_abi::ObjectTypeSet::of(gaxera_abi::ObjectType::WaitSet),
+                    );
+                    let ws_id = match arena.create(domain, factory, gaxera_abi::ObjectType::WaitSet)
+                    {
+                        Ok(id) => id,
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    };
+
+                    let ws = kernel_core::waitset::WaitSet::new(ws_id);
+                    crate::global::WAIT_SETS.lock().insert(ws_id, ws);
+
+                    match sys.insert_root(
+                        cspace,
+                        domain,
+                        ws_id,
+                        gaxera_abi::ObjectType::WaitSet,
+                        gaxera_abi::Rights::ALL,
+                        arena,
+                    ) {
+                        Ok(h) => h.raw(),
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::WaitSetControl as u64 {
+                    let ws_res = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::WaitSet,
+                        gaxera_abi::Rights::WRITE,
+                        arena_ref,
+                    );
+                    let target_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+                    let ctrl_op = frame.r10;
+                    let cookie = frame.r8;
+                    let signals = frame.r9 as u32;
+
+                    let target_id = match sys
+                        .lookup(
+                            cspace,
+                            target_handle,
+                            gaxera_abi::ObjectType::Endpoint,
+                            gaxera_abi::Rights::NONE,
+                            arena_ref,
+                        )
+                        .or_else(|_| {
+                            sys.lookup(
+                                cspace,
+                                target_handle,
+                                gaxera_abi::ObjectType::Notification,
+                                gaxera_abi::Rights::NONE,
+                                arena_ref,
+                            )
+                        })
+                        .or_else(|_| {
+                            sys.lookup(
+                                cspace,
+                                target_handle,
+                                gaxera_abi::ObjectType::TimerObject,
+                                gaxera_abi::Rights::NONE,
+                                arena_ref,
+                            )
+                        }) {
+                        Ok(id) => id,
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    };
+
+                    if let Ok(ws_id) = ws_res {
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let mut wsets = crate::global::WAIT_SETS.lock();
+                        let ws = match wsets.get_mut(ws_id) {
+                            Some(w) => w,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        if ctrl_op == gaxera_abi::WaitSetOp::Add as u64 {
+                            match ws.add_subscription(target_id, cookie, signals) {
+                                Ok(_) => 0,
+                                Err(_) => u64::MAX,
+                            }
+                        } else if ctrl_op == gaxera_abi::WaitSetOp::Remove as u64 {
+                            match ws.remove_subscription(target_id) {
+                                Ok(_) => 0,
+                                Err(_) => u64::MAX,
+                            }
+                        } else {
+                            u64::MAX
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
+                } else if op == gaxera_abi::OperationCode::WaitSetWait as u64 {
+                    let ws_res = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::WaitSet,
+                        gaxera_abi::Rights::READ,
+                        arena_ref,
+                    );
+                    if let Ok(ws_id) = ws_res {
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let mut wsets = crate::global::WAIT_SETS.lock();
+                        let ws = match wsets.get_mut(ws_id) {
+                            Some(w) => w,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        match ws.wait(current_thread_id) {
+                            Ok(Ok(events)) => events.len() as u64,
+                            Ok(Err(_)) => {
+                                drop(wsets);
+                                // SAFETY: Single core BSP, no data races.
+                                let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                                let scheduler = scheduler_cell.as_mut().unwrap();
+
+                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+                                let thread = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                                }
+                                .unwrap();
+                                let _ = scheduler.block_current(thread);
+                                if let Some(next) = scheduler.dequeue_next() {
+                                    scheduler.set_current_thread(Some(next));
+                                    let _ = crate::arch::x86_64::preemption::switch_to_next(
+                                        current_thread_id,
+                                        next,
+                                    );
+                                }
+                                0
+                            }
+                            Err(_) => u64::MAX,
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
                 } else if op == gaxera_abi::OperationCode::Call as u64 {
                     let endpoint_result = sys.lookup(
                         cspace,
@@ -398,6 +552,15 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         let message = match gaxera_abi::ipc::InlineMessage::try_new(&payload) {
                             Ok(m) => m,
                             Err(_) => break 'sys_invoke u64::MAX,
+                        };
+
+                        // Fetch caller's effective priority for priority inheritance
+                        // SAFETY: Thread access is single-CPU isolated during syscall context.
+                        let caller_prio = unsafe {
+                            crate::arch::x86_64::thread::THREADS
+                                .get(current_thread_id)
+                                .map(|t| t.effective_priority())
+                                .unwrap_or(0)
                         };
 
                         drop(arena);
@@ -435,20 +598,23 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             }
                             Ok(kernel_core::ipc::IpcEffect::Wake(receiver_id)) => {
                                 // Block caller (ourselves) because we are waiting for a reply
-                                // SAFETY: The thread map is locked and access is mutually exclusive here.
+                                // SAFETY: Thread access is single-CPU isolated during syscall context.
                                 let thread = unsafe {
                                     crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
                                 }
                                 .unwrap();
                                 let _ = scheduler.block_current(thread);
 
-                                // SAFETY: Receiver exists and we only borrow it to wake.
+                                // Boost receiver server thread priority to caller's priority
+                                // SAFETY: Receiver exists and access is mutually exclusive.
                                 let receiver = unsafe {
                                     crate::arch::x86_64::thread::THREADS.get_mut(receiver_id)
                                 }
                                 .unwrap();
+                                receiver.boost_priority(caller_prio);
                                 let _ = scheduler.apply_wake(receiver);
-                                // The current thread is BLOCKED, so we dequeue the receiver and switch to it.
+
+                                // Dequeue highest priority ready thread and switch to it
                                 if let Some(next) = scheduler.dequeue_next() {
                                     scheduler.set_current_thread(Some(next));
                                     crate::arch::x86_64::preemption::switch_to_next(
@@ -462,7 +628,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         }
 
                         // Woken up! Fetch reply
-                        // SAFETY: Current thread is safely resuming execution.
+                        // SAFETY: Thread access is single-CPU isolated during syscall context.
                         let thread = unsafe {
                             crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
                         }
@@ -509,6 +675,21 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
 
                         match recv_result {
                             Ok(Ok(call)) => {
+                                // Boost server priority to popped caller's priority
+                                // SAFETY: Thread access is single-CPU isolated during syscall context.
+                                let caller_prio = unsafe {
+                                    crate::arch::x86_64::thread::THREADS
+                                        .get(call.caller)
+                                        .map(|t| t.effective_priority())
+                                        .unwrap_or(0)
+                                };
+                                // SAFETY: Thread access is single-CPU isolated during syscall context.
+                                let server = unsafe {
+                                    crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
+                                }
+                                .unwrap();
+                                server.boost_priority(caller_prio);
+
                                 frame.rdi = call.reply_token.raw();
                                 frame.rsi = gaxera_abi::Handle::from_parts(
                                     call.caller.index(),
@@ -535,14 +716,16 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                 0
                             }
                             Ok(Err(kernel_core::ipc::IpcEffect::Block)) => {
-                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+                                // SAFETY: Single core BSP, no data races.
                                 let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
                                 let scheduler = scheduler_cell.as_mut().unwrap();
-                                // SAFETY: Thread exists and is accessed exclusively by scheduler.
+
+                                // SAFETY: Thread access is single-CPU isolated during syscall context.
                                 let thread = unsafe {
                                     crate::arch::x86_64::thread::THREADS.get_mut(current_thread_id)
                                 }
                                 .unwrap();
+                                thread.restore_priority();
                                 let _ = scheduler.block_current(thread);
                                 if let Some(next) = scheduler.dequeue_next() {
                                     scheduler.set_current_thread(Some(next));
@@ -559,6 +742,21 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                     .get_mut(endpoint_id)
                                     .and_then(|e| e.take_received_call())
                                 {
+                                    // SAFETY: Thread access is single-CPU isolated during syscall context.
+                                    let caller_prio = unsafe {
+                                        crate::arch::x86_64::thread::THREADS
+                                            .get(call.caller)
+                                            .map(|t| t.effective_priority())
+                                            .unwrap_or(0)
+                                    };
+                                    // SAFETY: Thread access is single-CPU isolated during syscall context.
+                                    let server = unsafe {
+                                        crate::arch::x86_64::thread::THREADS
+                                            .get_mut(current_thread_id)
+                                    }
+                                    .unwrap();
+                                    server.boost_priority(caller_prio);
+
                                     frame.rdi = call.reply_token.raw();
                                     frame.rsi = gaxera_abi::Handle::from_parts(
                                         call.caller.index(),
@@ -600,17 +798,20 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         Ok(m) => m,
                         Err(_) => break 'sys_invoke u64::MAX,
                     };
-                    let caller_id = kernel_core::object::ObjectId::from_raw(frame.rdi);
                     let reply_token = gaxera_abi::ipc::ReplyToken::from_raw(frame.rdi);
 
                     let mut valid_reply = false;
+                    let mut woken_caller_id = None;
+                    let mut ep_id_opt = None;
                     {
                         let mut endpoints = crate::global::ENDPOINTS.lock();
-                        for (_id, ep) in endpoints.iter_mut() {
-                            if let Ok(kernel_core::ipc::IpcEffect::Wake(_)) =
+                        for (id, ep) in endpoints.iter_mut() {
+                            if let Ok(kernel_core::ipc::IpcEffect::Wake(woken_id)) =
                                 ep.reply(reply_token, message)
                             {
                                 valid_reply = true;
+                                woken_caller_id = Some(woken_id);
+                                ep_id_opt = Some(id);
                                 break;
                             }
                         }
@@ -620,29 +821,53 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     drop(system);
                     drop(cspaces);
 
-                    if !valid_reply {
+                    if !valid_reply || woken_caller_id.is_none() {
                         break 'sys_invoke u64::MAX;
                     }
+
+                    let caller_id = woken_caller_id.unwrap();
 
                     // SAFETY: Single core BSP, no data races.
                     let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
                     let scheduler = scheduler_cell.as_mut().unwrap();
 
-                    // Woken up! Fetch caller and apply wake.
+                    // Woken up caller! Fetch caller and apply wake.
                     // SAFETY: The thread map is globally accessible and this scope holds logical exclusion.
                     let caller_thread =
                         unsafe { crate::arch::x86_64::thread::THREADS.get_mut(caller_id) };
                     if let Some(caller) = caller_thread {
                         caller.ipc_receive_buffer = Some(message);
                         let _ = scheduler.apply_wake(caller);
-                        // The current thread is still Runnable, so we do a preemptive yield
-                        crate::arch::x86_64::preemption::reschedule(
-                            scheduler,
-                            current_thread_id,
-                            caller_id,
-                        )
-                        .unwrap();
                     }
+
+                    // Check if endpoint has pending callers for atomic priority handoff
+                    let mut has_pending_callers = false;
+                    if let Some(ep_id) = ep_id_opt {
+                        let endpoints = crate::global::ENDPOINTS.lock();
+                        if let Some(ep) = endpoints.get(ep_id)
+                            && ep.pending_caller_count() > 0
+                        {
+                            has_pending_callers = true;
+                        }
+                    }
+
+                    // SAFETY: Thread access is single-CPU isolated during syscall context.
+                    let server_thread = unsafe {
+                        crate::arch::x86_64::thread::THREADS
+                            .get_mut(current_thread_id)
+                            .unwrap()
+                    };
+
+                    if !has_pending_callers {
+                        server_thread.restore_priority();
+                    }
+
+                    crate::arch::x86_64::preemption::reschedule(
+                        scheduler,
+                        current_thread_id,
+                        caller_id,
+                    )
+                    .unwrap();
                     0
                 } else if op == gaxera_abi::OperationCode::ConfigureThread as u64 {
                     let thread_result = sys.lookup(
@@ -1046,6 +1271,50 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             }
                         }
                         Err(_) => break 'sys_invoke u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::DeleteHandle as u64 {
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+
+                    let sys = system.as_mut().unwrap();
+                    let cspace_ref = match cspaces.get_mut(cspace_id) {
+                        Some(cs) => cs,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+                    let target_domain =
+                        match domains.iter_mut().find(|d| d.id() == cspace_ref.domain()) {
+                            Some(d) => d,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                    match sys.delete(cspace_ref, target_domain, handle) {
+                        Ok(_) => 0,
+                        Err(_) => u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::Revoke as u64 {
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                    let mut arena = crate::global::OBJECT_ARENA.lock();
+
+                    let sys = system.as_mut().unwrap();
+                    let arena_ref = arena.as_mut().unwrap();
+                    let cspace_ref = match cspaces.get_mut(cspace_id) {
+                        Some(cs) => cs,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    match sys.revoke(cspace_ref, handle, arena_ref) {
+                        Ok(_) => 0,
+                        Err(_) => u64::MAX,
                     }
                 } else {
                     break 'sys_invoke u64::MAX;

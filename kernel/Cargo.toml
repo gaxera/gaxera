@@ -29,6 +29,11 @@ test-frame-recycling = ["qemu-test"]
 test-slab-allocation = ["qemu-test"]
 test-unmap-memory = ["qemu-test"]
 test-shared-memory = ["qemu-test"]
+test-ipc-multiclient = ["qemu-test"]
+test-ipc-waitset = ["qemu-test"]
+test-ipc-priority-inheritance = ["qemu-test"]
+
+
 
 
 

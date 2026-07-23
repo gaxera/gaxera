@@ -30,12 +30,19 @@ pub struct EndpointCloseEffects {
     pub woke_threads: Vec<ObjectId>,
 }
 
+pub const MAX_ENDPOINT_CALLERS: usize = 32;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallerEntry {
+    pub caller: ObjectId,
+    pub message: InlineMessage,
+}
+
 #[derive(Clone, Debug)]
 enum EndpointState {
     Idle,
-    CallerPending {
-        caller: ObjectId,
-        message: InlineMessage,
+    CallersPending {
+        callers: Vec<CallerEntry>,
     },
     ReceiverWaiting {
         receiver: ObjectId,
@@ -46,6 +53,7 @@ enum EndpointState {
         // The message is stored here if delivered to a waiting receiver,
         // until the receiver explicitly takes it upon waking.
         message: Option<InlineMessage>,
+        pending_callers: Vec<CallerEntry>,
     },
 }
 
@@ -64,6 +72,42 @@ impl Endpoint {
         }
     }
 
+    pub fn pending_caller_count(&self) -> usize {
+        match &self.state {
+            EndpointState::CallersPending { callers } => callers.len(),
+            EndpointState::ReplyOutstanding {
+                pending_callers, ..
+            } => pending_callers.len(),
+            _ => 0,
+        }
+    }
+
+    pub fn cancel_caller(&mut self, caller: ObjectId) -> bool {
+        if self.closed {
+            return false;
+        }
+
+        match &mut self.state {
+            EndpointState::CallersPending { callers } => {
+                let len_before = callers.len();
+                callers.retain(|c| c.caller != caller);
+                let removed = callers.len() < len_before;
+                if callers.is_empty() {
+                    self.state = EndpointState::Idle;
+                }
+                removed
+            }
+            EndpointState::ReplyOutstanding {
+                pending_callers, ..
+            } => {
+                let len_before = pending_callers.len();
+                pending_callers.retain(|c| c.caller != caller);
+                pending_callers.len() < len_before
+            }
+            _ => false,
+        }
+    }
+
     pub fn call(
         &mut self,
         caller: ObjectId,
@@ -73,23 +117,40 @@ impl Endpoint {
             return Err(EndpointError::Closed);
         }
 
-        match self.state {
+        match &mut self.state {
             EndpointState::Idle => {
-                self.state = EndpointState::CallerPending { caller, message };
+                self.state = EndpointState::CallersPending {
+                    callers: alloc::vec![CallerEntry { caller, message }],
+                };
                 Ok(IpcEffect::Block)
             }
             EndpointState::ReceiverWaiting { receiver } => {
+                let receiver = *receiver;
                 self.reply_sequence += 1;
                 let token = ReplyToken::from_raw(caller.raw());
                 self.state = EndpointState::ReplyOutstanding {
                     caller,
                     token,
                     message: Some(message),
+                    pending_callers: Vec::new(),
                 };
                 Ok(IpcEffect::Wake(receiver))
             }
-            EndpointState::CallerPending { .. } | EndpointState::ReplyOutstanding { .. } => {
-                Err(EndpointError::Busy)
+            EndpointState::CallersPending { callers } => {
+                if callers.len() >= MAX_ENDPOINT_CALLERS {
+                    return Err(EndpointError::Busy);
+                }
+                callers.push(CallerEntry { caller, message });
+                Ok(IpcEffect::Block)
+            }
+            EndpointState::ReplyOutstanding {
+                pending_callers, ..
+            } => {
+                if pending_callers.len() >= MAX_ENDPOINT_CALLERS {
+                    return Err(EndpointError::Busy);
+                }
+                pending_callers.push(CallerEntry { caller, message });
+                Ok(IpcEffect::Block)
             }
         }
     }
@@ -102,21 +163,25 @@ impl Endpoint {
             return Err(EndpointError::Closed);
         }
 
-        match self.state {
+        match &mut self.state {
             EndpointState::Idle => {
                 self.state = EndpointState::ReceiverWaiting { receiver };
                 Ok(Err(IpcEffect::Block))
             }
-            EndpointState::CallerPending { caller, message } => {
-                let token = ReplyToken::from_raw(caller.raw());
+            EndpointState::CallersPending { callers } => {
+                let next_caller = callers.remove(0);
+                let remaining_callers = core::mem::take(callers);
+                self.reply_sequence += 1;
+                let token = ReplyToken::from_raw(next_caller.caller.raw());
                 self.state = EndpointState::ReplyOutstanding {
-                    caller,
+                    caller: next_caller.caller,
                     token,
-                    message: None, // Delivered immediately, no need to store
+                    message: None, // Delivered immediately
+                    pending_callers: remaining_callers,
                 };
                 Ok(Ok(ReceivedCall {
-                    caller,
-                    message,
+                    caller: next_caller.caller,
+                    message: next_caller.message,
                     reply_token: token,
                 }))
             }
@@ -132,6 +197,7 @@ impl Endpoint {
                 caller,
                 token,
                 message,
+                ..
             } => message.take().map(|msg| ReceivedCall {
                 caller: *caller,
                 message: msg,
@@ -150,18 +216,28 @@ impl Endpoint {
             return Err(EndpointError::Closed);
         }
 
-        match self.state {
+        match &mut self.state {
             EndpointState::ReplyOutstanding {
                 caller,
                 token: active_token,
+                pending_callers,
                 ..
             } => {
-                if token != active_token {
+                if token != *active_token {
                     return Err(EndpointError::InvalidReplyToken);
                 }
-                // Transition back to Idle. The caller is woken.
-                self.state = EndpointState::Idle;
-                Ok(IpcEffect::Wake(caller))
+                let active_caller = *caller;
+                let remaining_callers = core::mem::take(pending_callers);
+
+                if remaining_callers.is_empty() {
+                    self.state = EndpointState::Idle;
+                } else {
+                    self.state = EndpointState::CallersPending {
+                        callers: remaining_callers,
+                    };
+                }
+
+                Ok(IpcEffect::Wake(active_caller))
             }
             _ => Err(EndpointError::InvalidReplyToken),
         }
@@ -171,20 +247,25 @@ impl Endpoint {
         self.closed = true;
         let mut woke_threads = Vec::new();
 
-        match self.state {
-            EndpointState::CallerPending { caller, .. } => {
-                woke_threads.push(caller);
+        let state = core::mem::replace(&mut self.state, EndpointState::Idle);
+        match state {
+            EndpointState::CallersPending { callers } => {
+                woke_threads.extend(callers.into_iter().map(|c| c.caller));
             }
             EndpointState::ReceiverWaiting { receiver } => {
                 woke_threads.push(receiver);
             }
-            EndpointState::ReplyOutstanding { caller, .. } => {
+            EndpointState::ReplyOutstanding {
+                caller,
+                pending_callers,
+                ..
+            } => {
                 woke_threads.push(caller);
+                woke_threads.extend(pending_callers.into_iter().map(|c| c.caller));
             }
             EndpointState::Idle => {}
         }
 
-        self.state = EndpointState::Idle;
         EndpointCloseEffects { woke_threads }
     }
 }
@@ -310,13 +391,145 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_second_caller_rejected() {
+    fn endpoint_multiclient_caller_queueing() {
+        let mut ep = Endpoint::new(test_id(1));
+        let receiver = test_id(100);
+
+        // Queue 16 distinct callers
+        for i in 2..=17 {
+            assert_eq!(ep.call(test_id(i), dummy_message()), Ok(IpcEffect::Block));
+        }
+        assert_eq!(ep.pending_caller_count(), 16);
+
+        // Receiver pops first caller (test_id(2))
+        let rec1 = ep.receive(receiver).unwrap().unwrap();
+        assert_eq!(rec1.caller, test_id(2));
+        assert_eq!(ep.pending_caller_count(), 15);
+
+        // Reply to test_id(2), queue now has 15 pending callers
+        assert_eq!(
+            ep.reply(rec1.reply_token, dummy_message()),
+            Ok(IpcEffect::Wake(test_id(2)))
+        );
+        assert_eq!(ep.pending_caller_count(), 15);
+
+        // Receiver pops next caller (test_id(3))
+        let rec2 = ep.receive(receiver).unwrap().unwrap();
+        assert_eq!(rec2.caller, test_id(3));
+        assert_eq!(
+            ep.reply(rec2.reply_token, dummy_message()),
+            Ok(IpcEffect::Wake(test_id(3)))
+        );
+    }
+
+    #[test]
+    fn endpoint_queue_capacity_exact_32_and_33rd_rejected() {
+        let mut ep = Endpoint::new(test_id(1));
+
+        // 1. Queue exactly MAX_ENDPOINT_CALLERS (32 callers)
+        for i in 1..=MAX_ENDPOINT_CALLERS as u32 {
+            assert_eq!(ep.call(test_id(i), dummy_message()), Ok(IpcEffect::Block));
+        }
+        assert_eq!(ep.pending_caller_count(), 32);
+
+        // 2. 33rd caller receives documented error (EndpointError::Busy)
+        let caller_33 = test_id(999);
+        assert_eq!(
+            ep.call(caller_33, dummy_message()),
+            Err(EndpointError::Busy)
+        );
+    }
+
+    #[test]
+    fn endpoint_caller_cancelled_while_queued() {
         let mut ep = Endpoint::new(test_id(1));
         let caller1 = test_id(2);
         let caller2 = test_id(3);
 
         assert_eq!(ep.call(caller1, dummy_message()), Ok(IpcEffect::Block));
-        assert_eq!(ep.call(caller2, dummy_message()), Err(EndpointError::Busy));
+        assert_eq!(ep.call(caller2, dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.pending_caller_count(), 2);
+
+        // Caller 1 cancels/exits
+        assert!(ep.cancel_caller(caller1));
+        assert_eq!(ep.pending_caller_count(), 1);
+
+        // Receiver receives caller 2
+        let rec = ep.receive(test_id(100)).unwrap().unwrap();
+        assert_eq!(rec.caller, caller2);
+
+        // Caller 2 cancels while in ReplyOutstanding pending queue -> false (already active)
+        assert!(!ep.cancel_caller(caller2));
+    }
+
+    #[test]
+    fn endpoint_closes_while_callers_waiting_and_server_crash() {
+        let mut ep = Endpoint::new(test_id(1));
+        let receiver = test_id(100);
+        let caller1 = test_id(2);
+        let caller2 = test_id(3);
+        let caller3 = test_id(4);
+
+        assert_eq!(ep.call(caller1, dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.call(caller2, dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.call(caller3, dummy_message()), Ok(IpcEffect::Block));
+
+        // Server receives caller 1 (caller 1 is active, callers 2 and 3 are pending behind reply)
+        let rec = ep.receive(receiver).unwrap().unwrap();
+        assert_eq!(rec.caller, caller1);
+
+        // Server crashes or closes endpoint before replying to caller 1
+        let close_effects = ep.close();
+
+        // Must wake caller 1 (active) AND caller 2 and 3 (queued)
+        assert_eq!(
+            close_effects.woke_threads,
+            alloc::vec![caller1, caller2, caller3]
+        );
+
+        // Subsequent calls return Closed
+        assert_eq!(
+            ep.call(caller1, dummy_message()),
+            Err(EndpointError::Closed)
+        );
+    }
+
+    #[test]
+    fn endpoint_fifo_order_preserved_across_multiple_cycles() {
+        let mut ep = Endpoint::new(test_id(1));
+        let receiver = test_id(100);
+
+        // Batch 1: Callers 10, 11, 12 call
+        assert_eq!(ep.call(test_id(10), dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.call(test_id(11), dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.call(test_id(12), dummy_message()), Ok(IpcEffect::Block));
+
+        // Server receives 10
+        let r10 = ep.receive(receiver).unwrap().unwrap();
+        assert_eq!(r10.caller, test_id(10));
+
+        // Batch 2: Callers 13, 14 call while 10 is outstanding
+        assert_eq!(ep.call(test_id(13), dummy_message()), Ok(IpcEffect::Block));
+        assert_eq!(ep.call(test_id(14), dummy_message()), Ok(IpcEffect::Block));
+
+        // Server replies to 10
+        assert_eq!(
+            ep.reply(r10.reply_token, dummy_message()),
+            Ok(IpcEffect::Wake(test_id(10)))
+        );
+
+        // Server receives 11, 12, 13, 14 in exact FIFO order
+        let order = [11, 12, 13, 14];
+        for expected_id in order {
+            let r = ep.receive(receiver).unwrap().unwrap();
+            assert_eq!(r.caller, test_id(expected_id));
+            assert_eq!(
+                ep.reply(r.reply_token, dummy_message()),
+                Ok(IpcEffect::Wake(test_id(expected_id)))
+            );
+        }
+
+        assert_eq!(ep.pending_caller_count(), 0);
     }
 
     #[test]
