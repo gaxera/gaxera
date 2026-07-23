@@ -4,6 +4,7 @@ members = [
     "crates/gaxera-abi",
     "crates/init",
     "crates/kernel-core",
+    "crates/libgaxera",
     "crates/ramfs",
     "crates/script_session",
     "kernel",

@@ -32,6 +32,11 @@ test-shared-memory = ["qemu-test"]
 test-ipc-multiclient = ["qemu-test"]
 test-ipc-waitset = ["qemu-test"]
 test-ipc-priority-inheritance = ["qemu-test"]
+test-interrupt-notification = ["qemu-test"]
+test-mmio-driver = ["qemu-test"]
+test-userspace-runtime = ["qemu-test"]
+test-service-registry = ["qemu-test"]
+test-ipc-benchmark = ["qemu-test"]
 
 
 
@@ -43,6 +48,7 @@ x86_64 = { version = "=0.15.5", default-features = false, features = ["instructi
 linked_list_allocator = { version = "=0.10.6", default-features = false, features = ["use_spin"] }
 kernel-core = { path = "../crates/kernel-core" }
 gaxera-abi = { path = "../crates/gaxera-abi" }
+libgaxera = { path = "../crates/libgaxera", default-features = false }
 spinning_top = { version = "0.3.0", default-features = false }
 
 [lints]

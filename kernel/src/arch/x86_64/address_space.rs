@@ -93,6 +93,35 @@ impl ArchAddressSpace for X86AddressSpace {
         }
         Ok(())
     }
+
+    fn map_physical_range(
+        &mut self,
+        virtual_address: u64,
+        phys_start: u64,
+        size: usize,
+        rights: Rights,
+        cache_policy: gaxera_abi::CachePolicy,
+    ) -> Result<(), &'static str> {
+        let mut phys_alloc_guard = crate::global::PHYSICAL_ALLOCATOR.lock();
+        let allocator = phys_alloc_guard
+            .as_deref_mut()
+            .ok_or("No physical allocator available")?;
+
+        // SAFETY: The pml4 was allocated by fork_for_userspace and is valid.
+        unsafe {
+            KernelPageTables::map_physical_mmio_range(
+                self.pml4_physical_address,
+                virtual_address,
+                phys_start,
+                size,
+                rights,
+                cache_policy,
+                allocator,
+            )
+            .map_err(|_| "Failed to map physical range")?;
+        }
+        Ok(())
+    }
 }
 
 // Allow cloning so it can be stored in the registry, though sharing the

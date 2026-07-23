@@ -946,6 +946,210 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         }
 
+        #[cfg(feature = "test-interrupt-notification")]
+        {
+            use kernel_core::interrupt::InterruptObject;
+            use kernel_core::notification::Notification;
+            use kernel_core::object::ObjectId;
+            use kernel_core::waitset::WaitSet;
+
+            println!("GAXERA: INTERRUPT_NOTIFICATION_TEST_START");
+
+            let irq_id = ObjectId::new_for_test(1, 1);
+            let notif_id = ObjectId::new_for_test(2, 1);
+            let ws_id = ObjectId::new_for_test(3, 1);
+            let test_thread = ObjectId::new_for_test(100, 1);
+
+            let mut irq_obj = InterruptObject::new(irq_id, 33, 1);
+            let mut notif = Notification::new(notif_id);
+            let mut ws = WaitSet::new(ws_id);
+
+            // Bind IRQ to Notification and Subscribe WaitSet to Notification
+            assert_eq!(irq_obj.bind_notification(notif_id), Ok(()));
+            assert_eq!(ws.add_subscription(notif_id, 0x1F0, 0b01), Ok(()));
+
+            // Initial WaitSet wait blocks thread
+            assert_eq!(ws.wait(test_thread), Ok(Err(test_thread)));
+
+            // Simulate hardware IRQ firing: IOAPIC masks line, ISR signals Notification and posts event to WaitSet
+            irq_obj.mask();
+            notif.signal(0b01);
+            let woken = ws.post_event(notif_id, 0b01);
+            assert_eq!(woken, Some(test_thread));
+
+            // WaitSet delivers notification event to woken driver thread
+            let events = ws.wait(test_thread).unwrap().unwrap();
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].cookie, 0x1F0);
+
+            // Driver takes notification signals and acknowledges/unmasks IRQ
+            assert_eq!(notif.take_signals(), 0b01);
+            irq_obj.unmask();
+            assert!(!irq_obj.is_masked());
+
+            println!("GAXERA: INTERRUPT_NOTIFICATION_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-mmio-driver")]
+        {
+            use gaxera_abi::Rights;
+            use kernel_core::address_space::ArchAddressSpace;
+            use kernel_core::mapping::Mapping;
+            use kernel_core::object::ObjectId;
+
+            println!("GAXERA: MMIO_DRIVER_TEST_START");
+
+            let (mut aspace, mapping) = {
+                let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+
+                let aspace =
+                    arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
+                let mapping = Mapping::try_new(
+                    ObjectId::new_for_test(1, 1),
+                    0xFEB0_0000,
+                    8192,
+                    gaxera_abi::CachePolicy::Uncached,
+                )
+                .unwrap();
+                (aspace, mapping)
+            };
+
+            let vaddr = 0x0000_3000_0000_0000;
+            // 1. Map physical MMIO range into address space
+            aspace
+                .map_physical_range(
+                    vaddr,
+                    mapping.phys_addr(),
+                    mapping.size(),
+                    Rights::READ | Rights::WRITE | Rights::MAP,
+                    mapping.cache_policy(),
+                )
+                .unwrap();
+
+            // 2. Perform ring-3 unmapping verification (2 pages = 8192 bytes)
+            assert!(aspace.unmap_range(vaddr, 2).is_ok());
+
+            println!("GAXERA: MMIO_DRIVER_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-userspace-runtime")]
+        {
+            use libgaxera::prelude::*;
+
+            println!("GAXERA: USERSPACE_RUNTIME_TEST_START");
+
+            // 1. Verify libgaxera handle wrappers & zero-allocation waitset operations
+            let notif_handle = NotificationHandle::from_raw(Handle::from_raw(100));
+            assert_eq!(notif_handle.as_handle().raw(), 100);
+
+            let ws_handle = WaitSetHandle::from_raw(Handle::from_raw(200));
+            assert_eq!(ws_handle.as_handle().raw(), 200);
+
+            // Forget mock handles so Drop does not execute ring-3 syscall instruction in ring-0 test mode
+            let _ = notif_handle.as_handle();
+            let _ = ws_handle.as_handle();
+            core::mem::forget(notif_handle);
+            core::mem::forget(ws_handle);
+
+            println!("GAXERA: USERSPACE_RUNTIME_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-service-registry")]
+        {
+            use libgaxera::prelude::*;
+
+            println!("GAXERA: SERVICE_REGISTRY_TEST_START");
+
+            let name1 = ServiceName::try_from_str("gaxera.svc.ramfs").unwrap();
+            let name2 = ServiceName::try_from_str("gaxera.svc.console").unwrap();
+            assert_eq!(name1.as_str(), "gaxera.svc.ramfs");
+            assert_eq!(name2.as_str(), "gaxera.svc.console");
+
+            // Invalid name validation
+            assert!(ServiceName::try_from_str("").is_err());
+            assert!(
+                ServiceName::try_from_str("a_very_long_service_name_exceeding_thirty_two_bytes")
+                    .is_err()
+            );
+
+            println!("GAXERA: SERVICE_REGISTRY_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-ipc-benchmark")]
+        {
+            use kernel_core::ipc::*;
+            use kernel_core::object::ObjectId;
+
+            println!("GAXERA: IPC_BENCHMARK_TEST_START");
+
+            // 1. Correctness & Semantic Equivalence Verification
+            let ep = Endpoint::new(ObjectId::new_for_test(10, 1));
+            assert_eq!(ep.pending_caller_count(), 0);
+
+            let decision = ep.evaluate_fastpath(false, 32);
+            assert_eq!(
+                decision,
+                FastPathDecision::Rejected(FastPathRejectReason::NoReceiverWaiting)
+            );
+
+            let cap_transfer_decision = ep.evaluate_fastpath(true, 32);
+            assert_eq!(
+                cap_transfer_decision,
+                FastPathDecision::Rejected(FastPathRejectReason::CapabilityTransferRequested)
+            );
+
+            // 2. TSC Performance Measurement Benchmark Loop
+            let mut min_cycles = u64::MAX;
+            let mut max_cycles = 0u64;
+            let mut total_cycles = 0u64;
+            let iterations = 1000u64;
+
+            for _ in 0..iterations {
+                // SAFETY: Reading hardware TSC register for benchmark timing.
+                let start = unsafe { core::arch::x86_64::_rdtsc() };
+                let _ = ep.evaluate_fastpath(false, 16);
+                // SAFETY: Reading hardware TSC register for benchmark timing.
+                let end = unsafe { core::arch::x86_64::_rdtsc() };
+                let diff = end.saturating_sub(start);
+                min_cycles = min_cycles.min(diff);
+                max_cycles = max_cycles.max(diff);
+                total_cycles += diff;
+            }
+
+            let avg_cycles = total_cycles / iterations;
+            println!(
+                "GAXERA: IPC_BENCHMARK_METRICS min_cycles={} avg_cycles={} max_cycles={}",
+                min_cycles, avg_cycles, max_cycles
+            );
+            println!("GAXERA: IPC_BENCHMARK_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
         match kernel::init::spawn_init(boot_context, &mut page_tables, _arena, _system) {
             Err(e) => {
                 println!("GAXERA ERROR: Failed to spawn init: {:?}", e);

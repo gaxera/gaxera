@@ -52,6 +52,20 @@ impl Scheduler {
         })
     }
 
+    /// Request direct thread switch from current thread to target receiver thread for fast-path IPC.
+    pub fn try_direct_switch(
+        &mut self,
+        current_thread: ObjectId,
+        target_receiver: ObjectId,
+    ) -> Result<ObjectId, crate::ipc::FastPathRejectReason> {
+        if self.current_thread != Some(current_thread) {
+            return Err(crate::ipc::FastPathRejectReason::SchedulerDeclined);
+        }
+        // Direct switch: set current_thread to target_receiver while inheriting quantum
+        self.current_thread = Some(target_receiver);
+        Ok(target_receiver)
+    }
+
     pub fn enqueue<T>(
         &mut self,
         thread: &mut crate::thread::Thread<T>,

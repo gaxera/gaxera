@@ -46,6 +46,11 @@ enum KernelProfile {
     IpcMultiClient,
     IpcWaitSet,
     IpcPriorityInheritance,
+    InterruptNotification,
+    MmioDriver,
+    UserspaceRuntime,
+    ServiceRegistry,
+    IpcBenchmark,
     Exception(ExceptionTest),
     InitTest,
 }
@@ -75,6 +80,11 @@ impl KernelProfile {
             Self::IpcMultiClient => Some("test-ipc-multiclient"),
             Self::IpcWaitSet => Some("test-ipc-waitset"),
             Self::IpcPriorityInheritance => Some("test-ipc-priority-inheritance"),
+            Self::InterruptNotification => Some("test-interrupt-notification"),
+            Self::MmioDriver => Some("test-mmio-driver"),
+            Self::UserspaceRuntime => Some("test-userspace-runtime"),
+            Self::ServiceRegistry => Some("test-service-registry"),
+            Self::IpcBenchmark => Some("test-ipc-benchmark"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -116,6 +126,11 @@ impl KernelProfile {
             Self::IpcMultiClient => &["GAXERA: IPC_MULTICLIENT_OK"],
             Self::IpcWaitSet => &["GAXERA: IPC_WAITSET_OK"],
             Self::IpcPriorityInheritance => &["GAXERA: IPC_PRIORITY_INHERITANCE_OK"],
+            Self::InterruptNotification => &["GAXERA: INTERRUPT_NOTIFICATION_OK"],
+            Self::MmioDriver => &["GAXERA: MMIO_DRIVER_OK"],
+            Self::UserspaceRuntime => &["GAXERA: USERSPACE_RUNTIME_OK"],
+            Self::ServiceRegistry => &["GAXERA: SERVICE_REGISTRY_OK"],
+            Self::IpcBenchmark => &["GAXERA: IPC_BENCHMARK_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -165,6 +180,11 @@ impl KernelProfile {
             Self::IpcMultiClient => "ipc-multiclient",
             Self::IpcWaitSet => "ipc-waitset",
             Self::IpcPriorityInheritance => "ipc-priority-inheritance",
+            Self::InterruptNotification => "interrupt-notification",
+            Self::MmioDriver => "mmio-driver",
+            Self::UserspaceRuntime => "userspace-runtime",
+            Self::ServiceRegistry => "service-registry",
+            Self::IpcBenchmark => "ipc-benchmark",
             Self::Exception(ExceptionTest::Breakpoint) => "exception-breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -255,6 +275,11 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "ipc-multiclient" => Ok(KernelProfile::IpcMultiClient),
         "ipc-waitset" => Ok(KernelProfile::IpcWaitSet),
         "ipc-priority-inheritance" => Ok(KernelProfile::IpcPriorityInheritance),
+        "interrupt-notification" => Ok(KernelProfile::InterruptNotification),
+        "mmio-driver" => Ok(KernelProfile::MmioDriver),
+        "userspace-runtime" => Ok(KernelProfile::UserspaceRuntime),
+        "service-registry" => Ok(KernelProfile::ServiceRegistry),
+        "ipc-benchmark" => Ok(KernelProfile::IpcBenchmark),
         "exception-breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -921,6 +946,11 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::IpcMultiClient,
         KernelProfile::IpcWaitSet,
         KernelProfile::IpcPriorityInheritance,
+        KernelProfile::InterruptNotification,
+        KernelProfile::MmioDriver,
+        KernelProfile::UserspaceRuntime,
+        KernelProfile::ServiceRegistry,
+        KernelProfile::IpcBenchmark,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -978,6 +1008,25 @@ fn handle_test() -> Result<(), &'static str> {
         Some(Firmware::Uefi),
         KernelProfile::IpcPriorityInheritance,
     )?;
+
+    println!("\n--- Interrupt & Notification Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::InterruptNotification,
+    )?;
+
+    println!("\n--- MMIO Driver Foundation Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::MmioDriver)?;
+
+    println!("\n--- Userspace Runtime Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UserspaceRuntime)?;
+
+    println!("\n--- Service Registry Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::ServiceRegistry)?;
+
+    println!("\n--- IPC Fast-Path Benchmark ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcBenchmark)?;
 
     println!("\n--- Hardware Exceptions ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;

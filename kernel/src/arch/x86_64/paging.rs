@@ -499,6 +499,74 @@ impl KernelPageTables {
         Ok(())
     }
 
+    /// Maps a contiguous physical MMIO range into a user address space.
+    ///
+    /// # Safety
+    /// The physical address must be a valid PML4 allocated by `fork_for_userspace`.
+    pub unsafe fn map_physical_mmio_range(
+        pml4_physical_address: u64,
+        virtual_address: u64,
+        phys_start: u64,
+        size: usize,
+        rights: gaxera_abi::Rights,
+        cache_policy: gaxera_abi::CachePolicy,
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<(), PagingError> {
+        use x86_64::structures::paging::{Mapper, Page, PageTableFlags, PhysFrame, Size4KiB};
+        use x86_64::{PhysAddr, VirtAddr};
+
+        let pml4_virt = crate::memory::mapping::HHDM_BASE + pml4_physical_address;
+        // SAFETY: The provided physical address is valid and mapped in HHDM.
+        let pml4 = unsafe { &mut *(pml4_virt as *mut x86_64::structures::paging::PageTable) };
+
+        // SAFETY: pml4 is valid and HHDM offset is correct.
+        let mut mapper = unsafe {
+            x86_64::structures::paging::OffsetPageTable::new(
+                pml4,
+                VirtAddr::new(crate::memory::mapping::HHDM_BASE),
+            )
+        };
+
+        let mut flags = PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE;
+        if rights.contains(gaxera_abi::Rights::WRITE) {
+            flags |= PageTableFlags::WRITABLE;
+        }
+        if !rights.contains(gaxera_abi::Rights::EXECUTE) {
+            flags |= PageTableFlags::NO_EXECUTE;
+        }
+
+        match cache_policy {
+            gaxera_abi::CachePolicy::Uncached => {
+                flags |= PageTableFlags::NO_CACHE | PageTableFlags::WRITE_THROUGH;
+            }
+            gaxera_abi::CachePolicy::WriteThrough => {
+                flags |= PageTableFlags::WRITE_THROUGH;
+            }
+            _ => {}
+        }
+
+        let page_count = size / 4096;
+        for i in 0..page_count {
+            let current_virt = virtual_address + (i * 4096) as u64;
+            let current_phys = phys_start + (i * 4096) as u64;
+
+            let page = Page::<Size4KiB>::from_start_address(VirtAddr::new(current_virt))
+                .map_err(|_| PagingError::AddressOverflow)?;
+            let phys_frame = PhysFrame::from_start_address(PhysAddr::new(current_phys))
+                .map_err(|_| PagingError::AddressOverflow)?;
+
+            // SAFETY: Modifying user page tables.
+            unsafe {
+                mapper
+                    .map_to(page, phys_frame, flags, allocator)
+                    .map_err(|_| PagingError::UserStackFrameAllocationFailed)?
+                    .flush();
+            }
+        }
+
+        Ok(())
+    }
+
     /// Unmaps a range of user virtual addresses from the given PML4 root and flushes the TLB.
     ///
     /// # Safety

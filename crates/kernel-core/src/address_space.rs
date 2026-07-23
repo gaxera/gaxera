@@ -14,6 +14,16 @@ pub trait ArchAddressSpace: Sized {
         flags: gaxera_abi::Rights,
     ) -> Result<(), Self::Error>;
 
+    /// Maps a range of physical memory (e.g. MMIO) starting at `virtual_address`.
+    fn map_physical_range(
+        &mut self,
+        virtual_address: u64,
+        phys_start: u64,
+        size: usize,
+        rights: gaxera_abi::Rights,
+        cache_policy: gaxera_abi::CachePolicy,
+    ) -> Result<(), Self::Error>;
+
     /// Unmaps a range of `page_count` pages starting at `virtual_address`.
     fn unmap_range(&mut self, virtual_address: u64, page_count: usize) -> Result<(), Self::Error>;
 }

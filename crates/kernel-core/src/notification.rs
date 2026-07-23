@@ -1,28 +1,18 @@
 use crate::object::ObjectId;
-use alloc::vec::Vec;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NotificationError {
-    Busy,
     Closed,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum NotificationEffect {
-    Block,
-    Wake(ObjectId),
-}
-
+/// Pure Notification Signal State Machine (ADR 0013 Compliant).
+///
+/// Notification holds only `signals: u32` bitfield state. It maintains zero
+/// waiter/subscriber lists, ensuring fixed-size footprint and zero fast-path heap allocations.
 #[derive(Clone, Debug)]
-enum NotificationState {
-    Idle { pending_bits: u64 },
-    Waiting { waiter: ObjectId },
-}
-
 pub struct Notification {
-    #[allow(dead_code)]
     id: ObjectId,
-    state: NotificationState,
+    signals: u32,
     closed: bool,
 }
 
@@ -30,80 +20,43 @@ impl Notification {
     pub fn new(id: ObjectId) -> Self {
         Self {
             id,
-            state: NotificationState::Idle { pending_bits: 0 },
+            signals: 0,
             closed: false,
         }
     }
 
-    pub fn signal(&mut self, bits: u64) -> Result<Option<NotificationEffect>, NotificationError> {
-        if self.closed {
-            return Err(NotificationError::Closed);
-        }
+    pub fn id(&self) -> ObjectId {
+        self.id
+    }
 
-        if bits == 0 {
-            return Ok(None);
-        }
+    pub fn signals(&self) -> u32 {
+        self.signals
+    }
 
-        match self.state {
-            NotificationState::Idle {
-                ref mut pending_bits,
-            } => {
-                *pending_bits |= bits;
-                Ok(None)
-            }
-            NotificationState::Waiting { waiter } => {
-                self.state = NotificationState::Idle { pending_bits: bits };
-                Ok(Some(NotificationEffect::Wake(waiter)))
-            }
+    /// Atomically performs bitwise OR to post signal bits.
+    pub fn signal(&mut self, active_signals: u32) {
+        if !self.closed {
+            self.signals |= active_signals;
         }
     }
 
-    pub fn wait(
-        &mut self,
-        waiter: ObjectId,
-    ) -> Result<Result<u64, NotificationEffect>, NotificationError> {
-        if self.closed {
-            return Err(NotificationError::Closed);
-        }
-
-        match self.state {
-            NotificationState::Idle {
-                ref mut pending_bits,
-            } => {
-                let bits = *pending_bits;
-                if bits != 0 {
-                    *pending_bits = 0;
-                    Ok(Ok(bits))
-                } else {
-                    self.state = NotificationState::Waiting { waiter };
-                    Ok(Err(NotificationEffect::Block))
-                }
-            }
-            NotificationState::Waiting { .. } => Err(NotificationError::Busy),
-        }
+    /// Clears specified signal bits and returns previous value.
+    pub fn clear(&mut self, mask: u32) -> u32 {
+        let old = self.signals & mask;
+        self.signals &= !mask;
+        old
     }
 
-    pub fn take_pending(&mut self) -> u64 {
-        match &mut self.state {
-            NotificationState::Idle { pending_bits } => {
-                let bits = *pending_bits;
-                *pending_bits = 0;
-                bits
-            }
-            _ => 0,
-        }
+    /// Returns and resets all signal bits.
+    pub fn take_signals(&mut self) -> u32 {
+        let s = self.signals;
+        self.signals = 0;
+        s
     }
 
-    pub fn close(&mut self) -> Vec<ObjectId> {
+    pub fn close(&mut self) {
         self.closed = true;
-        let mut woke_threads = Vec::new();
-
-        if let NotificationState::Waiting { waiter } = self.state {
-            woke_threads.push(waiter);
-        }
-
-        self.state = NotificationState::Idle { pending_bits: 0 };
-        woke_threads
+        self.signals = 0;
     }
 }
 
@@ -116,61 +69,30 @@ mod tests {
     }
 
     #[test]
-    fn notification_signal_before_wait() {
+    fn notification_signal_coalescing_and_take() {
         let mut notif = Notification::new(test_id(1));
+        assert_eq!(notif.signals(), 0);
 
-        assert_eq!(notif.signal(0x1), Ok(None));
-        assert_eq!(notif.signal(0x2), Ok(None));
+        notif.signal(0b0001);
+        notif.signal(0b0010);
+        assert_eq!(notif.signals(), 0b0011);
 
-        assert_eq!(notif.wait(test_id(2)), Ok(Ok(0x3)));
-    }
+        assert_eq!(notif.clear(0b0001), 0b0001);
+        assert_eq!(notif.signals(), 0b0010);
 
-    #[test]
-    fn notification_wait_before_signal() {
-        let mut notif = Notification::new(test_id(1));
-        let waiter = test_id(2);
-
-        assert_eq!(notif.wait(waiter), Ok(Err(NotificationEffect::Block)));
-
-        assert_eq!(
-            notif.signal(0x4),
-            Ok(Some(NotificationEffect::Wake(waiter)))
-        );
-
-        assert_eq!(notif.take_pending(), 0x4);
-        assert_eq!(notif.take_pending(), 0x0);
-    }
-
-    #[test]
-    fn notification_bit_coalescing() {
-        let mut notif = Notification::new(test_id(1));
-
-        assert_eq!(notif.signal(0b0101), Ok(None));
-        assert_eq!(notif.signal(0b1010), Ok(None));
-        assert_eq!(notif.signal(0b1100), Ok(None));
-
-        assert_eq!(notif.wait(test_id(2)), Ok(Ok(0b1111)));
-    }
-
-    #[test]
-    fn notification_one_waiter_limit() {
-        let mut notif = Notification::new(test_id(1));
-        let waiter1 = test_id(2);
-        let waiter2 = test_id(3);
-
-        assert_eq!(notif.wait(waiter1), Ok(Err(NotificationEffect::Block)));
-        assert_eq!(notif.wait(waiter2), Err(NotificationError::Busy));
+        assert_eq!(notif.take_signals(), 0b0010);
+        assert_eq!(notif.signals(), 0);
     }
 
     #[test]
     fn notification_close_effects() {
-        let mut notif1 = Notification::new(test_id(1));
-        assert_eq!(notif1.wait(test_id(2)), Ok(Err(NotificationEffect::Block)));
+        let mut notif = Notification::new(test_id(1));
+        notif.signal(0b1111);
+        notif.close();
+        assert_eq!(notif.signals(), 0);
 
-        let woke = notif1.close();
-        assert_eq!(woke, alloc::vec![test_id(2)]);
-
-        assert_eq!(notif1.signal(0x1), Err(NotificationError::Closed));
-        assert_eq!(notif1.wait(test_id(3)), Err(NotificationError::Closed));
+        // Signalling closed notification ignored
+        notif.signal(0b0001);
+        assert_eq!(notif.signals(), 0);
     }
 }

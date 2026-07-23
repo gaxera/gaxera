@@ -339,11 +339,6 @@ pub fn run_timer_delivery_test() -> ! {
     unsafe { crate::arch::x86_64::qemu::exit_success() }
 }
 
-/// The sole Phase 5 Local APIC timer interrupt path.
-///
-/// This handler performs no allocation, printing, locking, mapping, or
-/// scheduling. At the requested count it masks the LVT before EOI, so the test
-/// observes an exact delivery count rather than a timing-dependent range.
 pub fn on_timer_interrupt() {
     let tick = TIMER_TICKS.fetch_add(1, Ordering::Relaxed) + 1;
     let target = TIMER_TARGET.load(Ordering::Acquire);
@@ -364,11 +359,20 @@ pub fn on_timer_interrupt() {
     unsafe { end_of_interrupt() };
 }
 
+/// Send End-of-Interrupt (EOI) to Local APIC.
+///
+/// # Safety
+/// The caller must be running in a valid interrupt context.
+pub unsafe fn send_eoi() {
+    // SAFETY: Acknowledges Local APIC interrupt line.
+    unsafe { end_of_interrupt() };
+}
+
 /// Acknowledge a Local APIC interrupt after its handler has completed work.
 ///
 /// # Safety
 /// The caller must be running in a handler for a Local APIC-delivered vector.
-pub(crate) unsafe fn end_of_interrupt() {
+pub unsafe fn end_of_interrupt() {
     // SAFETY: caller establishes that the Local APIC owns the current interrupt.
     unsafe { write_register(APIC_REGISTER_EOI, 0) };
 }

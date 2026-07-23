@@ -38,6 +38,12 @@ pub static FACTORIES: Spinlock<BTreeRegistry<kernel_core::object::Factory>> =
     Spinlock::new(BTreeRegistry::new());
 pub static WAIT_SETS: Spinlock<BTreeRegistry<kernel_core::waitset::WaitSet>> =
     Spinlock::new(BTreeRegistry::new());
+pub static NOTIFICATIONS: Spinlock<BTreeRegistry<kernel_core::notification::Notification>> =
+    Spinlock::new(BTreeRegistry::new());
+pub static INTERRUPTS: Spinlock<BTreeRegistry<kernel_core::interrupt::InterruptObject>> =
+    Spinlock::new(BTreeRegistry::new());
+pub static MAPPINGS: Spinlock<BTreeRegistry<kernel_core::mapping::Mapping>> =
+    Spinlock::new(BTreeRegistry::new());
 
 // Note: `THREADS` registry is currently maintained in `arch::x86_64::thread::THREADS`
 // due to specialized context-switching borrowing requirements.

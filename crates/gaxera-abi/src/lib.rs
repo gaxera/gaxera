@@ -2,6 +2,7 @@
 
 pub mod boot;
 pub mod ipc;
+pub mod service;
 
 pub mod svc {
     pub const RAMFS_BASE: u64 = 0x0000_6000_0000_0000;
@@ -73,6 +74,7 @@ pub enum ObjectType {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[repr(u64)]
 pub enum OperationCode {
+    YieldProcess = 0,
     MapMemory = 1,
     Call = 2,
     Receive = 3,
@@ -87,6 +89,27 @@ pub enum OperationCode {
     WaitSetWait = 12,
     DeleteHandle = 13,
     Revoke = 14,
+    InterruptControl = 15,
+    WaitNotification = 16,
+    ExitProcess = 99,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u64)]
+pub enum InterruptOp {
+    BindNotification = 1,
+    Mask = 2,
+    Unmask = 3,
+    Ack = 4,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum CachePolicy {
+    Cached = 0,
+    Uncached = 1,
+    WriteThrough = 2,
+    WriteCombining = 3,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

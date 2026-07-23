@@ -59,14 +59,19 @@ leak simply don't exist, because they were never built.
 
 **v0.6 — Core Memory Foundation.** Tagged `v0.6.0` at `2ccd6fc`. Implemented physical frame recycling, recursive PML4 page-table reclamation (ADR 0018), O(1) typed `SlabCache<T>` allocators with dynamic heap growth (ADR 0019), subregion memory mapping, and `UnmapMemory` opcode with TLB flushing (ADR 0020).
 
-**v0.7 — Multi-Client IPC & Event Multiplexing.** Tagged `v0.7.0`. Epoch 2 evolves IPC from 1:1 rendezvous into a high-performance $N:1$ multi-client server architecture:
+**v0.7 — Multi-Client IPC & Event Multiplexing.** Tagged `v0.7.0`. Epoch 2 evolves IPC from 1:1 rendezvous into a high-performance $N:1$ multi-client server architecture.
 
-* **Milestone 0.7.1 (Multi-Client Endpoint Call Queueing & Bounded Caller Waiting):** Expanded `Endpoint` state machine to queue up to 32 caller threads in FIFO order with clean thread cancellation (`cancel_caller`) and server crash recovery (`ADR 0021`).
-* **Milestone 0.7.2 (First-Class `WaitSet` Kernel Object & Event Multiplexing):** Introduced `ObjectType::WaitSet = 13` and ABI opcodes (`CreateWaitSet`, `WaitSetControl`, `WaitSetWait`), allowing servers to block on multiple endpoints, notifications, and timers atomically without fast-path heap allocations (`ADR 0021`).
-* **Milestone 0.7.3 (IPC Priority Inheritance & Fast-Path Optimization):** Added `base_priority` and `effective_priority` tracking to `Thread` to dynamically boost server thread priority to match high-priority callers during IPC rendezvous, preventing priority inversion.
+**v0.8 — Capability Microkernel Release.** Tagged `v0.8.0`. Complete capability-based microkernel infrastructure:
 
-Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), and [v0.7 Roadmap](docs/roadmap/roadmap_v07.md).
-The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), and [IPC Architecture Reference](docs/architecture/ipc.md).
+* **Milestone 0.8.0 (Object System & Capability Revocation):** Generation-tracked object arena, capability slot recycling, and recursive capability tree revocation across task CSpaces (`ADR 0007`, `ADR 0021`).
+* **Milestone 0.8.1 (Interrupt Delegation & WaitSets):** Hardware IRQ delegation, IOAPIC vector routing, and IRQ notification binding (`ADR 0022`).
+* **Milestone 0.8.2 (MMIO & Driver Foundation):** `Mapping` object encapsulation for physical memory page ranges and unprivileged driver address space mapping (`ADR 0023`).
+* **Milestone 0.8.3 (Userspace Runtime Library):** Type-safe `libgaxera` runtime, `OwnedHandle` non-`Copy`/`Clone` ownership invariants, and transient borrowed handles (`ADR 0024`).
+* **Milestone 0.8.4 (Service Discovery & Registry):** User-space `init` service registry, `ServiceName` validation, and bootstrap delegation protocol (`ADR 0025`).
+* **Milestone 0.8.5 (IPC Performance & Fast-Paths):** Direct context-switch rendezvous (`try_direct_switch`), 64-byte inline register transfers, and QEMU TSC microbenchmark suite (`ADR 0026`).
+
+Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), and [v0.8 Roadmap](docs/roadmap/roadmap_v08.md).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), and [ADRs 0000–0026](docs/adr/).
 
 ## Getting Started
 

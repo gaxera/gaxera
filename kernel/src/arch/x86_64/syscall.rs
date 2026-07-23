@@ -281,57 +281,102 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         gaxera_abi::Rights::MAP,
                         arena_ref,
                     );
+                    let mapping_result = if mem_result.is_err() {
+                        sys.lookup(
+                            cspace,
+                            mem_handle,
+                            gaxera_abi::ObjectType::Mapping,
+                            gaxera_abi::Rights::MAP,
+                            arena_ref,
+                        )
+                    } else {
+                        Err(kernel_core::capability::CapabilityError::StaleHandle)
+                    };
 
-                    if let (Ok(aspace_id), Ok(mem_id)) = (aspace_result, mem_result) {
+                    if let Ok(aspace_id) = aspace_result {
                         let virtual_address = frame.r10; // Arg 3
-                        let rights = gaxera_abi::Rights::from_bits(frame.r8 as u32); // Arg 4
-
-                        // Drop capability system locks BEFORE taking object locks
-                        drop(arena);
-                        drop(system);
-                        drop(cspaces);
-
-                        let mem_objects = crate::global::MEMORY_OBJECTS.lock();
-                        let mem_obj = match mem_objects.get(mem_id) {
-                            Some(m) => m,
-                            None => break 'sys_invoke u64::MAX,
-                        };
+                        let requested_rights = gaxera_abi::Rights::from_bits(frame.r8 as u32); // Arg 4
 
                         // 1. Enforce 4 KiB alignment and non-zero virtual address
                         if virtual_address == 0 || (virtual_address & 0xFFF) != 0 {
                             break 'sys_invoke u64::MAX;
                         }
 
-                        // 2. Enforce upper bound within lower-half canonical user space
-                        let mem_size = mem_obj.size_bytes();
-                        let is_valid_user_range = virtual_address
-                            .checked_add(mem_size)
-                            .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
+                        if let Ok(mem_id) = mem_result {
+                            // Drop capability system locks BEFORE taking object locks
+                            drop(arena);
+                            drop(system);
+                            drop(cspaces);
 
-                        if !is_valid_user_range {
-                            break 'sys_invoke u64::MAX;
-                        }
+                            let mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                            let mem_obj = match mem_objects.get(mem_id) {
+                                Some(m) => m,
+                                None => break 'sys_invoke u64::MAX,
+                            };
 
-                        let mut aspaces = crate::global::ADDRESS_SPACES.lock();
-                        let aspace = match aspaces.get_mut(aspace_id) {
-                            Some(a) => a,
-                            None => break 'sys_invoke u64::MAX,
-                        };
+                            let mem_size = mem_obj.size_bytes();
+                            let is_valid_user_range = virtual_address
+                                .checked_add(mem_size)
+                                .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
 
-                        use kernel_core::address_space::ArchAddressSpace;
-                        match aspace
-                            .arch
-                            .map_frames(virtual_address, mem_obj.frames(), rights)
-                        {
-                            Ok(_) => {
-                                crate::println!(
-                                    "GAXERA: MEMORY_MAPPED vaddr={:#018x} size={}",
-                                    virtual_address,
-                                    mem_obj.size_bytes()
-                                );
-                                0
+                            if !is_valid_user_range {
+                                break 'sys_invoke u64::MAX;
                             }
-                            Err(_) => u64::MAX,
+
+                            let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                            let aspace = match aspaces.get_mut(aspace_id) {
+                                Some(a) => a,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            use kernel_core::address_space::ArchAddressSpace;
+                            match aspace.arch.map_frames(
+                                virtual_address,
+                                mem_obj.frames(),
+                                requested_rights,
+                            ) {
+                                Ok(_) => 0,
+                                Err(_) => u64::MAX,
+                            }
+                        } else if let Ok(mapping_id) = mapping_result {
+                            drop(arena);
+                            drop(system);
+                            drop(cspaces);
+
+                            let mappings = crate::global::MAPPINGS.lock();
+                            let mapping = match mappings.get(mapping_id) {
+                                Some(m) => m,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            let size = mapping.size();
+                            let is_valid_user_range = virtual_address
+                                .checked_add(size as u64)
+                                .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
+
+                            if !is_valid_user_range {
+                                break 'sys_invoke u64::MAX;
+                            }
+
+                            let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                            let aspace = match aspaces.get_mut(aspace_id) {
+                                Some(a) => a,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            use kernel_core::address_space::ArchAddressSpace;
+                            match aspace.arch.map_physical_range(
+                                virtual_address,
+                                mapping.phys_addr(),
+                                mapping.size(),
+                                requested_rights,
+                                mapping.cache_policy(),
+                            ) {
+                                Ok(_) => 0,
+                                Err(_) => u64::MAX,
+                            }
+                        } else {
+                            break 'sys_invoke u64::MAX;
                         }
                     } else {
                         break 'sys_invoke u64::MAX;
@@ -1315,6 +1360,95 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     match sys.revoke(cspace_ref, handle, arena_ref) {
                         Ok(_) => 0,
                         Err(_) => u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::InterruptControl as u64 {
+                    match sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::InterruptObject,
+                        gaxera_abi::Rights::WRITE,
+                        arena_ref,
+                    ) {
+                        Ok(irq_obj_id) => {
+                            let sub_op = frame.rsi;
+                            drop(arena);
+                            drop(system);
+                            drop(cspaces);
+
+                            let mut interrupts = crate::global::INTERRUPTS.lock();
+                            let irq_obj = match interrupts.get_mut(irq_obj_id) {
+                                Some(obj) => obj,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            if sub_op == gaxera_abi::InterruptOp::BindNotification as u64 {
+                                let notif_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+                                let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                                let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                                let mut arena = crate::global::OBJECT_ARENA.lock();
+
+                                let sys = system.as_mut().unwrap();
+                                let arena_ref = arena.as_mut().unwrap();
+                                let cspace = match cspaces.get_mut(cspace_id) {
+                                    Some(cs) => cs,
+                                    None => break 'sys_invoke u64::MAX,
+                                };
+
+                                match sys.lookup(
+                                    cspace,
+                                    notif_handle,
+                                    gaxera_abi::ObjectType::Notification,
+                                    gaxera_abi::Rights::WRITE,
+                                    arena_ref,
+                                ) {
+                                    Ok(notif_id) => {
+                                        let _ = irq_obj.bind_notification(notif_id);
+                                        0
+                                    }
+                                    Err(_) => u64::MAX,
+                                }
+                            } else if sub_op == gaxera_abi::InterruptOp::Mask as u64 {
+                                irq_obj.mask();
+                                crate::arch::x86_64::ioapic::ioapic_mask_irq(irq_obj.irq());
+                                0
+                            } else if sub_op == gaxera_abi::InterruptOp::Unmask as u64 {
+                                irq_obj.unmask();
+                                crate::arch::x86_64::ioapic::ioapic_unmask_irq(irq_obj.irq());
+                                0
+                            } else if sub_op == gaxera_abi::InterruptOp::Ack as u64 {
+                                // SAFETY: Sends EOI to Local APIC.
+                                unsafe {
+                                    crate::arch::x86_64::apic::send_eoi();
+                                }
+                                0
+                            } else {
+                                u64::MAX
+                            }
+                        }
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::WaitNotification as u64 {
+                    match sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::Notification,
+                        gaxera_abi::Rights::READ,
+                        arena_ref,
+                    ) {
+                        Ok(notif_id) => {
+                            drop(arena);
+                            drop(system);
+                            drop(cspaces);
+
+                            let mut notifications = crate::global::NOTIFICATIONS.lock();
+                            let notif = match notifications.get_mut(notif_id) {
+                                Some(n) => n,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+                            let signals = notif.take_signals();
+                            signals as u64
+                        }
+                        Err(_) => break 'sys_invoke u64::MAX,
                     }
                 } else {
                     break 'sys_invoke u64::MAX;

@@ -12,6 +12,24 @@ pub enum EndpointError {
     InvalidReplyToken,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FastPathRejectReason {
+    InvalidHandle,
+    RightsDenied,
+    NoReceiverWaiting,
+    MultipleWaiters,
+    CapabilityTransferRequested,
+    PayloadTooLarge,
+    FaultOrCancellation,
+    SchedulerDeclined,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FastPathDecision {
+    Eligible(ObjectId),
+    Rejected(FastPathRejectReason),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IpcEffect {
     Block,
@@ -69,6 +87,29 @@ impl Endpoint {
             state: EndpointState::Idle,
             reply_sequence: 0,
             closed: false,
+        }
+    }
+
+    pub fn evaluate_fastpath(
+        &self,
+        has_cap_transfers: bool,
+        payload_len: usize,
+    ) -> FastPathDecision {
+        if self.closed {
+            return FastPathDecision::Rejected(FastPathRejectReason::FaultOrCancellation);
+        }
+        if has_cap_transfers {
+            return FastPathDecision::Rejected(FastPathRejectReason::CapabilityTransferRequested);
+        }
+        if payload_len > gaxera_abi::ipc::INLINE_MESSAGE_BYTES {
+            return FastPathDecision::Rejected(FastPathRejectReason::PayloadTooLarge);
+        }
+        match &self.state {
+            EndpointState::ReceiverWaiting { receiver } => FastPathDecision::Eligible(*receiver),
+            EndpointState::Idle => {
+                FastPathDecision::Rejected(FastPathRejectReason::NoReceiverWaiting)
+            }
+            _ => FastPathDecision::Rejected(FastPathRejectReason::FaultOrCancellation),
         }
     }
 

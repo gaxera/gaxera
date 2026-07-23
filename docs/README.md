@@ -27,8 +27,10 @@ This directory contains the public documentation, architectural specifications, 
 ### If you want to build or contribute
 
 1. [Roadmap](roadmap/roadmap_v01.md) — Milestone structure
-2. [v0.5 Engineering Program](roadmap/roadmap_v05.md) — Frozen next-release
-   architecture and implementation program
+2. [v0.5 Engineering Program](roadmap/roadmap_v05.md) — Capability & IPC program
+3. [v0.6 Core Memory Program](roadmap/roadmap_v06.md) — Physical frame recycling & slab allocators
+4. [v0.7 Multi-Client IPC Program](roadmap/roadmap_v07.md) — Endpoint caller queues & WaitSet multiplexing
+5. [v0.8 Capability Microkernel Program](roadmap/roadmap_v08.md) — IRQs, MMIO, libgaxera, Service Registry & IPC fast-paths
 3. [Developer Workflow](development/workflow.md) — Build, run, and verification commands
 4. [Environment](environment.md) — Tested host and emulator boundary
 5. [Evidence](evidence/) — Checkpoint proof and provenance

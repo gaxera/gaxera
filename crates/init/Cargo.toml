@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 kernel-core = { path = "../kernel-core" }
 gaxera-abi = { path = "../gaxera-abi" }
+libgaxera = { path = "../libgaxera" }
 
 [lints]
 workspace = true

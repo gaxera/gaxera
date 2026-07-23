@@ -121,11 +121,11 @@ pub fn run_ipc_test() -> ! {
     );
     assert_eq!(recipient.usage().capabilities, 0); // Exact rollback
 
-    // Test 4: Notification signal and wait
+    // Test 4: Notification signal and take
     let mut notif = Notification::new(ObjectId::new_for_test(300, 1));
-    assert_eq!(notif.signal(0b1010), Ok(None));
-    assert_eq!(notif.signal(0b0101), Ok(None));
-    assert_eq!(notif.wait(ObjectId::new_for_test(301, 1)), Ok(Ok(0b1111)));
+    notif.signal(0b1010);
+    notif.signal(0b0101);
+    assert_eq!(notif.take_signals(), 0b1111);
 
     println!("GAXERA: IPC_TEST_OK");
 

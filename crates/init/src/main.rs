@@ -7,6 +7,7 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 use gaxera_abi::{Handle, ObjectType, Rights};
 use kernel_core::elf::parser::ElfParser;
+use libgaxera::prelude::EndpointHandle;
 
 use core::alloc::{GlobalAlloc, Layout};
 struct DummyAllocator;
@@ -21,7 +22,9 @@ unsafe impl GlobalAlloc for DummyAllocator {
 #[global_allocator]
 static ALLOCATOR: DummyAllocator = DummyAllocator;
 
+mod registry;
 mod syscall;
+use registry::*;
 use syscall::*;
 
 #[cfg(not(test))]
@@ -63,8 +66,12 @@ fn run_init() -> Result<(), ()> {
         Rights::READ,
     )?;
 
-    // 4. Create an Endpoint for them to communicate
+    // 4. Create an Endpoint for communication and ServiceRegistry
     let endpoint = factory_create(factory, ObjectType::Endpoint)?;
+    let mut registry = ServiceRegistry::new();
+    if let Ok(name) = gaxera_abi::service::ServiceName::try_from_str("gaxera.svc.ramfs") {
+        let _ = registry.register(name, EndpointHandle::from_raw(endpoint));
+    }
 
     // 5. Derive the Endpoint into both child CSpaces at Handle(1)
     derive_capability(endpoint, ramfs_cspace, Rights::ALL)?;
@@ -177,6 +184,9 @@ fn run_init() -> Result<(), ()> {
 
     // 9. Supervisor Loop
     loop {
+        if registry.len() > 0 {
+            // Service registry operational
+        }
         if let Ok(gaxera_abi::THREAD_STATE_DEAD) = syscall::thread_status(script_thread) {
             let _ = syscall::debug_console_write(
                 console,
