@@ -348,6 +348,87 @@ impl KernelPageTables {
         Ok(new_pml4_frame.start_address().as_u64())
     }
 
+    /// Recursively traverses and deallocates user page-table frames (indices 0..256)
+    /// and the PML4 root frame back to the physical allocator.
+    ///
+    /// # Safety
+    /// `pml4_physical_address` must be a valid PML4 root, HHDM must be active,
+    /// and the page table must no longer be active on any CPU (not loaded in CR3).
+    pub unsafe fn destroy_user_pml4(
+        pml4_physical_address: u64,
+        allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    ) -> Result<(), PagingError> {
+        use x86_64::PhysAddr;
+        use x86_64::structures::paging::{PageTable, PageTableFlags, PhysFrame};
+
+        let pml4_virt = crate::memory::mapping::HHDM_BASE + pml4_physical_address;
+        // SAFETY: pml4_physical_address is mapped in HHDM.
+        let pml4 = unsafe { &mut *(pml4_virt as *mut PageTable) };
+
+        // Walk user-space PML4 entries (0..256)
+        for i in 0..256 {
+            let pml4_entry = &pml4[i];
+            if pml4_entry.flags().contains(PageTableFlags::PRESENT) {
+                let pml3_phys = pml4_entry.addr();
+                let pml3_virt = crate::memory::mapping::HHDM_BASE + pml3_phys.as_u64();
+                // SAFETY: Valid PML3 table mapped in HHDM.
+                let pml3 = unsafe { &mut *(pml3_virt as *mut PageTable) };
+
+                for j in 0..512 {
+                    let pml3_entry = &pml3[j];
+                    if pml3_entry.flags().contains(PageTableFlags::PRESENT)
+                        && !pml3_entry.flags().contains(PageTableFlags::HUGE_PAGE)
+                    {
+                        let pml2_phys = pml3_entry.addr();
+                        let pml2_virt = crate::memory::mapping::HHDM_BASE + pml2_phys.as_u64();
+                        // SAFETY: Valid PML2 table mapped in HHDM.
+                        let pml2 = unsafe { &mut *(pml2_virt as *mut PageTable) };
+
+                        for k in 0..512 {
+                            let pml2_entry = &pml2[k];
+                            if pml2_entry.flags().contains(PageTableFlags::PRESENT)
+                                && !pml2_entry.flags().contains(PageTableFlags::HUGE_PAGE)
+                            {
+                                let pml1_phys = pml2_entry.addr();
+                                if let Ok(pml1_frame) = PhysFrame::from_start_address(pml1_phys) {
+                                    // SAFETY: Frame is no longer referenced in user space.
+                                    unsafe {
+                                        let _ = allocator.deallocate(pml1_frame);
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Ok(pml2_frame) = PhysFrame::from_start_address(pml2_phys) {
+                            // SAFETY: Frame is no longer referenced in user space.
+                            unsafe {
+                                let _ = allocator.deallocate(pml2_frame);
+                            }
+                        }
+                    }
+                }
+
+                if let Ok(pml3_frame) = PhysFrame::from_start_address(pml3_phys) {
+                    // SAFETY: Frame is no longer referenced in user space.
+                    unsafe {
+                        let _ = allocator.deallocate(pml3_frame);
+                    }
+                }
+            }
+        }
+
+        // Deallocate root PML4 frame
+        if let Ok(pml4_frame) = PhysFrame::from_start_address(PhysAddr::new(pml4_physical_address))
+        {
+            // SAFETY: Frame is no longer active.
+            unsafe {
+                let _ = allocator.deallocate(pml4_frame);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Maps a series of physical frames into the given PML4 root at the virtual address.
     ///
     /// # Safety
@@ -415,6 +496,45 @@ impl KernelPageTables {
 
             current_virt += crate::memory::physical::PAGE_SIZE;
         }
+        Ok(())
+    }
+
+    /// Unmaps a range of user virtual addresses from the given PML4 root and flushes the TLB.
+    ///
+    /// # Safety
+    /// The physical address must be a valid user PML4.
+    pub unsafe fn unmap_user_range(
+        pml4_physical_address: u64,
+        virtual_address: u64,
+        page_count: usize,
+    ) -> Result<(), PagingError> {
+        use x86_64::VirtAddr;
+        use x86_64::structures::paging::{Mapper, Page, Size4KiB};
+
+        let pml4_virt = crate::memory::mapping::HHDM_BASE + pml4_physical_address;
+        // SAFETY: The provided physical address is valid and mapped in HHDM.
+        let pml4 = unsafe { &mut *(pml4_virt as *mut x86_64::structures::paging::PageTable) };
+
+        // SAFETY: pml4 is valid and HHDM offset is correct.
+        let mut offset_page_table = unsafe {
+            x86_64::structures::paging::OffsetPageTable::new(
+                pml4,
+                VirtAddr::new(crate::memory::mapping::HHDM_BASE),
+            )
+        };
+
+        for i in 0..page_count {
+            let page_virt = virtual_address + (i * 4096) as u64;
+            if page_virt >= crate::memory::mapping::USER_ADDRESS_MAX {
+                return Err(PagingError::AddressOverflow);
+            }
+
+            let page: Page<Size4KiB> = Page::containing_address(VirtAddr::new(page_virt));
+            if let Ok((_frame, flag_flush)) = offset_page_table.unmap(page) {
+                flag_flush.flush();
+            }
+        }
+
         Ok(())
     }
 
@@ -626,6 +746,28 @@ impl KernelPageTables {
     /// The caller must ensure that the virtual address is within the dedicated
     /// kernel stack region and that the frame is allocated.
     pub unsafe fn map_kernel_stack_page<A>(
+        &mut self,
+        virtual_address: u64,
+        frame: PhysFrame,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        // SAFETY: Hardware invariant or verified by caller.
+        unsafe {
+            self.map_page(
+                virtual_address,
+                frame,
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_EXECUTE,
+                allocator,
+            )
+        }
+    }
+
+    /// # Safety
+    /// Caller must ensure that virtual_address is an unmapped kernel virtual address.
+    pub unsafe fn map_kernel_page<A>(
         &mut self,
         virtual_address: u64,
         frame: PhysFrame,

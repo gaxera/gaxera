@@ -508,7 +508,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         feature = "test-preemption"
     )))]
     {
-        let arena = match kernel_core::object::ObjectArena::try_new(1024) {
+        let _arena = match kernel_core::object::ObjectArena::try_new(1024) {
             Ok(a) => a,
             Err(e) => {
                 println!("GAXERA ERROR: ObjectArena initialization failed: {:?}", e);
@@ -516,7 +516,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             }
         };
 
-        let system = match kernel_core::capability::CapabilitySystem::try_new(1024) {
+        let _system = match kernel_core::capability::CapabilitySystem::try_new(1024) {
             Ok(s) => s,
             Err(e) => {
                 println!(
@@ -530,7 +530,276 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         // Save physical allocator for global capabilities (e.g. Memory mapping).
         *kernel::global::PHYSICAL_ALLOCATOR.lock() = Some(physical_frames);
 
-        match kernel::init::spawn_init(boot_context, &mut page_tables, arena, system) {
+        #[cfg(feature = "test-frame-recycling")]
+        {
+            use kernel_core::address_space::ArchAddressSpace;
+            println!("GAXERA: FRAME_RECYCLING_TEST_START");
+            let initial_allocations = {
+                let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                let test_frame = allocator.allocate().unwrap();
+                // SAFETY: Cleaning up test marker frame
+                unsafe { allocator.deallocate(test_frame).unwrap() };
+                test_frame
+            };
+
+            // Run 100 allocation & teardown cycles of AddressSpaces and MemoryObjects
+            for _ in 0..100 {
+                let aspace = {
+                    let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                    let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                    arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap()
+                };
+
+                let mut mem_obj = kernel_core::memory::MemoryObject::new(
+                    kernel_core::object::ObjectId::new_for_test(1, 1),
+                    16384, // 4 frames
+                );
+
+                {
+                    let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                    let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                    for _ in 0..4 {
+                        let frame = allocator.allocate().unwrap();
+                        mem_obj.add_frame(frame.start_address().as_u64());
+                    }
+                }
+
+                // Map memory into address space (map_frames locks PHYSICAL_ALLOCATOR internally)
+                aspace
+                    .clone()
+                    .map_frames(
+                        0x0000_1000_0000_0000,
+                        mem_obj.frames(),
+                        gaxera_abi::Rights::READ,
+                    )
+                    .unwrap();
+
+                // Explicitly destroy memory object payload frames
+                {
+                    let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                    let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                    for &frame_addr in mem_obj.take_frames().iter() {
+                        let frame = x86_64::structures::paging::PhysFrame::from_start_address(
+                            x86_64::PhysAddr::new(frame_addr),
+                        )
+                        .unwrap();
+                        // SAFETY: Frame is no longer mapped
+                        unsafe { allocator.deallocate(frame).unwrap() };
+                    }
+                }
+
+                // Explicitly destroy address space (reclaims PML4 and intermediate page table nodes!)
+                {
+                    let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                    let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                    aspace.destroy(allocator).unwrap();
+                }
+            }
+
+            let final_allocations = {
+                let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                let test_frame = allocator.allocate().unwrap();
+                // SAFETY: Cleaning up test marker frame
+                unsafe { allocator.deallocate(test_frame).unwrap() };
+                test_frame
+            };
+
+            if initial_allocations == final_allocations {
+                println!("GAXERA: FRAME_RECYCLING_OK");
+            } else {
+                println!(
+                    "GAXERA ERROR: Frame leak detected! init_frame={:#018x} final_frame={:#018x}",
+                    initial_allocations.start_address().as_u64(),
+                    final_allocations.start_address().as_u64()
+                );
+            }
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-slab-allocation")]
+        {
+            println!("GAXERA: SLAB_ALLOCATION_TEST_START");
+            struct SlabTestItem {
+                _data: [u64; 4],
+            }
+
+            let mut slab = kernel_core::slab::SlabCache::<SlabTestItem>::new();
+            let mut ptrs = alloc::vec::Vec::new();
+
+            // Perform 1,000 allocations across dynamically requested slab pages
+            for _ in 0..1000 {
+                let ptr = slab
+                    .allocate(|| {
+                        let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                        let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                        allocator.allocate().map(|f| {
+                            kernel::memory::mapping::HHDM_BASE + f.start_address().as_u64()
+                        })
+                    })
+                    .unwrap();
+                ptrs.push(ptr);
+            }
+
+            // Verify slab pages were populated
+            let active_pages = slab.active_page_count();
+            if active_pages > 0 {
+                println!("GAXERA: SLAB_PAGES_ACTIVE count={}", active_pages);
+            }
+
+            // Deallocate all 1,000 slots
+            for ptr in ptrs {
+                slab.deallocate(ptr, |virt_addr| {
+                    let phys_addr = virt_addr - kernel::memory::mapping::HHDM_BASE;
+                    let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                    let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+                    let frame = x86_64::structures::paging::PhysFrame::from_start_address(
+                        x86_64::PhysAddr::new(phys_addr),
+                    )
+                    .unwrap();
+                    // SAFETY: Returning empty slab page back to physical allocator
+                    unsafe { allocator.deallocate(frame).unwrap() };
+                })
+                .unwrap();
+            }
+
+            if slab.active_page_count() == 0 {
+                println!("GAXERA: SLAB_ALLOCATION_OK");
+            } else {
+                println!(
+                    "GAXERA ERROR: Slab page leak detected! remaining_pages={}",
+                    slab.active_page_count()
+                );
+            }
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-unmap-memory")]
+        {
+            use kernel_core::address_space::ArchAddressSpace;
+            println!("GAXERA: UNMAP_MEMORY_TEST_START");
+
+            let (mut aspace, mem_obj) = {
+                let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+
+                let aspace =
+                    arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
+                let mut mem_obj = kernel_core::memory::MemoryObject::new(
+                    kernel_core::object::ObjectId::new_for_test(1, 1),
+                    16384, // 16 KiB (4 frames)
+                );
+                for _ in 0..4 {
+                    let frame = allocator.allocate().unwrap();
+                    mem_obj.add_frame(frame.start_address().as_u64());
+                }
+                (aspace, mem_obj)
+            };
+
+            // Project subregion window: offset 4096 (1 page), size 8192 (2 pages)
+            let subregion_frames = mem_obj.frames_subrange(4096, 8192).unwrap();
+            assert_eq!(subregion_frames.len(), 2);
+
+            let map_target_vaddr = 0x0000_1000_0000_0000;
+
+            // Map subregion window into address space
+            aspace
+                .map_frames(
+                    map_target_vaddr,
+                    subregion_frames,
+                    gaxera_abi::Rights::READ | gaxera_abi::Rights::WRITE,
+                )
+                .unwrap();
+
+            // Unmap the 2 pages starting at map_target_vaddr (flushes TLB)
+            aspace.unmap_range(map_target_vaddr, 2).unwrap();
+
+            println!("GAXERA: UNMAP_MEMORY_OK");
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        #[cfg(feature = "test-shared-memory")]
+        {
+            use kernel_core::address_space::ArchAddressSpace;
+            println!("GAXERA: SHARED_MEMORY_TEST_START");
+
+            let (mut aspace_a, mut aspace_b, mem_obj) = {
+                let mut phys_alloc_guard = kernel::global::PHYSICAL_ALLOCATOR.lock();
+                let allocator = phys_alloc_guard.as_deref_mut().unwrap();
+
+                let aspace_a =
+                    arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
+                let aspace_b =
+                    arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
+                let mut mem_obj = kernel_core::memory::MemoryObject::new(
+                    kernel_core::object::ObjectId::new_for_test(1, 1),
+                    4096, // 1 frame
+                );
+                let frame = allocator.allocate().unwrap();
+                mem_obj.add_frame(frame.start_address().as_u64());
+                (aspace_a, aspace_b, mem_obj)
+            };
+
+            let vaddr_a = 0x0000_1000_0000_0000;
+            let vaddr_b = 0x0000_2000_0000_0000;
+
+            // Map shared memory object into Address Space A
+            aspace_a
+                .map_frames(
+                    vaddr_a,
+                    mem_obj.frames(),
+                    gaxera_abi::Rights::READ | gaxera_abi::Rights::WRITE,
+                )
+                .unwrap();
+
+            // Map SAME shared memory object into Address Space B
+            aspace_b
+                .map_frames(
+                    vaddr_b,
+                    mem_obj.frames(),
+                    gaxera_abi::Rights::READ | gaxera_abi::Rights::WRITE,
+                )
+                .unwrap();
+
+            let phys_frame_addr = mem_obj.frames()[0];
+            let hhdm_vaddr = kernel::memory::mapping::HHDM_BASE + phys_frame_addr;
+
+            // SAFETY: Frame address is mapped in HHDM and safe to write for test verification.
+            unsafe {
+                core::ptr::write_volatile(hhdm_vaddr as *mut u64, 0xDEAD_BEEF_CAFE_BABE);
+            }
+
+            // SAFETY: Frame address is mapped in HHDM and safe to read for test verification.
+            let read_back = unsafe { core::ptr::read_volatile(hhdm_vaddr as *const u64) };
+            if read_back == 0xDEAD_BEEF_CAFE_BABE {
+                println!("GAXERA: SHARED_MEMORY_OK");
+            } else {
+                println!(
+                    "GAXERA ERROR: Shared memory readback failed! got={:#018x}",
+                    read_back
+                );
+            }
+
+            // SAFETY: Test runner exit
+            unsafe {
+                arch::x86_64::qemu::exit_success();
+            }
+        }
+
+        match kernel::init::spawn_init(boot_context, &mut page_tables, _arena, _system) {
             Err(e) => {
                 println!("GAXERA ERROR: Failed to spawn init: {:?}", e);
                 serial::halt();

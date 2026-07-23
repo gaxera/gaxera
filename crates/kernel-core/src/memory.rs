@@ -36,4 +36,30 @@ impl MemoryObject {
     pub fn frames(&self) -> &[u64] {
         &self.frames
     }
+
+    pub fn take_frames(&mut self) -> Vec<u64> {
+        core::mem::take(&mut self.frames)
+    }
+
+    pub fn frames_subrange(
+        &self,
+        offset_bytes: u64,
+        size_bytes: u64,
+    ) -> Result<&[u64], &'static str> {
+        if !offset_bytes.is_multiple_of(4096) || !size_bytes.is_multiple_of(4096) {
+            return Err("Offset and size must be page aligned");
+        }
+        let end_bytes = offset_bytes
+            .checked_add(size_bytes)
+            .ok_or("Overflow in range")?;
+        if end_bytes > self.size_bytes {
+            return Err("Range exceeds memory object bounds");
+        }
+        let start_frame = (offset_bytes / 4096) as usize;
+        let frame_count = (size_bytes / 4096) as usize;
+        if start_frame + frame_count > self.frames.len() {
+            return Err("Range exceeds allocated frame count");
+        }
+        Ok(&self.frames[start_frame..start_frame + frame_count])
+    }
 }

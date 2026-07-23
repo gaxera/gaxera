@@ -54,3 +54,34 @@ pub unsafe fn init(heap_start: usize, heap_size: usize) -> Result<(), HeapInitEr
     unsafe { HEAP.lock().init(heap_start as *mut u8, heap_size) };
     Ok(())
 }
+
+/// Dynamically extends the kernel heap by allocating physical frames and mapping them into kernel virtual memory.
+///
+/// # Safety
+/// Caller must ensure `virtual_address` names a page-aligned, unmapped kernel virtual memory range.
+pub unsafe fn extend_heap(
+    virtual_address: u64,
+    frame_count: usize,
+    allocator: &mut crate::memory::physical::SegmentedBitmapFrameAllocator<'_>,
+    page_tables: &mut crate::arch::x86_64::paging::KernelPageTables,
+) -> Result<(), &'static str> {
+    let byte_size = frame_count * 4096;
+    for i in 0..frame_count {
+        let frame = allocator
+            .allocate()
+            .ok_or("Physical allocation failed during heap extension")?;
+        let vaddr = virtual_address + (i * 4096) as u64;
+        // SAFETY: Mapping kernel heap extension frames as R/W
+        unsafe {
+            page_tables
+                .map_kernel_page(vaddr, frame, allocator)
+                .map_err(|_| "Failed to map kernel heap extension page")?;
+        }
+    }
+
+    // SAFETY: Newly mapped virtual memory range is exclusive and writable.
+    unsafe {
+        HEAP.lock().extend(byte_size);
+    }
+    Ok(())
+}

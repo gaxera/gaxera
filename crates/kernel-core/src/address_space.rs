@@ -13,6 +13,9 @@ pub trait ArchAddressSpace: Sized {
         frames: &[u64],
         flags: gaxera_abi::Rights,
     ) -> Result<(), Self::Error>;
+
+    /// Unmaps a range of `page_count` pages starting at `virtual_address`.
+    fn unmap_range(&mut self, virtual_address: u64, page_count: usize) -> Result<(), Self::Error>;
 }
 
 /// A capability representing a hardware virtual address space (e.g., page tables).

@@ -336,6 +336,51 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     } else {
                         break 'sys_invoke u64::MAX;
                     }
+                } else if op == gaxera_abi::OperationCode::UnmapMemory as u64 {
+                    let aspace_result = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::AddressSpace,
+                        gaxera_abi::Rights::WRITE,
+                        arena_ref,
+                    );
+
+                    if let Ok(aspace_id) = aspace_result {
+                        let virtual_address = frame.rdx;
+                        let page_count = frame.r10 as usize;
+
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        if virtual_address == 0 || (virtual_address & 0xFFF) != 0 || page_count == 0
+                        {
+                            break 'sys_invoke u64::MAX;
+                        }
+
+                        let unmap_len = (page_count * 4096) as u64;
+                        let is_valid_user_range = virtual_address
+                            .checked_add(unmap_len)
+                            .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
+
+                        if !is_valid_user_range {
+                            break 'sys_invoke u64::MAX;
+                        }
+
+                        let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                        let aspace = match aspaces.get_mut(aspace_id) {
+                            Some(a) => a,
+                            None => break 'sys_invoke u64::MAX,
+                        };
+
+                        use kernel_core::address_space::ArchAddressSpace;
+                        match aspace.arch.unmap_range(virtual_address, page_count) {
+                            Ok(_) => 0,
+                            Err(_) => u64::MAX,
+                        }
+                    } else {
+                        break 'sys_invoke u64::MAX;
+                    }
                 } else if op == gaxera_abi::OperationCode::Call as u64 {
                     let endpoint_result = sys.lookup(
                         cspace,

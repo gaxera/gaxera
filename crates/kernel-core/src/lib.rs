@@ -14,6 +14,7 @@ pub mod object;
 pub mod registry;
 pub mod resource;
 pub mod scheduler;
+pub mod slab;
 pub mod thread;
 pub mod time;
 pub mod timer;

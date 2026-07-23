@@ -39,6 +39,10 @@ enum KernelProfile {
     ContextPreservation,
     IpcTest,
     PreemptionTest,
+    FrameRecycling,
+    SlabAllocation,
+    UnmapMemory,
+    SharedMemory,
     Exception(ExceptionTest),
     InitTest,
 }
@@ -61,6 +65,10 @@ impl KernelProfile {
             Self::ContextPreservation => Some("test-context-preservation"),
             Self::IpcTest => Some("test-ipc"),
             Self::PreemptionTest => Some("test-preemption"),
+            Self::FrameRecycling => Some("test-frame-recycling"),
+            Self::SlabAllocation => Some("test-slab-allocation"),
+            Self::UnmapMemory => Some("test-unmap-memory"),
+            Self::SharedMemory => Some("test-shared-memory"),
             Self::Exception(ExceptionTest::Breakpoint) => Some("test-breakpoint"),
             Self::Exception(ExceptionTest::DivideError) => Some("test-divide-error"),
             Self::Exception(ExceptionTest::InvalidOpcode) => Some("test-invalid-opcode"),
@@ -95,6 +103,10 @@ impl KernelProfile {
             Self::ContextPreservation => &["GAXERA: CONTEXT_PRESERVATION_OK"],
             Self::IpcTest => &["GAXERA: IPC_TEST_OK"],
             Self::PreemptionTest => &["GAXERA: PREEMPTION_OK"],
+            Self::FrameRecycling => &["GAXERA: FRAME_RECYCLING_OK"],
+            Self::SlabAllocation => &["GAXERA: SLAB_ALLOCATION_OK"],
+            Self::UnmapMemory => &["GAXERA: UNMAP_MEMORY_OK"],
+            Self::SharedMemory => &["GAXERA: SHARED_MEMORY_OK"],
             Self::Exception(ExceptionTest::Breakpoint) => &["GAXERA: EXCEPTION_BREAKPOINT_RESUMED"],
             Self::Exception(ExceptionTest::DivideError) => {
                 &["GAXERA: EXCEPTION_DIVIDE_ERROR_CAUGHT"]
@@ -137,6 +149,10 @@ impl KernelProfile {
             Self::ContextPreservation => "context-preservation",
             Self::IpcTest => "ipc-test",
             Self::PreemptionTest => "preemption",
+            Self::FrameRecycling => "frame-recycling",
+            Self::SlabAllocation => "slab-allocation",
+            Self::UnmapMemory => "unmap-memory",
+            Self::SharedMemory => "shared-memory",
             Self::Exception(ExceptionTest::Breakpoint) => "exception-breakpoint",
             Self::Exception(ExceptionTest::DivideError) => "divide-error",
             Self::Exception(ExceptionTest::InvalidOpcode) => "invalid-opcode",
@@ -220,6 +236,10 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "context-preservation" => Ok(KernelProfile::ContextPreservation),
         "ipc-test" => Ok(KernelProfile::IpcTest),
         "preemption" => Ok(KernelProfile::PreemptionTest),
+        "frame-recycling" => Ok(KernelProfile::FrameRecycling),
+        "slab-allocation" => Ok(KernelProfile::SlabAllocation),
+        "unmap-memory" => Ok(KernelProfile::UnmapMemory),
+        "shared-memory" => Ok(KernelProfile::SharedMemory),
         "exception-breakpoint" => Ok(KernelProfile::Exception(ExceptionTest::Breakpoint)),
         "divide-error" => Ok(KernelProfile::Exception(ExceptionTest::DivideError)),
         "invalid-opcode" => Ok(KernelProfile::Exception(ExceptionTest::InvalidOpcode)),
@@ -879,6 +899,10 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::ContextPreservation,
         KernelProfile::IpcTest,
         KernelProfile::PreemptionTest,
+        KernelProfile::FrameRecycling,
+        KernelProfile::SlabAllocation,
+        KernelProfile::UnmapMemory,
+        KernelProfile::SharedMemory,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
         KernelProfile::Exception(ExceptionTest::InvalidOpcode),
@@ -911,6 +935,18 @@ fn handle_test() -> Result<(), &'static str> {
 
     println!("\n--- Preemption Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::PreemptionTest)?;
+
+    println!("\n--- Frame Recycling Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::FrameRecycling)?;
+
+    println!("\n--- Slab Allocation Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::SlabAllocation)?;
+
+    println!("\n--- Unmap Memory Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::UnmapMemory)?;
+
+    println!("\n--- Shared Memory Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::SharedMemory)?;
 
     println!("\n--- Hardware Exceptions ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::BootTest)?;

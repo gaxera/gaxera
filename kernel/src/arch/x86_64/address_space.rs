@@ -36,6 +36,17 @@ impl X86AddressSpace {
             pml4_physical_address: new_pml4,
         })
     }
+
+    pub fn destroy(
+        self,
+        allocator: &mut SegmentedBitmapFrameAllocator,
+    ) -> Result<(), &'static str> {
+        // SAFETY: The pml4 address is valid and no longer active on CPU.
+        unsafe {
+            KernelPageTables::destroy_user_pml4(self.pml4_physical_address, allocator)
+                .map_err(|_| "Failed to destroy user page tables")
+        }
+    }
 }
 
 impl ArchAddressSpace for X86AddressSpace {
@@ -66,6 +77,19 @@ impl ArchAddressSpace for X86AddressSpace {
                 allocator,
             )
             .map_err(|_| "Failed to map user frames")?;
+        }
+        Ok(())
+    }
+
+    fn unmap_range(&mut self, virtual_address: u64, page_count: usize) -> Result<(), Self::Error> {
+        // SAFETY: The pml4 physical address is valid.
+        unsafe {
+            KernelPageTables::unmap_user_range(
+                self.pml4_physical_address,
+                virtual_address,
+                page_count,
+            )
+            .map_err(|_| "Failed to unmap user range")?;
         }
         Ok(())
     }

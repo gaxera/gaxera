@@ -53,28 +53,19 @@ leak simply don't exist, because they were never built.
 
 ## Status
 
-**v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at
-`f6b2146`; validated by the deterministic UEFI QEMU matrix.
+**v0.1 — Foundation release.** Tagged `v0.1.0` and `phase-6-complete` at `f6b2146`; validated by the deterministic UEFI QEMU matrix.
 
-**v0.5 — Capabilities & Microkernel Program.** Complete (v0.5.0 release).
+**v0.5 — Capabilities & Microkernel Program.** Tagged `v0.5.0` at `e7f89ab`. Implemented capability derivation/revocation state machines, ring-3 privilege transitions, fault-recoverable syscall ABI (`copy_from_user`), preemptive thread scheduler, core IPC, and `ramfs` supervisor.
 
-* **M0 (Setup & Baseline Preservation):** Completed.
-* **M1 (Object Arena & Capability Model):** Completed in `kernel-core` with host-tested derivation and revocation state machines.
-* **M2A (Privilege Transition & Isolated Address Space):** Completed and verified under UEFI QEMU (DPL-3 GDT/TSS configuration, isolated user page tables, internal ring-3 return gate).
-* **M2B (Syscall ABI & Fault-Recoverable User Access):** Completed and verified under UEFI QEMU (`syscall`/`sysret` MSR setup, `CpuLocal` GS base, and fault-recoverable `copy_from_user` / `copy_to_user` routines).
-* **M3 (Cooperative Execution & Thread Hardening):** Completed and verified under UEFI QEMU (thread generation, explicit trap frames, cooperative yield mechanics).
-* **M4 (First-Class Core IPC):** Completed.
-* **M5 (Time Source & Preemptive Scheduler):** Completed.
-* **M6 (Boot Payload & Init Supervisor):** Completed.
-* **M7 (Initial File System & IPC Foundation):** Completed. Includes `ramfs` file server, bounds-checked parser, `proptest` parser fuzzing, and `script_session` IPC developer session.
-* **M8 (v0.5 Audit, Hardening & Release):** Completed. Full 6-pass security audit, 4 kernel boundary/sanitization fixes, exact-commit evidence logs, and v0.5.0 release.
+**v0.6 — Core Memory Foundation.** Tagged `v0.6.0`. Post-v0.5 development officially operates under the finalized Gaxera Engineering Workflow (Program Charter → Living Architecture Document → ADRs → Tactical Milestones → Empirical QEMU Verification).
 
-*Note: While the v0.5.0 milestone is formally complete, I will continue to address incremental improvements, performance refinements, and bug fixes to the v0.5.x lineage as they are encountered in the wild. Meanwhile, architectural planning and research for the next major phase of development are now underway.*
+* **Milestone 0.6.1 (Physical Frame Recycling & Page-Table Reclamation):** Reclaimed memory object physical payload frames back to `SegmentedBitmapFrameAllocator` upon destruction and implemented recursive lower-half PML4..PML1 page-table frame teardown (`ADR 0018`).
+* **Milestone 0.6.2 (Two-Tier Kernel Slab Arenas & General Heap Evolution):** Introduced `SlabCache<T>` typed slab allocators with O(1) object allocation and dynamic slab page frame recycling, backed by a growable general kernel heap (`ADR 0019`).
+* **Milestone 0.6.3 (Subregion Memory Mapping & Unmap Primitive):** Implemented page-aligned memory subregion window projections, `OperationCode::UnmapMemory` syscall handler (`Opcode 9`), and TLB invalidation (`ADR 0020`).
+* **Milestone 0.6.4 (Zero-Copy Shared Memory Verification):** Verified zero-copy bidirectional read/write channels across multiple isolated address spaces under UEFI QEMU.
 
-Detailed v0.1 and v0.5 milestones and progress maps are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md) and [v0.5 Roadmap](docs/roadmap/roadmap_v05.md).
-The exact released architecture and proposed program are documented
-in the [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md) and
-[v0.5 Engineering Program](docs/roadmap/roadmap_v05.md).
+Detailed v0.1, v0.5, and v0.6 milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), and [v0.6 Roadmap](docs/roadmap/roadmap_v06.md).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), and [Memory Architecture Reference](docs/architecture/memory.md).
 
 ## Getting Started
 

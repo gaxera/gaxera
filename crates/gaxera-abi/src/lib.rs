@@ -80,6 +80,7 @@ pub enum OperationCode {
     Write = 6,
     Derive = 7,
     ThreadStatus = 8,
+    UnmapMemory = 9,
 }
 
 pub const THREAD_STATE_RUNNABLE_OR_RUNNING: u64 = 0;
