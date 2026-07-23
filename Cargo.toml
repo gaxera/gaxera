@@ -5,8 +5,11 @@ members = [
     "crates/init",
     "crates/kernel-core",
     "crates/libgaxera",
+    "crates/pci_bus_server",
     "crates/ramfs",
     "crates/script_session",
+    "crates/virtio_block_server",
+    "crates/virtio_net_server",
     "kernel",
     "xtask",
 ]

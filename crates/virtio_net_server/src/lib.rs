@@ -2,16 +2,16 @@
 
 extern crate alloc;
 
+use gaxera_abi::net::NetError;
 use libgaxera::driver::ContiguousFrameHandle;
 use libgaxera::virtio::VirtioNetHeader;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PacketState {
     Free,
-    RxReady,
-    RxFilled,
-    TxPending,
-    Delivered,
+    QueuedToRx,
+    QueuedToTx,
+    InUseByUser,
 }
 
 pub struct PacketBuffer {
@@ -31,6 +31,39 @@ impl PacketBuffer {
             payload_len: 0,
             state: PacketState::Free,
         }
+    }
+
+    pub fn queue_rx(&mut self) -> Result<(), NetError> {
+        if self.state != PacketState::Free {
+            return Err(NetError::InvalidBufferId);
+        }
+        self.state = PacketState::QueuedToRx;
+        Ok(())
+    }
+
+    pub fn queue_tx(&mut self) -> Result<(), NetError> {
+        if self.state != PacketState::Free && self.state != PacketState::InUseByUser {
+            return Err(NetError::InvalidBufferId);
+        }
+        self.state = PacketState::QueuedToTx;
+        Ok(())
+    }
+
+    pub fn deliver_to_user(&mut self) -> Result<(), NetError> {
+        if self.state != PacketState::QueuedToRx {
+            return Err(NetError::InvalidBufferId);
+        }
+        self.state = PacketState::InUseByUser;
+        Ok(())
+    }
+
+    pub fn release(&mut self) -> Result<(), NetError> {
+        if self.state == PacketState::Free {
+            return Err(NetError::InvalidBufferId);
+        }
+        self.state = PacketState::Free;
+        self.payload_len = 0;
+        Ok(())
     }
 }
 
@@ -60,11 +93,14 @@ mod tests {
         let mut pkt = PacketBuffer::new(0, dma_handle);
 
         assert_eq!(pkt.state, PacketState::Free);
-        pkt.state = PacketState::RxReady;
-        assert_eq!(pkt.state, PacketState::RxReady);
-        pkt.state = PacketState::RxFilled;
-        assert_eq!(pkt.state, PacketState::RxFilled);
-        pkt.state = PacketState::Delivered;
-        assert_eq!(pkt.state, PacketState::Delivered);
+        assert!(pkt.queue_rx().is_ok());
+        assert_eq!(pkt.state, PacketState::QueuedToRx);
+        assert!(pkt.deliver_to_user().is_ok());
+        assert_eq!(pkt.state, PacketState::InUseByUser);
+        assert!(pkt.release().is_ok());
+        assert_eq!(pkt.state, PacketState::Free);
+
+        // Double release rejection
+        assert_eq!(pkt.release(), Err(NetError::InvalidBufferId));
     }
 }

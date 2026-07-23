@@ -14,6 +14,7 @@ pub struct ServiceRegistry {
     count: usize,
 }
 
+#[allow(dead_code)]
 impl ServiceRegistry {
     pub const fn new() -> Self {
         const INIT_NONE: Option<RegistryEntry> = None;
@@ -70,5 +71,32 @@ impl ServiceRegistry {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gaxera_abi::Handle;
+
+    #[test]
+    fn test_service_registry_registration_and_duplicate_rejection() {
+        let mut registry = ServiceRegistry::new();
+        let name = ServiceName::try_from_str("gaxera.test.service").unwrap();
+        let ep = EndpointHandle::from_raw(Handle::from_parts(10, 1));
+
+        // 1. Successful registration
+        assert!(registry.register(name, ep).is_ok());
+        assert_eq!(registry.len(), 1);
+
+        // 2. Duplicate registration rejection
+        assert_eq!(
+            registry.register(name, ep),
+            Err(ServiceStatus::AlreadyExists)
+        );
+
+        // 3. Lookup returns registered endpoint
+        let looked_up = registry.lookup(&name).unwrap();
+        assert_eq!(looked_up.as_handle(), Handle::from_parts(10, 1));
     }
 }

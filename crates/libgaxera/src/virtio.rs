@@ -181,7 +181,8 @@ impl Virtqueue {
 
     /// Free a descriptor chain starting at `head`.
     pub fn free_chain(&mut self, mut head: u16) {
-        while head < self.size {
+        let mut steps = 0;
+        while head < self.size && steps < self.size && self.num_free < self.size {
             let next = unsafe {
                 let desc = self.desc_base_vaddr.add(head as usize);
                 let flags = (*desc).flags;
@@ -197,6 +198,7 @@ impl Virtqueue {
             self.free_head = head;
             self.num_free += 1;
             head = next;
+            steps += 1;
         }
     }
 
@@ -288,5 +290,15 @@ mod tests {
         assert_eq!(negotiate_queue_size(512, 128).unwrap(), 128);
         assert!(negotiate_queue_size(0, 128).is_err());
         assert!(negotiate_queue_size(100, 128).is_err());
+    }
+
+    #[test]
+    fn test_corrupted_chain_rejection() {
+        let mut buffer = vec![0u8; 16384];
+        let mut vq = unsafe { Virtqueue::new(0, 16, 0x5000_0000, buffer.as_mut_ptr()) };
+
+        // Out-of-bounds head (>= 16) should be safely ignored without panic or loop
+        vq.free_chain(99);
+        assert_eq!(vq.num_free(), 16);
     }
 }

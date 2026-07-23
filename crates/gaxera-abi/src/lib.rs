@@ -1,7 +1,10 @@
 #![no_std]
 
+pub mod block;
 pub mod boot;
 pub mod ipc;
+pub mod net;
+pub mod pci;
 pub mod service;
 
 pub mod svc {
@@ -69,6 +72,7 @@ pub enum ObjectType {
     DebugConsole = 11,
     Factory = 12,
     WaitSet = 13,
+    ContiguousFrame = 14,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -155,6 +159,7 @@ impl core::convert::TryFrom<u32> for ObjectType {
             11 => Ok(Self::DebugConsole),
             12 => Ok(Self::Factory),
             13 => Ok(Self::WaitSet),
+            14 => Ok(Self::ContiguousFrame),
             _ => Err(()),
         }
     }
@@ -167,7 +172,7 @@ pub struct ObjectTypeSet(u16);
 
 impl ObjectTypeSet {
     pub const NONE: Self = Self(0);
-    pub const ALL: Self = Self((1_u16 << 13) - 1);
+    pub const ALL: Self = Self((1_u16 << (ObjectType::ContiguousFrame as u8 + 1)) - 1);
 
     pub const fn of(object_type: ObjectType) -> Self {
         Self(1 << (object_type as u8))
@@ -239,5 +244,22 @@ impl BitOr for Rights {
 impl BitOrAssign for Rights {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_object_type_set_completeness() {
+        for discriminant in 0..=14 {
+            let obj = ObjectType::try_from(discriminant).expect("Valid ObjectType discriminant");
+            assert!(
+                ObjectTypeSet::ALL.contains(obj),
+                "ObjectTypeSet::ALL failed to contain {:?}",
+                obj
+            );
+        }
     }
 }

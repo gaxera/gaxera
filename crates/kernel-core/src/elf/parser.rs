@@ -49,11 +49,18 @@ impl<'a> ElfParser<'a> {
 
         let parser = Self { data, header };
 
-        // Validate all program headers for arithmetic overflow and bounds
+        // Validate all program headers for arithmetic overflow, bounds, and W^X security
         for ph in parser.program_headers() {
             if ph.p_type == crate::elf::types::PT_LOAD {
                 if ph.p_filesz > ph.p_memsz {
                     return Err(ElfError::ProgramHeaderOutOfBounds);
+                }
+
+                // Prevent simultaneous Write + Execute (W^X violation)
+                if (ph.p_flags & crate::elf::types::PF_W) != 0
+                    && (ph.p_flags & crate::elf::types::PF_X) != 0
+                {
+                    return Err(ElfError::InvalidAlignment);
                 }
 
                 let segment_end = ph

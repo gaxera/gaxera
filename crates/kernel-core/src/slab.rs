@@ -56,6 +56,10 @@ impl<T> SlabCache<T> {
     where
         F: FnMut() -> Option<u64>,
     {
+        if size_of::<T>() == 0 || Self::slots_per_page() == 0 || Self::slot_size() > PAGE_SIZE {
+            return Err(SlabError::InvalidPointer);
+        }
+
         let slot_size = Self::slot_size();
         let total_slots = Self::slots_per_page();
 
@@ -115,6 +119,10 @@ impl<T> SlabCache<T> {
     where
         F: FnMut(u64),
     {
+        if size_of::<T>() == 0 || Self::slots_per_page() == 0 || Self::slot_size() > PAGE_SIZE {
+            return Err(SlabError::InvalidPointer);
+        }
+
         let ptr_addr = ptr.as_ptr() as u64;
         let frame_addr = ptr_addr & !(PAGE_SIZE as u64 - 1);
         let slot_size = Self::slot_size();
@@ -127,7 +135,35 @@ impl<T> SlabCache<T> {
 
         let page = &mut self.pages[page_idx];
         let offset = (ptr_addr - frame_addr) as usize;
+
+        if !offset.is_multiple_of(slot_size) {
+            return Err(SlabError::InvalidPointer);
+        }
+
         let slot_idx = (offset / slot_size) as u16;
+        if slot_idx >= page.total_slots || page.allocated_count == 0 {
+            return Err(SlabError::InvalidPointer);
+        }
+
+        // Check for double free by walking free list
+        let mut curr = page.free_head;
+        let mut steps = 0;
+        while let Some(head) = curr {
+            if head == slot_idx {
+                return Err(SlabError::InvalidPointer);
+            }
+            if head == u16::MAX || steps >= page.total_slots {
+                break;
+            }
+            // SAFETY: Head slot index is verified within valid slab page bounds.
+            let head_ptr = unsafe { (frame_addr as *mut u8).add((head as usize) * slot_size) };
+            // SAFETY: Reading freelist index embedded within initialized slot.
+            curr = unsafe {
+                let next = (head_ptr as *const u16).read();
+                if next == u16::MAX { None } else { Some(next) }
+            };
+            steps += 1;
+        }
 
         let slot_ptr = ptr.as_ptr() as *mut u8;
         let next_idx = page.free_head.unwrap_or(u16::MAX);
@@ -170,7 +206,10 @@ mod tests {
         use core::alloc::Layout;
         let mut slab = SlabCache::<TestObject>::new();
         let mut host_pages: Vec<u64> = (0..10)
-            .map(|_| unsafe { alloc(Layout::from_size_align_unchecked(4096, 4096)) as u64 })
+            .map(|_| {
+                // SAFETY: Layout 4096 is non-zero and valid power of two.
+                unsafe { alloc(Layout::from_size_align_unchecked(4096, 4096)) as u64 }
+            })
             .collect();
         let mut freed_frames = Vec::new();
 
@@ -192,12 +231,61 @@ mod tests {
         assert_eq!(freed_frames.len(), 1);
 
         for page in freed_frames {
+            // SAFETY: Memory was allocated above with Layout 4096.
             unsafe {
                 dealloc(
                     page as *mut u8,
                     Layout::from_size_align_unchecked(4096, 4096),
                 );
             }
+        }
+    }
+
+    #[test]
+    fn slab_cache_hardening_validation() {
+        use alloc::alloc::{alloc, dealloc};
+        use core::alloc::Layout;
+
+        let mut slab = SlabCache::<TestObject>::new();
+        // SAFETY: Allocate 4 KiB frame for test
+        let frame = unsafe { alloc(Layout::from_size_align_unchecked(4096, 4096)) as u64 };
+        let mut frame_opt = Some(frame);
+
+        let ptr = slab.allocate(|| frame_opt.take()).unwrap();
+
+        // 1. Interior pointer rejection
+        let interior_ptr = NonNull::new(((ptr.as_ptr() as u64) + 4) as *mut TestObject).unwrap();
+        assert_eq!(
+            slab.deallocate(interior_ptr, |_| {}),
+            Err(SlabError::InvalidPointer)
+        );
+
+        // 2. Foreign pointer rejection
+        let foreign_ptr = NonNull::new(0x1234_5000 as *mut TestObject).unwrap();
+        assert_eq!(
+            slab.deallocate(foreign_ptr, |_| {}),
+            Err(SlabError::InvalidPointer)
+        );
+
+        // 3. Deallocate valid pointer
+        assert!(slab.deallocate(ptr, |_| {}).is_ok());
+
+        // 4. Double free rejection
+        assert_eq!(slab.deallocate(ptr, |_| {}), Err(SlabError::InvalidPointer));
+
+        // 5. Zero-sized type rejection
+        let mut zero_slab = SlabCache::<()>::new();
+        assert_eq!(
+            zero_slab.allocate(|| Some(frame)),
+            Err(SlabError::InvalidPointer)
+        );
+
+        // Cleanup host memory
+        unsafe {
+            dealloc(
+                frame as *mut u8,
+                Layout::from_size_align_unchecked(4096, 4096),
+            );
         }
     }
 }

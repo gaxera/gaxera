@@ -184,6 +184,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "pci_bus_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -398,6 +406,22 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "virtio_block_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+]
+
+[[package]]
+name = "virtio_net_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+]
 
 [[package]]
 name = "volatile"

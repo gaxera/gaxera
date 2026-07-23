@@ -70,8 +70,10 @@ leak simply don't exist, because they were never built.
 * **Milestone 0.8.4 (Service Discovery & Registry):** User-space `init` service registry, `ServiceName` validation, and bootstrap delegation protocol (`ADR 0025`).
 * **Milestone 0.8.5 (IPC Performance & Fast-Paths):** Direct context-switch rendezvous (`try_direct_switch`), 64-byte inline register transfers, and QEMU TSC microbenchmark suite (`ADR 0026`).
 
-Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), and [v0.8 Roadmap](docs/roadmap/roadmap_v08.md).
-The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), and [ADRs 0000–0026](docs/adr/).
+**v0.9 — Hardware Enablement & Recovery Program [IN PROGRESS].** Target `v0.9.1-recovery` (supersedes historical `v0.9.0`). Hardware enablement, build-graph integration, capability DMA allocations, VirtIO transport, and SMP scheduling recovery.
+
+Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), and [v0.9 Roadmap](docs/roadmap/roadmap_v09.md).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), and [ADRs 0000–0032](docs/adr/).
 
 ## Getting Started
 

@@ -34,11 +34,8 @@ pub fn register_service(
     let _ = service_ep.as_handle();
 
     let reply = init_ep.call(&msg)?;
-    if reply.payload().len() < core::mem::size_of::<ServiceResponse>() {
-        return Err(SyscallError::InternalError);
-    }
-
-    let resp = unsafe { &*(reply.payload().as_ptr() as *const ServiceResponse) };
+    let resp =
+        ServiceResponse::try_decode(reply.payload()).map_err(|_| SyscallError::InternalError)?;
     let status = ServiceStatus::from_u32(resp.header.status);
     if status == ServiceStatus::Success {
         Ok(())
@@ -68,11 +65,8 @@ pub fn lookup_service(
     let msg = InlineMessage::try_new(payload).map_err(|_| SyscallError::InvalidArgument)?;
 
     let reply = init_ep.call(&msg)?;
-    if reply.payload().len() < core::mem::size_of::<ServiceResponse>() {
-        return Err(SyscallError::InternalError);
-    }
-
-    let resp = unsafe { &*(reply.payload().as_ptr() as *const ServiceResponse) };
+    let resp =
+        ServiceResponse::try_decode(reply.payload()).map_err(|_| SyscallError::InternalError)?;
     let status = ServiceStatus::from_u32(resp.header.status);
     if status == ServiceStatus::Success {
         // Return dummy or transferred handle

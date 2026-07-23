@@ -120,6 +120,22 @@ pub struct ServiceRegisterReq {
     pub name: ServiceName,
 }
 
+impl ServiceRegisterReq {
+    pub fn try_decode(payload: &[u8]) -> Result<Self, ServiceStatus> {
+        if payload.len() < core::mem::size_of::<Self>() {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        let mut buf = [0u8; core::mem::size_of::<Self>()];
+        buf.copy_from_slice(&payload[..core::mem::size_of::<Self>()]);
+        // SAFETY: Self is repr(C) POD with valid byte layout.
+        let req = unsafe { core::mem::transmute::<[u8; core::mem::size_of::<Self>()], Self>(buf) };
+        if req.header.version != ServiceHeader::VERSION_1 {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        Ok(req)
+    }
+}
+
 /// Service lookup IPC request message format.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(C)]
@@ -128,10 +144,80 @@ pub struct ServiceLookupReq {
     pub name: ServiceName,
 }
 
+impl ServiceLookupReq {
+    pub fn try_decode(payload: &[u8]) -> Result<Self, ServiceStatus> {
+        if payload.len() < core::mem::size_of::<Self>() {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        let mut buf = [0u8; core::mem::size_of::<Self>()];
+        buf.copy_from_slice(&payload[..core::mem::size_of::<Self>()]);
+        // SAFETY: Self is repr(C) POD with valid byte layout.
+        let req = unsafe { core::mem::transmute::<[u8; core::mem::size_of::<Self>()], Self>(buf) };
+        if req.header.version != ServiceHeader::VERSION_1 {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        Ok(req)
+    }
+}
+
 /// Service lookup/registration IPC response message format.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(C)]
 pub struct ServiceResponse {
     pub header: ServiceHeader,
     pub name: ServiceName,
+}
+
+impl ServiceResponse {
+    pub fn try_decode(payload: &[u8]) -> Result<Self, ServiceStatus> {
+        if payload.len() < core::mem::size_of::<Self>() {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        let mut buf = [0u8; core::mem::size_of::<Self>()];
+        buf.copy_from_slice(&payload[..core::mem::size_of::<Self>()]);
+        // SAFETY: Self is repr(C) POD with valid byte layout.
+        let resp = unsafe { core::mem::transmute::<[u8; core::mem::size_of::<Self>()], Self>(buf) };
+        if resp.header.version != ServiceHeader::VERSION_1 {
+            return Err(ServiceStatus::UnknownOp);
+        }
+        Ok(resp)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_service_wire_roundtrip_and_malformed_rejection() {
+        let name = ServiceName::try_from_str("test.service").unwrap();
+        let resp = ServiceResponse {
+            header: ServiceHeader::new(ServiceOp::Response, ServiceStatus::Success),
+            name,
+        };
+        // SAFETY: POD struct layout
+        let wire = unsafe {
+            core::slice::from_raw_parts(
+                &resp as *const _ as *const u8,
+                core::mem::size_of::<ServiceResponse>(),
+            )
+        };
+        let decoded = ServiceResponse::try_decode(wire).unwrap();
+        assert_eq!(decoded.name.as_str(), "test.service");
+        assert_eq!(decoded.header.version, ServiceHeader::VERSION_1);
+
+        // Truncated payload rejection
+        assert_eq!(
+            ServiceResponse::try_decode(&wire[..10]),
+            Err(ServiceStatus::UnknownOp)
+        );
+
+        // Invalid version rejection
+        let mut invalid_wire = wire.to_vec();
+        invalid_wire[0] = 0x99; // invalid version
+        assert_eq!(
+            ServiceResponse::try_decode(&invalid_wire),
+            Err(ServiceStatus::UnknownOp)
+        );
+    }
 }

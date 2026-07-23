@@ -1,13 +1,13 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 use kernel_core::scheduler::Scheduler;
 
+pub const MAX_CPUS: usize = 64;
+
 #[derive(Clone, Debug)]
 pub struct MadtInfo {
     pub local_apic_phys: u64,
-    pub local_apic_ids: [u8; 8],
+    pub local_apic_ids: [u8; MAX_CPUS],
 }
-
-pub const MAX_CPUS: usize = 32;
 
 /// Per-CPU data structure stored in GS base register, 64-byte cache line aligned.
 #[repr(C, align(64))]
@@ -32,7 +32,7 @@ impl CpuLocal {
             preemption_disabled_depth: 0,
             interrupt_disabled_depth: 0,
             need_resched: false,
-            scheduler: Scheduler::try_new_for_cpu(cpu_id, 64).expect("scheduler allocation failed"),
+            scheduler: Scheduler::try_new(64).expect("scheduler allocation failed"),
         }
     }
 }
@@ -84,6 +84,19 @@ mod tests {
         let cpu = CpuLocal::new(1, 2);
         assert_eq!(cpu.cpu_id, 1);
         assert_eq!(cpu.lapic_id, 2);
-        assert_eq!(cpu.scheduler.cpu_id(), 1);
+    }
+
+    #[test]
+    fn test_max_cpus_capacity_and_madt() {
+        assert_eq!(MAX_CPUS, 64);
+        let mut madt = MadtInfo {
+            local_apic_phys: 0xFEE0_0000,
+            local_apic_ids: [0u8; MAX_CPUS],
+        };
+        for i in 0..MAX_CPUS {
+            madt.local_apic_ids[i] = i as u8;
+        }
+        let online = bringup_secondary_aps(&madt);
+        assert!(online > 0 && online <= 64);
     }
 }

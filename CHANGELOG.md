@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.9.1-recovery] - 2026-07-23
+
+### Added
+
+- Hardware Enablement Recovery Program (`Extremely_important_final_fixes.md`): Workspace build graph integration, capability-authorized DMA allocations (`ContiguousFrame`), transactional object creation/destruction, userspace heap allocator, modern VirtIO PCI transport, and multi-core SMP scheduling.
+
+## [v0.9.0] - 2026-07-23
+
+### Added
+
+- Historical tag `v0.9.0` (superseded by `v0.9.1-recovery`). Contains initial PCI, VirtIO, and SMP module prototypes.
+
 ## [v0.1.0] - 2026-07-17
 
 ### Added

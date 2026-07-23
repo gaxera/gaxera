@@ -36,6 +36,13 @@ impl PciBusServer {
         &self.devices
     }
 
+    /// Lookup a discovered PCI device by vendor and device ID.
+    pub fn find_device(&self, vendor_id: u16, device_id: u16) -> Option<&DiscoveredPciDevice> {
+        self.devices
+            .iter()
+            .find(|d| d.header.vendor_id == vendor_id && d.header.device_id == device_id)
+    }
+
     /// Perform passive read-only scan of a mapped ECAM segment buffer.
     ///
     /// # Safety
@@ -180,5 +187,46 @@ impl PciBusServer {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pci_bus_server_scan_segment_mock() {
+        let segment = PciSegmentGroup {
+            base_address: 0xE000_0000,
+            segment_group_number: 0,
+            start_bus_number: 0,
+            end_bus_number: 0,
+            reserved: 0,
+        };
+
+        // Create 1 MB mock ECAM buffer (256 KB per bus x 1 bus = 1 MB)
+        let mut mock_ecam = alloc::vec![0u8; 1024 * 1024];
+
+        // Populate mock device 0, func 0 with Vendor ID 0x1AF4 (VirtIO) and Device ID 0x1000
+        mock_ecam[0..2].copy_from_slice(&0x1AF4u16.to_le_bytes());
+        mock_ecam[2..4].copy_from_slice(&0x1000u16.to_le_bytes());
+
+        let mut server = PciBusServer::new();
+        // SAFETY: mock_ecam is allocated and valid for 1 MB.
+        unsafe {
+            server.scan_segment(&segment, mock_ecam.as_ptr());
+        }
+
+        assert_eq!(server.devices().len(), 1);
+        let dev = &server.devices()[0];
+        assert_eq!(dev.header.vendor_id, 0x1AF4);
+        assert_eq!(dev.header.device_id, 0x1000);
+        assert_eq!(dev.bus, 0);
+        assert_eq!(dev.device, 0);
+        assert_eq!(dev.function, 0);
+
+        let found = server.find_device(0x1AF4, 0x1000).unwrap();
+        assert_eq!(found.header.vendor_id, 0x1AF4);
+        assert!(server.find_device(0x1AF4, 0x9999).is_none());
     }
 }

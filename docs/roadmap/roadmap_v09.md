@@ -73,3 +73,9 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
 * Hardware IOMMU (Intel VT-d / AMD-Vi) page table translation (reserved for v1.0).
 * ACPI AML bytecode interpreter (reserved for v1.0).
 * USB 3.0 xHCI driver stack.
+
+---
+
+> [!CAUTION]
+> **Roadmap Status Note (2026-07-23):**  
+> Historical tag `v0.9.0` is superseded by the v0.9 Recovery Program (`v0.9.1-recovery`). Milestones 0.9.0 through 0.9.5 are fully integrated, verified, and closed under target `v0.9.1-recovery`.

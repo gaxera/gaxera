@@ -8,10 +8,11 @@ use core::panic::PanicInfo;
 use gaxera_abi::{Handle, ObjectType, Rights};
 use kernel_core::elf::parser::ElfParser;
 use libgaxera::prelude::EndpointHandle;
+use registry::ServiceRegistry;
 
 use core::alloc::{GlobalAlloc, Layout};
 struct DummyAllocator;
-// SAFETY: Dummy allocator; does not provide memory but fulfills the requirement for no_std.
+// SAFETY: Dummy allocator fulfilling no_std requirement.
 unsafe impl GlobalAlloc for DummyAllocator {
     unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
         core::ptr::null_mut()
@@ -24,7 +25,6 @@ static ALLOCATOR: DummyAllocator = DummyAllocator;
 
 mod registry;
 mod syscall;
-use registry::*;
 use syscall::*;
 
 #[cfg(not(test))]
@@ -184,7 +184,7 @@ fn run_init() -> Result<(), ()> {
 
     // 9. Supervisor Loop
     loop {
-        if registry.len() > 0 {
+        if !registry.is_empty() {
             // Service registry operational
         }
         if let Ok(gaxera_abi::THREAD_STATE_DEAD) = syscall::thread_status(script_thread) {

@@ -181,7 +181,7 @@ pub extern "C" fn _start() -> ! {
     // SAFETY: We intentionally dereference an unmapped address to cause a page fault
     // and test the supervisor's ability to detect thread death and restart it.
     unsafe {
-        core::ptr::write_volatile(0x0 as *mut u8, 42);
+        core::ptr::write_volatile(core::ptr::null_mut::<u8>(), 42);
     }
 
     loop {

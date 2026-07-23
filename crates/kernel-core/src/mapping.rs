@@ -68,6 +68,48 @@ impl Mapping {
     pub fn close(&mut self) {
         self.closed = true;
     }
+
+    /// Derive a bounded subregion Mapping from this parent Mapping.
+    pub fn derive_subregion(
+        &self,
+        child_id: ObjectId,
+        offset: usize,
+        length: usize,
+        requested_cache_policy: CachePolicy,
+    ) -> Result<Mapping, MappingError> {
+        if self.closed {
+            return Err(MappingError::Closed);
+        }
+        if offset & 0xFFF != 0 || length & 0xFFF != 0 {
+            return Err(MappingError::InvalidAlignment);
+        }
+        if length == 0 {
+            return Err(MappingError::ZeroSize);
+        }
+
+        let parent_start = self.phys_addr;
+        let parent_end = parent_start
+            .checked_add(self.size as u64)
+            .ok_or(MappingError::InvalidAlignment)?;
+
+        let child_start = parent_start
+            .checked_add(offset as u64)
+            .ok_or(MappingError::InvalidAlignment)?;
+        let child_end = child_start
+            .checked_add(length as u64)
+            .ok_or(MappingError::InvalidAlignment)?;
+
+        if child_start < parent_start || child_end > parent_end {
+            return Err(MappingError::InvalidAlignment);
+        }
+
+        if requested_cache_policy != self.cache_policy && self.cache_policy == CachePolicy::Uncached
+        {
+            return Err(MappingError::InvalidAlignment);
+        }
+
+        Mapping::try_new(child_id, child_start, length, requested_cache_policy)
+    }
 }
 
 #[cfg(test)]
@@ -97,6 +139,46 @@ mod tests {
         assert_eq!(
             Mapping::try_new(test_id(3), 0xFEB0_0000, 1000, CachePolicy::Uncached),
             Err(MappingError::ZeroSize)
+        );
+    }
+
+    #[test]
+    fn mapping_subregion_derivation_validation() {
+        let parent =
+            Mapping::try_new(test_id(1), 0xE000_0000, 0x10000, CachePolicy::Uncached).unwrap();
+
+        // Exact boundary derivation (4 KiB at offset 0)
+        let child1 = parent
+            .derive_subregion(test_id(2), 0, 4096, CachePolicy::Uncached)
+            .unwrap();
+        assert_eq!(child1.phys_addr(), 0xE000_0000);
+        assert_eq!(child1.size(), 4096);
+
+        // Subregion at offset 0x4000
+        let child2 = parent
+            .derive_subregion(test_id(3), 0x4000, 4096, CachePolicy::Uncached)
+            .unwrap();
+        assert_eq!(child2.phys_addr(), 0xE000_4000);
+        assert_eq!(child2.size(), 4096);
+
+        // Overrun parent boundary (len 0x10000 at offset 0x1000)
+        assert_eq!(
+            parent.derive_subregion(test_id(4), 0x1000, 0x10000, CachePolicy::Uncached),
+            Err(MappingError::InvalidAlignment)
+        );
+
+        // Misaligned offset
+        assert_eq!(
+            parent.derive_subregion(test_id(5), 0x100, 4096, CachePolicy::Uncached),
+            Err(MappingError::InvalidAlignment)
+        );
+
+        // Closed parent rejection
+        let mut closed_parent = parent;
+        closed_parent.close();
+        assert_eq!(
+            closed_parent.derive_subregion(test_id(6), 0, 4096, CachePolicy::Uncached),
+            Err(MappingError::Closed)
         );
     }
 }

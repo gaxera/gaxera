@@ -1,18 +1,32 @@
 use crate::object::ObjectId;
+use crate::resource::ResourceDomainId;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// A kernel-owned, capability-authorized contiguous DMA frame object.
+#[derive(Debug, Eq, PartialEq)]
 pub struct ContiguousFrameObject {
     id: ObjectId,
-    phys_base: u64,
-    size_bytes: usize,
+    base_frame: u64,
+    page_count: usize,
+    order: u8,
+    owner: ResourceDomainId,
+    mapping_count: usize,
 }
 
 impl ContiguousFrameObject {
-    pub fn new(id: ObjectId, phys_base: u64, size_bytes: usize) -> Self {
+    pub fn new(
+        id: ObjectId,
+        base_frame: u64,
+        page_count: usize,
+        order: u8,
+        owner: ResourceDomainId,
+    ) -> Self {
         Self {
             id,
-            phys_base,
-            size_bytes,
+            base_frame,
+            page_count,
+            order,
+            owner,
+            mapping_count: 0,
         }
     }
 
@@ -20,12 +34,32 @@ impl ContiguousFrameObject {
         self.id
     }
 
-    pub fn phys_base(&self) -> u64 {
-        self.phys_base
+    pub fn base_frame(&self) -> u64 {
+        self.base_frame
     }
 
-    pub fn size_bytes(&self) -> usize {
-        self.size_bytes
+    pub fn page_count(&self) -> usize {
+        self.page_count
+    }
+
+    pub fn order(&self) -> u8 {
+        self.order
+    }
+
+    pub fn owner(&self) -> ResourceDomainId {
+        self.owner
+    }
+
+    pub fn mapping_count(&self) -> usize {
+        self.mapping_count
+    }
+
+    pub fn add_mapping(&mut self) {
+        self.mapping_count += 1;
+    }
+
+    pub fn remove_mapping(&mut self) {
+        self.mapping_count = self.mapping_count.saturating_sub(1);
     }
 }
 
@@ -34,9 +68,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn contiguous_frame_object_metadata() {
-        let frame = ContiguousFrameObject::new(ObjectId::new_for_test(1, 1), 0x10000000, 4096);
-        assert_eq!(frame.phys_base(), 0x10000000);
-        assert_eq!(frame.size_bytes(), 4096);
+    fn contiguous_frame_properties_and_mapping_counts() {
+        let mut frame = ContiguousFrameObject::new(
+            ObjectId::from_raw(1),
+            0x10000,
+            4,
+            2,
+            ResourceDomainId::new(1),
+        );
+        assert_eq!(frame.base_frame(), 0x10000);
+        assert_eq!(frame.page_count(), 4);
+        assert_eq!(frame.order(), 2);
+        assert_eq!(frame.mapping_count(), 0);
+
+        frame.add_mapping();
+        assert_eq!(frame.mapping_count(), 1);
+        frame.remove_mapping();
+        assert_eq!(frame.mapping_count(), 0);
     }
 }

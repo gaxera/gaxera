@@ -349,7 +349,63 @@ impl<'a> SegmentedBitmapFrameAllocator<'a> {
         Ok(allocator)
     }
 
-    pub const fn frame_count(&self) -> u64 {
+    pub fn allocate_contiguous(&mut self, page_count: usize) -> Option<u64> {
+        if page_count == 0 {
+            return None;
+        }
+        let required_bytes = (page_count as u64) * PAGE_SIZE;
+        for i in 0..self.range_count {
+            let range = self.ranges[i];
+            let total = range.physical.frame_count() as usize;
+            if total < page_count {
+                continue;
+            }
+            for start_i in 0..=(total - page_count) {
+                let phys_base = range.physical.start + (start_i as u64) * PAGE_SIZE;
+                if !phys_base.is_multiple_of(required_bytes) {
+                    continue;
+                }
+                let mut all_free = true;
+                for k in 0..page_count {
+                    let idx = range.bitmap_start + (start_i + k) as u64;
+                    if self.is_used(idx) {
+                        all_free = false;
+                        break;
+                    }
+                }
+                if all_free {
+                    let bitmap_start = range.bitmap_start;
+                    for k in 0..page_count {
+                        let idx = bitmap_start + (start_i + k) as u64;
+                        self.mark_used(idx);
+                    }
+                    return Some(phys_base);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn deallocate_contiguous(
+        &mut self,
+        base_frame: u64,
+        page_count: usize,
+    ) -> Result<(), PhysicalAllocatorError> {
+        if page_count == 0 || !base_frame.is_multiple_of(PAGE_SIZE) {
+            return Err(PhysicalAllocatorError::InvalidPhysicalAddress);
+        }
+        for i in 0..page_count {
+            let frame_addr = base_frame + (i as u64) * PAGE_SIZE;
+            let idx = self.frame_index(frame_addr)?;
+            if !self.is_used(idx) {
+                return Err(PhysicalAllocatorError::FrameAlreadyFree);
+            }
+            self.mark_free(idx);
+        }
+        Ok(())
+    }
+
+    pub fn frame_count(&self) -> u64 {
         self.frame_count
     }
 

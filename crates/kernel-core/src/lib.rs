@@ -5,6 +5,7 @@ extern crate alloc;
 pub mod address_space;
 
 pub mod capability;
+pub mod contiguous_frame;
 pub mod debug_console;
 pub mod elf;
 pub mod interrupt;

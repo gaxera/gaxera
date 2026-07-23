@@ -47,6 +47,25 @@ pub fn translate_virtio_status(status_byte: u8) -> BlockError {
     }
 }
 
+/// Validates block request bounds, DMA alignment, and capacity limits.
+pub fn validate_block_request(
+    sector: u64,
+    sector_count: u64,
+    total_capacity_sectors: u64,
+    dma: &ContiguousFrameHandle,
+) -> Result<(), BlockError> {
+    if sector_count == 0 || dma.phys_base() & 0xFFF != 0 {
+        return Err(BlockError::InvalidParameter);
+    }
+    let end_sector = sector
+        .checked_add(sector_count)
+        .ok_or(BlockError::InvalidParameter)?;
+    if end_sector > total_capacity_sectors {
+        return Err(BlockError::InvalidParameter);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,5 +85,27 @@ mod tests {
             BlockError::UnsupportedOperation
         );
         assert_eq!(translate_virtio_status(0xFF), BlockError::DeviceFailure);
+    }
+
+    #[test]
+    fn test_validate_block_request() {
+        let handle = Handle::from_parts(1, 1);
+        let valid_dma = ContiguousFrameHandle::from_parts(handle, 0x1000_0000, 4096);
+        let misaligned_dma = ContiguousFrameHandle::from_parts(handle, 0x1000_0100, 4096);
+
+        // Valid request
+        assert!(validate_block_request(0, 8, 2048, &valid_dma).is_ok());
+
+        // Out-of-bounds request
+        assert_eq!(
+            validate_block_request(2040, 16, 2048, &valid_dma),
+            Err(BlockError::InvalidParameter)
+        );
+
+        // Misaligned DMA handle
+        assert_eq!(
+            validate_block_request(0, 8, 2048, &misaligned_dma),
+            Err(BlockError::InvalidParameter)
+        );
     }
 }

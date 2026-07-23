@@ -69,6 +69,28 @@ fn test_valid_elf() {
 }
 
 #[test]
+fn test_wx_simultaneous_permission_rejection() {
+    let ehdr = create_valid_elf_header();
+    let mut phdr = create_valid_program_header();
+    phdr.p_flags = PF_R | PF_W | PF_X; // Simultaneous W^X violation
+
+    let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
+    let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    let data = &mut aligned.0[..total_size];
+
+    unsafe {
+        core::ptr::write(data.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
+        core::ptr::write(
+            data.as_mut_ptr().add(size_of::<Elf64_Ehdr>()) as *mut Elf64_Phdr,
+            phdr,
+        );
+    }
+
+    let err = ElfParser::new(data).unwrap_err();
+    assert_eq!(err, ElfError::InvalidAlignment);
+}
+
+#[test]
 fn test_truncated_buffer_smaller_than_header() {
     let aligned = AlignedBuffer::<16>([0; 16]);
     let err = ElfParser::new(&aligned.0).unwrap_err();

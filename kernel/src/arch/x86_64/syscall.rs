@@ -461,7 +461,11 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         arena,
                     ) {
                         Ok(h) => h.raw(),
-                        Err(_) => break 'sys_invoke u64::MAX,
+                        Err(_) => {
+                            crate::global::WAIT_SETS.lock().remove(ws_id);
+                            let _ = arena.destroy(domain, ws_id);
+                            u64::MAX
+                        }
                     }
                 } else if op == gaxera_abi::OperationCode::WaitSetControl as u64 {
                     let ws_res = sys.lookup(
@@ -694,6 +698,25 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             }
                         }
                         0
+                    } else if let Ok(frame_obj_id) = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::ContiguousFrame,
+                        gaxera_abi::Rights::READ,
+                        arena_ref,
+                    ) {
+                        drop(arena);
+                        drop(system);
+                        drop(cspaces);
+
+                        let frame_objs = crate::global::CONTIGUOUS_FRAMES.lock();
+                        if let Some(obj) = frame_objs.get(frame_obj_id) {
+                            frame.rdx = obj.base_frame();
+                            frame.r10 = (obj.page_count() * 4096) as u64;
+                            0
+                        } else {
+                            u64::MAX
+                        }
                     } else {
                         break 'sys_invoke u64::MAX;
                     }
@@ -1263,6 +1286,27 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                                     crate::global::MEMORY_OBJECTS
                                                         .lock()
                                                         .insert(new_id, mem_obj);
+                                                }
+                                                gaxera_abi::ObjectType::ContiguousFrame => {
+                                                    let page_count = (size as usize).div_ceil(4096);
+                                                    let mut phys =
+                                                        crate::global::PHYSICAL_ALLOCATOR.lock();
+                                                    let allocator = phys.as_deref_mut().unwrap();
+                                                    let phys_base = allocator
+                                                        .allocate_contiguous(page_count)
+                                                        .unwrap();
+                                                    let order = page_count.trailing_zeros() as u8;
+                                                    let frame_obj =
+                                                        kernel_core::contiguous_frame::ContiguousFrameObject::new(
+                                                            new_id,
+                                                            phys_base,
+                                                            page_count,
+                                                            order,
+                                                            domain.id(),
+                                                        );
+                                                    crate::global::CONTIGUOUS_FRAMES
+                                                        .lock()
+                                                        .insert(new_id, frame_obj);
                                                 }
                                                 gaxera_abi::ObjectType::Endpoint => {
                                                     crate::global::ENDPOINTS.lock().insert(

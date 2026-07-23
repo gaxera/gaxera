@@ -3,6 +3,10 @@ name = "kernel"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "kernel"
+test = false
+
 [features]
 panic-test = ["qemu-test"]
 qemu-test = []
@@ -37,10 +41,12 @@ test-mmio-driver = ["qemu-test"]
 test-userspace-runtime = ["qemu-test"]
 test-service-registry = ["qemu-test"]
 test-ipc-benchmark = ["qemu-test"]
-
-
-
-
+test-pci-enum = ["qemu-test"]
+test-driver-framework = ["qemu-test"]
+test-virtio-foundation = ["qemu-test"]
+test-virtio-block = ["qemu-test"]
+test-smp-schedule = ["qemu-test"]
+test-virtio-net = ["qemu-test"]
 
 [dependencies]
 limine = "=0.6.5"

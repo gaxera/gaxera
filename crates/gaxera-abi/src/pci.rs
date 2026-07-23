@@ -37,3 +37,32 @@ pub struct PciCapabilityEntry {
     pub next_offset: u8,
     pub reserved: u8,
 }
+
+/// Standardized PCI Bus Server Operation Codes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u16)]
+pub enum PciOp {
+    QueryDevice = 1,
+    GrantDeviceBar = 2,
+}
+
+/// Device lookup request by Vendor ID and Device ID.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(C)]
+pub struct PciQueryReq {
+    pub vendor_id: u16,
+    pub device_id: u16,
+}
+
+/// Device lookup response summary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(C)]
+pub struct PciQueryResp {
+    pub status: u32,
+    pub segment: u16,
+    pub bus: u8,
+    pub device: u8,
+    pub function: u8,
+    pub reserved: u8,
+    pub header: PciDeviceHeader,
+}

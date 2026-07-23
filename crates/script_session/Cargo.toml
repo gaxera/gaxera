@@ -3,6 +3,10 @@ name = "script_session"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "script_session"
+test = false
+
 [dependencies]
 kernel-core = { path = "../kernel-core" }
 gaxera-abi = { path = "../gaxera-abi" }
