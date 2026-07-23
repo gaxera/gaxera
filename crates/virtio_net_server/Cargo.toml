@@ -1,0 +1,11 @@
+[package]
+name = "virtio_net_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gaxera-abi = { path = "../gaxera-abi" }
+libgaxera = { path = "../libgaxera" }
+
+[lints]
+workspace = true
