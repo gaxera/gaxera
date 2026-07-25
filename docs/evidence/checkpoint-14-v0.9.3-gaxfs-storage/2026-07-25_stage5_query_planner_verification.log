@@ -1,0 +1,11 @@
+   Compiling query_planner v0.1.0 (/home/nyx/gaxera/crates/query_planner)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s
+     Running unittests src/lib.rs (target/debug/deps/query_planner-131273f8031c7d61)
+
+running 3 tests
+test builder::tests::test_query_builder_fluent_api ... ok
+test planner::tests::test_planner_selective_index_pruning ... ok
+test planner::tests::test_multi_predicate_intersection_and_short_circuit ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

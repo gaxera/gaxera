@@ -90,8 +90,9 @@ mod tests {
         assert_eq!(registry.len(), 1);
 
         // 2. Duplicate registration rejection
+        let ep2 = EndpointHandle::from_raw(Handle::from_parts(11, 1));
         assert_eq!(
-            registry.register(name, ep),
+            registry.register(name, ep2),
             Err(ServiceStatus::AlreadyExists)
         );
 

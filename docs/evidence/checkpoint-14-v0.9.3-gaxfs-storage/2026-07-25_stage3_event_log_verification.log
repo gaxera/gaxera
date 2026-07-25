@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_event_log-2663b5cb586388a9)
+
+running 5 tests
+test checkpoint::tests::test_checkpoint_tracking_and_lowest_sequence ... ok
+test log::tests::test_ring_buffer_multi_wrap_around_and_pruning ... ok
+test log::tests::test_subscriber_registration_and_event_publishing ... ok
+test ring_buffer::tests::test_ring_buffer_push_and_read ... ok
+test log::tests::test_subscriber_self_healing_rehydration ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_event_log
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -45,3 +45,4 @@ Evidence should map directly to the checkpoints defined in `roadmap_v01.md`:
 | **Phase 4** | UEFI serial log of owned CR3, page translation, `Box`/`Vec` allocation, and a lower heap guard-page fault with exact CR2. |
 | **Phase 5** | UEFI serial log of ACPI/MADT discovery, temporary firmware-window release, Local APIC setup, and exact timer-delivery ticks. |
 | **Phase 6** | Exact-commit UEFI serial log proving bounded panic telemetry and the full deterministic matrix, plus a green CI run on the final `v0.1.0` tag. |
+| **Checkpoint 14** | Milestone 0.9.3 GaxFS Native Storage Platform raw test logs (`checkpoint-14-v0.9.3-gaxfs-storage/`): 25 specialized tests and 88 workspace passing tests. |

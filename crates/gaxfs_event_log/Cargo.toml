@@ -1,0 +1,17 @@
+[package]
+name = "gaxfs_event_log"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = ["gaxfs_types/std"]
+
+[dependencies]
+gaxfs_types = { path = "../gaxfs_types", default-features = false }
+
+[lints]
+workspace = true

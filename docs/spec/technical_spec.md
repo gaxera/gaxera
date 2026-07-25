@@ -107,8 +107,8 @@ The following properties must hold and cannot be casually violated by future imp
 
 - **FS-01 [COMMITTED]:** Source: S4, S6. Three logical areas: EFI (FAT32), System (read-only, Merkle-sealed, A/B), User Data (CoW, writable).
 - **FS-02 [COMMITTED]:** Source: S4. Snapshots provide the foundation for time travel and rollback.
-- **FS-03 [TARGET]:** Source: S4. Transparent compression (zstd) with 1.5-2x general ratio.
-- **FS-04 [RESEARCH REQUIRED]:** Source: S4. Evaluate whether to build/adapt a CoW filesystem (e.g. bcachefs) and how tightly the semantic graph storage should couple to filesystem internals (native metadata, xattrs, or separate store).
+- **FS-03 [COMMITTED]:** Vector & telemetry compression via TurboQuant FWHT orthogonal rotation and 4-bit Lloyd-Max scalar quantization (`gaxfs_vector_index`).
+- **FS-04 [COMMITTED]:** Native GaxFS Copy-on-Write storage engine (`gax_storage_engine`), shared-memory event stream (`gaxfs_event_log`), capability authorization isolation, and GaxQL 3-layer query engine (`query_planner`). Researched and delivered in Milestone 0.9.3.
 
 ### 2.8 Graphics & Display Stack
 

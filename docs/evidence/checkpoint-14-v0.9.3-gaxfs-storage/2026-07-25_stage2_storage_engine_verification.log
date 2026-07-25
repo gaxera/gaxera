@@ -1,0 +1,22 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/gax_storage_engine-51630ed4fc802234)
+
+running 9 tests
+test extent_allocator::tests::test_extent_allocation_and_deallocation ... ok
+test object_header::tests::test_object_header_serialization_with_relationships ... ok
+test superblock::tests::test_dual_superblock_crash_recovery ... ok
+test superblock::tests::test_superblock_serialization_round_trip ... ok
+test journal::tests::test_journal_record_serialization ... ok
+test integrity::tests::test_checksum_computation_and_verification ... ok
+test tests::test_bitrot_payload_checksum_scrubbing ... ok
+test tests::test_storage_engine_format_write_read_cycle ... ok
+test tests::test_hundred_generations_commit_rollover ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gax_storage_engine
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

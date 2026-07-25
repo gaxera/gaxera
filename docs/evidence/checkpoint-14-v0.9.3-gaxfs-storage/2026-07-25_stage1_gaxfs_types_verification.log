@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_types-c7163ee9a255c14e)
+
+running 4 tests
+test capabilities::tests::test_revocation_behavior ... ok
+test capabilities::tests::test_rights_attenuation_and_amplification_prevention ... ok
+test object_id::tests::test_uuidv7_construction_and_ordering ... ok
+test object_id::tests::test_nil_id ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,22 @@
+[package]
+name = "query_planner"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = ["gaxfs_types/std"]
+
+[dependencies]
+gaxfs_types = { path = "../gaxfs_types", default-features = false }
+
+[dev-dependencies]
+gax_storage_engine = { path = "../gax_storage_engine" }
+gaxfs_event_log = { path = "../gaxfs_event_log" }
+gaxfs_vector_index = { path = "../gaxfs_vector_index" }
+
+[lints]
+workspace = true

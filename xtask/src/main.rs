@@ -896,14 +896,24 @@ fn handle_test() -> Result<(), &'static str> {
             "gaxera-abi",
             "--package",
             "kernel-core",
+            "--package",
+            "gaxfs_types",
+            "--package",
+            "gax_storage_engine",
+            "--package",
+            "gaxfs_event_log",
+            "--package",
+            "gaxfs_vector_index",
+            "--package",
+            "query_planner",
         ])
         .status()
-        .map_err(|_| "failed to execute host ABI and core unit tests")?;
+        .map_err(|_| "failed to execute host ABI, core, and GaxFS unit tests")?;
     if !status.success() {
-        return Err("host ABI and core unit tests failed");
+        return Err("host ABI, core, and GaxFS unit tests failed");
     }
 
-    println!("Strictly linting host ABI and core crates...");
+    println!("Strictly linting host ABI, core, and GaxFS crates...");
     let status = Command::new("cargo")
         .args([
             "clippy",
@@ -912,14 +922,24 @@ fn handle_test() -> Result<(), &'static str> {
             "gaxera-abi",
             "--package",
             "kernel-core",
+            "--package",
+            "gaxfs_types",
+            "--package",
+            "gax_storage_engine",
+            "--package",
+            "gaxfs_event_log",
+            "--package",
+            "gaxfs_vector_index",
+            "--package",
+            "query_planner",
             "--",
             "-D",
             "warnings",
         ])
         .status()
-        .map_err(|_| "failed to execute host ABI and core clippy validation")?;
+        .map_err(|_| "failed to execute host ABI, core, and GaxFS clippy validation")?;
     if !status.success() {
-        return Err("host ABI and core clippy validation failed");
+        return Err("host ABI, core, and GaxFS clippy validation failed");
     }
 
     println!("Strictly linting every guest test profile...");

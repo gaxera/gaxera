@@ -1,5 +1,6 @@
 #![no_std]
 #![cfg_attr(not(test), no_main)]
+#![allow(unused_imports)]
 
 #[cfg(not(test))]
 use core::arch::asm;
