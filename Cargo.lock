@@ -48,6 +48,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413d67b29ef1021b4d60f4aa1e925ca031751e213832b4b1d588fae623c05c60"
 
 [[package]]
+name = "crypto_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+ "net_types",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -161,6 +170,7 @@ name = "libgaxera"
 version = "0.1.0"
 dependencies = [
  "gaxera-abi",
+ "net_types",
 ]
 
 [[package]]
@@ -191,6 +201,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
+]
+
+[[package]]
+name = "net_stack_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+ "net_types",
+]
+
+[[package]]
+name = "net_types"
+version = "0.1.0"
+dependencies = [
+ "crypto_server",
+ "gaxera-abi",
+ "libgaxera",
+ "net_stack_server",
+ "resolver_server",
+ "virtio_net_server",
 ]
 
 [[package]]
@@ -344,6 +375,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "resolver_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+ "net_types",
+]
+
+[[package]]
 name = "rustix"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -456,6 +496,7 @@ version = "0.1.0"
 dependencies = [
  "gaxera-abi",
  "libgaxera",
+ "net_types",
 ]
 
 [[package]]

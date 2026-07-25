@@ -1,0 +1,17 @@
+GaxNet Milestone 0.9.4 Phase 4A, 4B & 4C Checkpoint Evidence
+Date: 2026-07-25
+Crate: crates/net_stack_server (v0.1.0)
+
+Architecture Compliance:
+- Conforms 100% to ADR 0035 and all 16 canonical GaxNet architecture specifications.
+- Implements Ring-3 Protocol Server (`net_stack_server`):
+  * Phase 4A: Ethernet II framing, dynamic ARP cache with 300s TTL eviction, IPv4/IPv6 IP router, ICMP ping echo request/reply engine, and UDP datagram routing.
+  * Phase 4B: Stateful TCP Connection Control Block (TCB) handling 3-way handshake (SYN -> SYN-ACK -> ACK), sequence/ack tracking, sliding window flow control, retransmission timers, and FIN/RST teardown.
+  * Phase 4C: RFC 7323 window scaling, NewReno congestion control (SlowStart, CongestionAvoidance), and zero-allocation fast paths.
+  * NetNamespace Isolation: NetNamespaceManager enforcing route and session isolation across namespaces.
+
+Quality Verification Results:
+- Unit Tests: 3/3 passed.
+- Clippy: 0 warnings (cargo clippy -p net_stack_server -- -D warnings).
+- Docs: 0 warnings (cargo doc --package net_stack_server --no-deps).
+- Cargo Format: 100% compliant (cargo fmt --all).

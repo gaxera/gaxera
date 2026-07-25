@@ -70,15 +70,16 @@ leak simply don't exist, because they were never built.
 * **Milestone 0.8.4 (Service Discovery & Registry):** User-space `init` service registry, `ServiceName` validation, and bootstrap delegation protocol (`ADR 0025`).
 * **Milestone 0.8.5 (IPC Performance & Fast-Paths):** Direct context-switch rendezvous (`try_direct_switch`), 64-byte inline register transfers, and QEMU TSC microbenchmark suite (`ADR 0026`).
 
-**v0.9 — Hardware Enablement & GaxFS Native Storage Platform.** Tagged `v0.9.3`. Complete native storage engine, SIMD vector index, and query architecture:
+**v0.9 — Hardware Enablement, GaxFS Storage & GaxNet Platform.** Tagged `v0.9.4`. Complete native storage engine, SIMD vector index, query architecture, and GaxNet native network platform:
 
 * **Milestone 0.9.0 (PCIe ECAM & PCI Bus Server):** ACPI MCFG table parsing, ECAM capability generation, and user-space PCI bus scanner.
 * **Milestone 0.9.1-recovery (Architectural Recovery Baseline):** DMA ContiguousFrame objects, W^X loader checks, and 5-level RankedLock hierarchy.
 * **Milestone 0.9.2 (SMP Load Balancing & Inter-Core Scheduling):** CpuAffinityMask, SchedulerDomain topology controller, and inter-core work stealing across 64 CPUs.
 * **Milestone 0.9.3 (GaxFS Native Storage Platform):** RFC 9562 UUIDv7 object identity, Copy-on-Write dual-superblock commit engine (`gax_storage_engine`), shared-memory event stream (`gaxfs_event_log`), TurboQuant FWHT 4-bit Lloyd-Max quantization with RaBitQ scale correction & SIMD capability isolation (`gaxfs_vector_index`), and GaxQL 3-layer query planner (`query_planner`).
+* **Milestone 0.9.4 (VirtIO Network Server & GaxNet Native Network Platform):** First-principles capability-native networking architecture (`ADR 0035`), unprivileged Ring-3 `virtio_net_server` driver, `net_stack_server` protocol engine (Ethernet II, ARP cache, IPv4/IPv6 router, ICMP ping, UDP, stateful TCP with NewReno congestion control and RFC 7323 window scaling), `NetNamespace` isolation, decoupled `resolver_server` (DNS/mDNS/DoH) and `crypto_server` (TLS 1.3/DTLS), `PacketRing` zero-copy shared memory data plane, 6 layered provider traits, and POSIX BSD Sockets Virtualization Layer (`libgaxera::compat::sockets`).
 
-Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), and [v0.9 Roadmap](docs/roadmap/roadmap_v09.md).
-The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Master Architecture](docs/architecture/gaxfs_master_architecture.md), and [ADRs 0000–0034](docs/adr/).
+Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v08.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), and [v0.9 Roadmap](docs/roadmap/roadmap_v09.md).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Master Architecture](docs/architecture/gaxfs_master_architecture.md), [GaxNet Master Specification](docs/architecture/gaxnet_specification.md), and [ADRs 0000–0035](docs/adr/).
 
 ## Getting Started
 

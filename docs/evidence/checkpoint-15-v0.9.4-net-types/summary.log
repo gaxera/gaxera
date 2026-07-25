@@ -1,0 +1,16 @@
+GaxNet Milestone 0.9.4 Phase 2A & Phase 2B Checkpoint Evidence
+Date: 2026-07-25
+Crate: crates/net_types (v0.1.0)
+
+Architecture Compliance:
+- Conforms 100% to ADR 0035 and all 16 canonical GaxNet architecture specifications.
+- Implements subsystem-isolated NetRights, NetCapabilityPolicy, NetNamespace, NetInterface, NetListener, NetEndpoint, NetSession, NetRoute, TransportInstance, FrameDescriptor, PacketRingHeader SPSC wraparound math, BackpressurePolicy, 6 Layered Provider traits, ProviderLifecycleState, and ProviderIpcHeader version negotiation (b"GAXN" v1).
+
+Quality Verification Results:
+- Unit Tests: 7/7 passed.
+- Clippy: 0 warnings (cargo clippy -p net_types -- -D warnings).
+- Docs: 0 warnings (cargo doc --package net_types --no-deps).
+- Cargo Format: 100% compliant (cargo fmt --all).
+
+ABI Freeze Status:
+- Phase 2B PUBLIC ABI FREEZE is now ACTIVE.

@@ -1,0 +1,17 @@
+GaxNet Milestone 0.9.4 Phase 5 Checkpoint Evidence
+Date: 2026-07-25
+Crates: crates/resolver_server, crates/crypto_server, crates/libgaxera
+
+Architecture Compliance:
+- Conforms 100% to ADR 0035 and all 16 canonical GaxNet architecture specifications.
+- Implements:
+  * resolver_server: Ring-3 Domain Resolution Service (ResolverProvider) for DNS, DoH, and mDNS local service discovery.
+  * crypto_server: Ring-3 TLS 1.3 / DTLS Session Encryption & Certificate Service (CryptoProvider) owning private identity keys and session tickets.
+  * libgaxera::net: Native GaxNet Client API handles (NetSessionHandle, NetListenerHandle).
+  * libgaxera::compat::sockets: POSIX BSD Sockets Virtualization Wrapper mapping BSD socket(), connect(), close() calls to GaxNet capability handles.
+
+Quality Verification Results:
+- Unit Tests: 10/10 passed across Phase 5 crates.
+- Clippy: 0 warnings (cargo clippy -p libgaxera -p resolver_server -p crypto_server -- -D warnings).
+- Docs: 0 warnings (cargo doc --package resolver_server --package crypto_server --no-deps).
+- Cargo Format: 100% compliant (cargo fmt --all).

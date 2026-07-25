@@ -1,10 +1,11 @@
 [package]
-name = "virtio_net_server"
+name = "crypto_server"
 version = "0.1.0"
 edition = "2021"
+description = "GaxNet Ring-3 TLS 1.3 / DTLS Encryption & Certificate Service"
 
 [[bin]]
-name = "virtio_net_server"
+name = "crypto_server"
 test = false
 
 [dependencies]

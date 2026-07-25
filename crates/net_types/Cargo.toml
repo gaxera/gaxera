@@ -1,0 +1,19 @@
+[package]
+name = "net_types"
+version = "0.1.0"
+edition = "2021"
+description = "GaxNet core network foundation types, capabilities, and descriptor abstractions"
+
+[dependencies]
+gaxera-abi = { path = "../gaxera-abi" }
+
+[dev-dependencies]
+crypto_server = { path = "../crypto_server" }
+libgaxera = { path = "../libgaxera" }
+net_stack_server = { path = "../net_stack_server" }
+resolver_server = { path = "../resolver_server" }
+virtio_net_server = { path = "../virtio_net_server" }
+
+[[test]]
+name = "net_integration"
+path = "../../tests/net_integration.rs"

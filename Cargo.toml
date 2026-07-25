@@ -7,6 +7,7 @@ members = [
     "crates/gaxfs_event_log",
     "crates/gaxfs_vector_index",
     "crates/query_planner",
+    "crates/net_types",
     "crates/init",
     "crates/kernel-core",
     "crates/libgaxera",
@@ -15,6 +16,9 @@ members = [
     "crates/script_session",
     "crates/virtio_block_server",
     "crates/virtio_net_server",
+    "crates/net_stack_server",
+    "crates/resolver_server",
+    "crates/crypto_server",
     "kernel",
     "xtask",
 ]

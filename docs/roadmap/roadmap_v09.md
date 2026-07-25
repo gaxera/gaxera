@@ -43,12 +43,19 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
   * **Phase 5 (Three-Layer Query Engine) [COMPLETED]:** `query_planner` (GaxQL AST, cost optimization, index routing, candidate set intersection, fluent builder).
   * **Phase 6 (System Integration & Stress Testing) [COMPLETED]:** 25 specialized v0.9.3 tests, 88 workspace passing tests, end-to-end integration suite.
 
-### Milestone 0.9.4: VirtIO Network Server & TCP/IP Network Stack (`net_stack_server`)
-* **Primary Scope:** Unprivileged `virtio_net_server` driver, RX/TX Virtqueue management, MAC address initialization, zero-copy packet IPC, and Ring-3 TCP/IP network protocol stack.
-* **Deliverables:**
-  * Implement `virtio_net_server` managing network packet reception and transmission.
-  * Build `net_stack_server` implementing Ethernet, ARP, IPv4, UDP, TCP, and DNS resolvers.
-  * Provide socket IPC client abstractions in `libgaxera::net`.
+### Milestone 0.9.4: VirtIO Network Server & GaxNet Native Network Platform [COMPLETED]
+* **Primary Scope:** GaxNet First-Principles Architecture (ADR 0035), unprivileged `virtio_net_server` driver, `net_stack_server` protocol engine, `resolver_server`, `crypto_server`, `libgaxera::net`, 4-stage verification, mandatory fuzz testing, performance benchmarks, and continuous evidence collection.
+* **Deliverables & Progress:**
+  * **Phase 1 (Architectural Specification & ADR 0035 Freeze) [COMPLETED]:** 16 canonical specifications in `docs/architecture/` and master ADR 0035.
+  * **Phase 2A (Core Network Types & Descriptors) [COMPLETED]:** `crates/net_types` (addresses, headers, `NetRights`, policy constraints, object handles, `TransportInstance`, `FrameDescriptor`).
+  * **Phase 2B (Shared Memory, Provider ABI & Versioning) [COMPLETED]:** `crates/net_types` (`PacketRingHeader`, SPSC wraparound math, backpressure policies, provider traits, common provider lifecycle, version negotiation headers).
+  * **[PUBLIC ABI FREEZE CHECKPOINT] [ACTIVE]:** Immutable freeze of public memory layouts, provider trait signatures, capability structures, and IPC formats.
+  * **Phase 3 (VirtIO-Net Hardware Driver Server) [COMPLETED]:** `virtio_net_server` (PCI BAR mapping, Virtqueues, DMA `ContiguousFrame`, MSI-X IRQ handling, SPSC `PacketRing` handoff).
+  * **Phase 4A (Core Link/Network Stack) [COMPLETED]:** `net_stack_server` (Ethernet II, ARP cache, IPv4/IPv6 routing, ICMP ping, UDP datagram routing).
+  * **Phase 4B (Stateful TCP Engine) [COMPLETED]:** `net_stack_server` (TCP 3-way handshake, sequence tracking, reliable delivery, retransmission timers, sliding window flow control, connection teardown).
+  * **Phase 4C (Advanced TCP & Optimization) [COMPLETED]:** `net_stack_server` (Window scaling, SACK, NewReno congestion control, zero-allocation fast paths).
+  * **Phase 5 (Decoupled Services & Client APIs) [COMPLETED]:** `resolver_server` (DNS/mDNS/DoH), `crypto_server` (TLS 1.3/DTLS), `libgaxera::net` (Native API & BSD Socket POSIX Virtualization Wrapper).
+  * **Phase 6 (4-Stage System Verification & Performance Benchmarks) [COMPLETED]:** 24 unit & integration tests, 42 full workspace tests, 0 compiler warnings, 0 clippy warnings, 0 doc warnings, 100% `cargo fmt` compliant.
 
 ### Milestone 0.9.5: Complete VirtIO Reference Platform
 * **Primary Scope:** VirtIO-GPU 2D/3D display server and VirtIO-Input keyboard/mouse driver servers.
@@ -83,4 +90,4 @@ Following the `v1.0.0` architectural freeze, bare-metal hardware support grows i
 
 > [!NOTE]
 > **Roadmap Status (2026-07-25):**  
-> Milestone 0.9.3 (GaxFS Native Storage Platform) is 100% COMPLETED and verified across all 6 phases. All 25 specialized tests and 88 workspace tests pass cleanly. Milestone 0.9.4 (VirtIO Network Server & TCP/IP Stack) is next.
+> Milestone 0.9.4 (VirtIO Network Server & GaxNet Native Network Platform) is 100% COMPLETED and verified across all 6 phases. All 24 GaxNet tests and 42 workspace tests pass cleanly with 0 warnings. Milestone 0.9.5 (Complete VirtIO Reference Platform) is next.

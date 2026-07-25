@@ -135,11 +135,13 @@ The following properties must hold and cannot be casually violated by future imp
 
 ### 2.11 Networking
 
-**Decision:** Full TCP/IP stack, DNS, TLS, WiFi — all in user space.
-**Rationale:** Isolates network stack vulnerabilities from the kernel.
+**Decision:** First-principles, capability-native GaxNet network architecture (`ADR 0035`). Kernel Ring 0 contains zero networking or device driver code. Network driver (`virtio_net_server`), protocol engine (`net_stack_server`), domain resolution (`resolver_server`), and session encryption (`crypto_server`) execute as unprivileged Ring-3 user-space services.
+**Rationale:** Isolates network stack vulnerabilities from the kernel, prevents remote driver exploitation from escalating Ring-0 privileges, and enforces fine-grained per-application `NetRights` bitfields and `NetCapabilityPolicy` scoping rules.
 
-- **SEC-04 [COMMITTED]:** Source: S13, S24. Per-app network capability acts as the firewall (default-deny).
-- **SEC-05 [COMMITTED]:** Source: S24. Encrypted DNS (DoH/DoT) by default.
+- **SEC-04 [COMMITTED]:** Source: S13, S24. Per-app network capability acts as the firewall (default-deny, `NetRights` scoping).
+- **SEC-05 [COMMITTED]:** Source: S24. Encrypted DNS (DoH/DoT) by default, owned by Ring-3 `resolver_server`.
+- **NET-01 [COMMITTED]:** Zero-copy shared-memory `PacketRing` data plane transport for generic frame descriptors (`FrameDescriptor`). Delivered in Milestone 0.9.4.
+- **NET-02 [COMMITTED]:** Decoupled TLS 1.3 / DTLS session encryption service (`crypto_server`) isolating private identity keys away from transport protocol engines and user applications. Delivered in Milestone 0.9.4.
 
 ### 2.12 Security Architecture
 

@@ -1,10 +1,11 @@
 [package]
-name = "virtio_net_server"
+name = "resolver_server"
 version = "0.1.0"
 edition = "2021"
+description = "GaxNet Ring-3 Domain Resolution Service (DNS, DoH, mDNS)"
 
 [[bin]]
-name = "virtio_net_server"
+name = "resolver_server"
 test = false
 
 [dependencies]

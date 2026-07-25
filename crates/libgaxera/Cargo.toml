@@ -9,3 +9,4 @@ entry = []
 
 [dependencies]
 gaxera-abi = { path = "../gaxera-abi" }
+net_types = { path = "../net_types" }

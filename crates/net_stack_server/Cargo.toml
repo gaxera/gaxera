@@ -1,10 +1,11 @@
 [package]
-name = "virtio_net_server"
+name = "net_stack_server"
 version = "0.1.0"
 edition = "2021"
+description = "GaxNet Ring-3 User-Space Protocol Server (Ethernet, ARP, IPv4/IPv6, ICMP, UDP, TCP)"
 
 [[bin]]
-name = "virtio_net_server"
+name = "net_stack_server"
 test = false
 
 [dependencies]

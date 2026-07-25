@@ -4,8 +4,11 @@ pub mod block;
 pub mod boot;
 pub mod ipc;
 pub mod net;
+pub mod object_id;
 pub mod pci;
 pub mod service;
+
+pub use object_id::GaxObjectId;
 
 pub mod svc {
     pub const RAMFS_BASE: u64 = 0x0000_6000_0000_0000;
