@@ -1,0 +1,16 @@
+[package]
+name = "virtio_input_server"
+version = "0.1.0"
+edition = "2021"
+description = "Gaxera Ring-3 VirtIO-Input Keyboard and Pointer Driver Server"
+
+[[bin]]
+name = "virtio_input_server"
+test = false
+
+[dependencies]
+gaxera-abi = { path = "../gaxera-abi" }
+libgaxera = { path = "../libgaxera" }
+
+[lints]
+workspace = true

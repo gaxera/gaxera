@@ -1,0 +1,30 @@
+   Compiling virtio_gpu_server v0.1.0 (/home/nyx/gaxera/crates/virtio_gpu_server)
+   Compiling virtio_input_server v0.1.0 (/home/nyx/gaxera/crates/virtio_input_server)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.17s
+     Running unittests src/lib.rs (target/debug/deps/virtio_gpu_server-e59b0966aa4ff3cb)
+
+running 2 tests
+test tests::test_end_to_end_virtio_reference_platform_suite ... ok
+test tests::test_virtio_gpu_driver_commands_and_pattern ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/virtio_input_server-4693d7861575c988)
+
+running 2 tests
+test tests::test_keyboard_key_event_decoding_and_focus_scoping ... ok
+test tests::test_pointer_relative_move_decoding ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_gpu_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_input_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

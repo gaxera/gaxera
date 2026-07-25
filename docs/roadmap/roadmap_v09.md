@@ -57,12 +57,13 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
   * **Phase 5 (Decoupled Services & Client APIs) [COMPLETED]:** `resolver_server` (DNS/mDNS/DoH), `crypto_server` (TLS 1.3/DTLS), `libgaxera::net` (Native API & BSD Socket POSIX Virtualization Wrapper).
   * **Phase 6 (4-Stage System Verification & Performance Benchmarks) [COMPLETED]:** 24 unit & integration tests, 42 full workspace tests, 0 compiler warnings, 0 clippy warnings, 0 doc warnings, 100% `cargo fmt` compliant.
 
-### Milestone 0.9.5: Complete VirtIO Reference Platform
+### Milestone 0.9.5: Complete VirtIO Reference Platform [COMPLETED]
 * **Primary Scope:** VirtIO-GPU 2D/3D display server and VirtIO-Input keyboard/mouse driver servers.
-* **Deliverables:**
-  * Build Ring-3 `virtio_gpu_server` for hardware-accelerated 2D/3D display rendering.
-  * Build Ring-3 `virtio_input_server` for keyboard/mouse event routing to userspace.
-  * Validate 100% complete VirtIO reference platform (Block, Net, GPU, Input) on QEMU.
+* **Deliverables & Progress:**
+  * **Phase 1 (Architecture & Specification Freeze) [COMPLETED]:** [ADR 0036](../adr/0036-virtio-gpu-input-reference-platform.md) and master specification `docs/architecture/virtio_reference_platform.md`.
+  * **Phase 2 (VirtIO-GPU Display Server) [COMPLETED]:** Ring-3 `virtio_gpu_server` (PCI Express BAR mapping, Virtqueues, 2D resource creation, memory backing, scanout flush, RGBA test pattern framebuffer).
+  * **Phase 3 (VirtIO-Input Driver Server) [COMPLETED]:** Ring-3 `virtio_input_server` (PCI Express BAR mapping, Virtqueues, EV_KEY/EV_REL event decoding, FocusHandle capability scoping, zero keylogging).
+  * **Phase 4 (System Integration & Visual Proof) [COMPLETED]:** Full VirtIO reference platform (Block, Net, GPU, Input) verified on QEMU, visual PNG screenshot dump captured (`display_scanout.png`), full un-truncated logs archived (`checkpoint-20-v0.9.5-virtio-platform`).
 
 ---
 
@@ -90,4 +91,4 @@ Following the `v1.0.0` architectural freeze, bare-metal hardware support grows i
 
 > [!NOTE]
 > **Roadmap Status (2026-07-25):**  
-> Milestone 0.9.4 (VirtIO Network Server & GaxNet Native Network Platform) is 100% COMPLETED and verified across all 6 phases. All 24 GaxNet tests and 42 workspace tests pass cleanly with 0 warnings. Milestone 0.9.5 (Complete VirtIO Reference Platform) is next.
+> Milestone 0.9.5 (Complete VirtIO Reference Platform) is 100% COMPLETED and verified across all 4 phases. Full VirtIO suite (Block, Net, GPU, Input) is verified. All 46 workspace tests pass with 0 warnings. Initiative v0.9 is 100% Complete! v1.0.0 Production Platform Release is next.

@@ -491,6 +491,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "virtio_gpu_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+ "net_types",
+ "virtio_block_server",
+ "virtio_input_server",
+ "virtio_net_server",
+]
+
+[[package]]
+name = "virtio_input_server"
+version = "0.1.0"
+dependencies = [
+ "gaxera-abi",
+ "libgaxera",
+]
+
+[[package]]
 name = "virtio_net_server"
 version = "0.1.0"
 dependencies = [

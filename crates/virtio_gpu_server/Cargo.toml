@@ -1,0 +1,22 @@
+[package]
+name = "virtio_gpu_server"
+version = "0.1.0"
+edition = "2021"
+description = "Gaxera Ring-3 VirtIO-GPU 2D/3D Display Driver Server"
+
+[[bin]]
+name = "virtio_gpu_server"
+test = false
+
+[dependencies]
+gaxera-abi = { path = "../gaxera-abi" }
+libgaxera = { path = "../libgaxera" }
+
+[dev-dependencies]
+net_types = { path = "../net_types" }
+virtio_block_server = { path = "../virtio_block_server" }
+virtio_input_server = { path = "../virtio_input_server" }
+virtio_net_server = { path = "../virtio_net_server" }
+
+[lints]
+workspace = true

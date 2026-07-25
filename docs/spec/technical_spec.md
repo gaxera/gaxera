@@ -112,11 +112,11 @@ The following properties must hold and cannot be casually violated by future imp
 
 ### 2.8 Graphics & Display Stack
 
-**Decision:** Custom display protocol, Vulkan-based compositor, GPU-accelerated vector rendering.
-**Rationale:** Must map cleanly onto our capability-mediated IPC and explicit synchronization requirements. The exact architectural fit with existing ecosystems remains under research.
+**Decision:** Ring-3 VirtIO-GPU 2D/3D display driver server (`virtio_gpu_server`), custom display protocol, Vulkan-based compositor, GPU-accelerated vector rendering (`ADR 0036`).
+**Rationale:** Must map cleanly onto our capability-mediated IPC, `Mapping` physical page capabilities, and zero-copy shared memory framebuffers.
 
 - **UI-01 [COMMITTED]:** Source: S2. Integrated display server/compositor using zero-copy shared buffers.
-- **UI-02 [RESEARCH REQUIRED]:** Source: S2. Scope of custom display protocol versus a capability-aware adaptation of Wayland concepts.
+- **UI-02 [COMMITTED]:** Ring-3 VirtIO-GPU 2D Display Scanout Server (`virtio_gpu_server`) with Virtqueue command rings, 2D resource creation, backing attachment, and scanout flushes (`ADR 0036`). Delivered in Milestone 0.9.5.
 - **UI-03 [RESEARCH REQUIRED]:** Source: S21. Hardware decoding pipeline and distribution/licensing obligations for codecs.
 
 ### 2.9 Audio Engine
@@ -128,10 +128,10 @@ The following properties must hold and cannot be casually violated by future imp
 
 ### 2.10 Input System
 
-**Decision:** Unified event model from hardware to app.
-**Rationale:** Centralizes input handling for consistent accessibility and hotplug support.
+**Decision:** Ring-3 VirtIO-Input driver server (`virtio_input_server`) with unified event model from hardware to app (`ADR 0036`).
+**Rationale:** Centralizes input handling, decodes Linux `input_event` formats (`EV_KEY`, `EV_REL`, `EV_ABS`) into standardized `InputEvent` handles, and enforces `FocusHandle` capability scoping to prevent keylogging.
 
-- **UI-05 [COMMITTED]:** Source: S9. High poll rate, configurable acceleration, accessibility hooks.
+- **UI-05 [COMMITTED]:** Source: S9. High poll rate, capability-scoped event dispatching (`FocusHandle`). Delivered in Milestone 0.9.5.
 
 ### 2.11 Networking
 

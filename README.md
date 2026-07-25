@@ -61,25 +61,19 @@ leak simply don't exist, because they were never built.
 
 **v0.7 — Multi-Client IPC & Event Multiplexing.** Tagged `v0.7.0`. Epoch 2 evolves IPC from 1:1 rendezvous into a high-performance $N:1$ multi-client server architecture.
 
-**v0.8 — Capability Microkernel Release.** Tagged `v0.8.0`. Complete capability-based microkernel infrastructure:
+**v0.8 — Capability Microkernel Release.** Tagged `v0.8.0`. Implemented generation-tracked object arena, recursive capability revocation (ADR 0007, 0021), hardware IRQ delegation (ADR 0022), MMIO driver mapping (ADR 0023), type-safe `libgaxera` runtime (ADR 0024), user-space `init` service registry (ADR 0025), and direct context-switch IPC fast-paths (ADR 0026).
 
-* **Milestone 0.8.0 (Object System & Capability Revocation):** Generation-tracked object arena, capability slot recycling, and recursive capability tree revocation across task CSpaces (`ADR 0007`, `ADR 0021`).
-* **Milestone 0.8.1 (Interrupt Delegation & WaitSets):** Hardware IRQ delegation, IOAPIC vector routing, and IRQ notification binding (`ADR 0022`).
-* **Milestone 0.8.2 (MMIO & Driver Foundation):** `Mapping` object encapsulation for physical memory page ranges and unprivileged driver address space mapping (`ADR 0023`).
-* **Milestone 0.8.3 (Userspace Runtime Library):** Type-safe `libgaxera` runtime, `OwnedHandle` non-`Copy`/`Clone` ownership invariants, and transient borrowed handles (`ADR 0024`).
-* **Milestone 0.8.4 (Service Discovery & Registry):** User-space `init` service registry, `ServiceName` validation, and bootstrap delegation protocol (`ADR 0025`).
-* **Milestone 0.8.5 (IPC Performance & Fast-Paths):** Direct context-switch rendezvous (`try_direct_switch`), 64-byte inline register transfers, and QEMU TSC microbenchmark suite (`ADR 0026`).
-
-**v0.9 — Hardware Enablement, GaxFS Storage & GaxNet Platform.** Tagged `v0.9.4`. Complete native storage engine, SIMD vector index, query architecture, and GaxNet native network platform:
+**v0.9 — Hardware Enablement, Storage, Networking & VirtIO Reference Platform.** Tagged `v0.9.5`. Complete VirtIO reference platform (Block, Net, GPU, Input), native storage engine, SIMD vector index, query architecture, and GaxNet native network platform:
 
 * **Milestone 0.9.0 (PCIe ECAM & PCI Bus Server):** ACPI MCFG table parsing, ECAM capability generation, and user-space PCI bus scanner.
 * **Milestone 0.9.1-recovery (Architectural Recovery Baseline):** DMA ContiguousFrame objects, W^X loader checks, and 5-level RankedLock hierarchy.
 * **Milestone 0.9.2 (SMP Load Balancing & Inter-Core Scheduling):** CpuAffinityMask, SchedulerDomain topology controller, and inter-core work stealing across 64 CPUs.
 * **Milestone 0.9.3 (GaxFS Native Storage Platform):** RFC 9562 UUIDv7 object identity, Copy-on-Write dual-superblock commit engine (`gax_storage_engine`), shared-memory event stream (`gaxfs_event_log`), TurboQuant FWHT 4-bit Lloyd-Max quantization with RaBitQ scale correction & SIMD capability isolation (`gaxfs_vector_index`), and GaxQL 3-layer query planner (`query_planner`).
 * **Milestone 0.9.4 (VirtIO Network Server & GaxNet Native Network Platform):** First-principles capability-native networking architecture (`ADR 0035`), unprivileged Ring-3 `virtio_net_server` driver, `net_stack_server` protocol engine (Ethernet II, ARP cache, IPv4/IPv6 router, ICMP ping, UDP, stateful TCP with NewReno congestion control and RFC 7323 window scaling), `NetNamespace` isolation, decoupled `resolver_server` (DNS/mDNS/DoH) and `crypto_server` (TLS 1.3/DTLS), `PacketRing` zero-copy shared memory data plane, 6 layered provider traits, and POSIX BSD Sockets Virtualization Layer (`libgaxera::compat::sockets`).
+* **Milestone 0.9.5 (Complete VirtIO Reference Platform):** Ring-3 `virtio_gpu_server` (2D display scanout, RGBA color bar framebuffer rendering, Virtqueue command rings) and `virtio_input_server` (keyboard & pointer event decoding, `FocusHandle` capability scoping, zero keylogging) completing the 100% VirtIO virtual hardware reference platform on QEMU (`ADR 0036`). This virtual hardware baseline prepares the platform for `v1.0.0` stability and the upcoming post-v1.0 bare-metal physical driver expansion series.
 
 Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v08.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), and [v0.9 Roadmap](docs/roadmap/roadmap_v09.md).
-The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Master Architecture](docs/architecture/gaxfs_master_architecture.md), [GaxNet Master Specification](docs/architecture/gaxnet_specification.md), and [ADRs 0000–0035](docs/adr/).
+The exact architecture and methodology are documented in the [Engineering Workflow Reference](.internal/Engineering%20Workflow.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Master Architecture](docs/architecture/gaxfs_master_architecture.md), [GaxNet Master Specification](docs/architecture/gaxnet_specification.md), [VirtIO Platform Specification](docs/architecture/virtio_reference_platform.md), and [ADRs 0000–0036](docs/adr/).
 
 ## Getting Started
 

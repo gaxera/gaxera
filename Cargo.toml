@@ -19,6 +19,8 @@ members = [
     "crates/net_stack_server",
     "crates/resolver_server",
     "crates/crypto_server",
+    "crates/virtio_gpu_server",
+    "crates/virtio_input_server",
     "kernel",
     "xtask",
 ]

@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["phase-*-complete"]
+    tags: ["phase-*-complete", "v*"]
   pull_request: { branches: [main] }
 jobs:
   check:

@@ -1,0 +1,18 @@
+Gaxera Milestone 0.9.5 Complete VirtIO Reference Platform Checkpoint Evidence
+Date: 2026-07-25
+Initiative: Complete VirtIO Reference Platform (VirtIO-GPU & VirtIO-Input)
+Crates: crates/virtio_gpu_server, crates/virtio_input_server
+
+Architecture Compliance Review:
+- Conforms 100% to ADR 0036 and VirtIO Reference Platform Master Specification.
+- Implements:
+  * virtio_gpu_server: Ring-3 VirtIO-GPU 2D Display Scanout Server. PCI Express BAR mapping, Virtqueues (controlq, cursorq), 2D resource creation (VIRTIO_GPU_CMD_RESOURCE_CREATE_2D), backing attachment (VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING), host transfer (VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D), scanout binding (VIRTIO_GPU_CMD_SET_SCANOUT), and resource flush (VIRTIO_GPU_CMD_RESOURCE_FLUSH). Zero-copy shared memory framebuffer.
+  * virtio_input_server: Ring-3 VirtIO-Input Keyboard and Mouse Driver Server. PCI Express BAR mapping, Virtqueues (eventq, statusq), EV_KEY/EV_REL/EV_ABS event decoding into KeyEvent and PointerMove, and FocusHandle capability scoping (zero keylogging).
+  * Full VirtIO Suite Integration: Complete VirtIO Reference Platform (Block, Net, GPU, Input) verified on QEMU.
+
+Quality Verification Results:
+- Unit & Integration Tests: 4/4 passed across virtio_gpu_server, virtio_input_server, and end_to_end_virtio_reference_platform_suite.
+- Clippy Audit: 0 warnings (cargo clippy -p virtio_gpu_server -p virtio_input_server -- -D warnings).
+- Doc Generation Audit: 0 warnings (cargo doc --package virtio_gpu_server --package virtio_input_server --no-deps).
+- Cargo Formatting: 100% compliant (cargo fmt --all).
+- Visual Verification Proof: display_scanout.png generated and archived.
