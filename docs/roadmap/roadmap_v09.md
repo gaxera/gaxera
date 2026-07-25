@@ -76,6 +76,52 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
 
 ---
 
-> [!CAUTION]
-> **Roadmap Status Note (2026-07-23):**  
-> Historical tag `v0.9.0` is superseded by the v0.9 Recovery Program (`v0.9.1-recovery`). Milestones 0.9.0 through 0.9.5 are fully integrated, verified, and closed under target `v0.9.1-recovery`.
+### Milestone 0.9.1-recovery: Architectural Recovery Baseline [COMPLETED]
+* **Primary Scope:** Authoritative 9-phase recovery program, ContiguousFrame DMA objects, bounded Mapping subregion derivation, 64-CPU SMP state isolation, W^X loader checks, and RankedLock 5-level lock hierarchy (ADR 0033).
+* **Deliverable Tag:** `v0.9.1-recovery` (supersedes initial draft `v0.9.0`).
+
+### Milestone 0.9.2: SMP Load Balancing & Inter-Core Scheduling
+* **Primary Scope:** Inter-core work stealing, thread migration across 64 CPUs, cross-CPU TLB shootdown IPIs, and scheduler load metrics under ADR 0031.
+* **Deliverables:**
+  * Implement thread migration and work stealing queues across 64 CPUs (`MAX_CPUS = 64`).
+  * Implement cross-CPU TLB shootdown IPI protocol in `kernel::arch::x86_64::paging`.
+  * Add host and QEMU integration benchmarks verifying zero preemption deadlocks.
+
+### Milestone 0.9.3: Persistent VFS & CoW Filesystem (`vfs_server`)
+* **Primary Scope:** Multi-client Virtual File System (`vfs_server`) operating over `virtio_block_server` capabilities with Copy-on-Write semantics.
+* **Deliverables:**
+  * Build Ring-3 `vfs_server` managing directory hierarchies, file descriptors, and block cache.
+  * Expose capability-mediated file open/read/write/stat IPC interface.
+
+### Milestone 0.9.4: TCP/IP Network Stack (`net_stack_server`)
+* **Primary Scope:** Ring-3 TCP/IP network protocol stack operating over `virtio_net_server` packet capabilities.
+* **Deliverables:**
+  * Build `net_stack_server` implementing Ethernet, ARP, IPv4, UDP, TCP, and DNS resolvers.
+  * Provide socket IPC client abstractions in `libgaxera::net`.
+
+### Milestone 0.9.5: Complete VirtIO Reference Platform
+* **Primary Scope:** VirtIO-GPU 2D/3D display server and VirtIO-Input keyboard/mouse driver servers.
+* **Deliverables:**
+  * Build Ring-3 `virtio_gpu_server` for hardware-accelerated 2D/3D display rendering.
+  * Build Ring-3 `virtio_input_server` for keyboard/mouse event routing to userspace.
+  * Validate 100% complete VirtIO reference platform (Block, Net, GPU, Input) on QEMU.
+
+---
+
+## 3. Production Release & Hardware Expansion Strategy
+
+### **v1.0.0 — Production Architectural Stability & Platform Release**
+Gaxera `v1.0.0` represents **architectural completion and stability**, freezing the microkernel ABI, capability model, memory manager, IPC primitives, scheduler, driver framework, VFS, network stack, userspace runtime, and complete VirtIO reference platform.
+
+### **Post-v1.0 Bare-Metal Hardware Expansion Series**
+Following the `v1.0.0` architectural freeze, bare-metal hardware support grows incrementally without delaying core OS releases:
+* **`v1.1.0` — Native Bare-Metal Storage:** Physical NVMe SSD (`nvme_server`) & AHCI SATA drivers.
+* **`v1.2.0` — Native Bare-Metal Networking:** Physical Intel e1000/e1000e & Realtek NIC drivers.
+* **`v1.3.0` — Native Bare-Metal USB & Input:** Physical xHCI USB 3.0 Host Controller & USB HID drivers.
+* **`v1.4.0` — Native Bare-Metal Graphics:** Physical Intel i915 / VESA linear framebuffer drivers.
+
+---
+
+> [!NOTE]
+> **Roadmap Status (2026-07-25):**  
+> Baseline `v0.9.1-recovery` is verified and tagged. Implementation proceeds incrementally with Milestone 0.9.2 (SMP Load Balancing).

@@ -71,10 +71,7 @@ impl Scheduler {
         thread: &mut crate::thread::Thread<T>,
     ) -> Result<(), SchedulerError> {
         let id = thread.id();
-        if thread.state() == crate::thread::ThreadState::Runnable
-            || self.contains(id)
-            || self.current_thread == Some(id)
-        {
+        if self.contains(id) || self.current_thread == Some(id) {
             return Err(SchedulerError::DuplicateEntry);
         }
         if self.count >= self.capacity {
@@ -113,6 +110,62 @@ impl Scheduler {
         }
         let highest_prio = (31 - self.active_bitmap.leading_zeros()) as usize;
         self.queues[highest_prio].front().copied()
+    }
+
+    /// Dequeues an eligible runnable thread matching the provided affinity predicate.
+    ///
+    /// Evaluates active queues from lowest priority to highest priority, allowing an idle CPU
+    /// to steal background work while leaving high-priority tasks on the source core.
+    pub fn pop_stealable_work<F>(&mut self, mut affinity_checker: F) -> Option<ObjectId>
+    where
+        F: FnMut(ObjectId) -> bool,
+    {
+        if self.active_bitmap == 0 {
+            return None;
+        }
+        for prio in 0..PRIORITY_LEVELS {
+            if (self.active_bitmap & (1u32 << prio)) != 0 {
+                let queue = &mut self.queues[prio];
+                let mut found_idx = None;
+                for (i, &tid) in queue.iter().enumerate() {
+                    if affinity_checker(tid) {
+                        found_idx = Some(i);
+                        break;
+                    }
+                }
+                if let Some(idx) = found_idx {
+                    let tid = queue.remove(idx)?;
+                    if queue.is_empty() {
+                        self.active_bitmap &= !(1u32 << prio);
+                    }
+                    self.count = self.count.saturating_sub(1);
+                    return Some(tid);
+                }
+            }
+        }
+        None
+    }
+
+    /// Removes a specific thread from the scheduler queues if present.
+    pub fn remove_thread(&mut self, thread_id: ObjectId) -> bool {
+        if self.current_thread == Some(thread_id) {
+            self.current_thread = None;
+            return true;
+        }
+        for prio in 0..PRIORITY_LEVELS {
+            if (self.active_bitmap & (1u32 << prio)) != 0 {
+                let queue = &mut self.queues[prio];
+                if let Some(idx) = queue.iter().position(|&id| id == thread_id) {
+                    queue.remove(idx);
+                    if queue.is_empty() {
+                        self.active_bitmap &= !(1u32 << prio);
+                    }
+                    self.count = self.count.saturating_sub(1);
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Commits the queue portion of a cooperative yield.

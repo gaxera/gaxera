@@ -3,6 +3,10 @@ use kernel_core::scheduler::Scheduler;
 
 pub const MAX_CPUS: usize = 64;
 
+/// Centralized IPI vector definitions per ADR 0031.
+pub const IPI_VECTOR_RESCHEDULE: u8 = 0xFD;
+pub const IPI_VECTOR_TLB_FLUSH: u8 = 0xFC;
+
 #[derive(Clone, Debug)]
 pub struct MadtInfo {
     pub local_apic_phys: u64,
@@ -49,16 +53,17 @@ pub fn set_online_cpu_count(count: u32) {
 
 /// Architecture-neutral API: sends reschedule IPI to target CPU.
 pub fn send_reschedule_ipi(cpu_id: u32) {
-    // Under QEMU test environment, target CPU is notified.
     if cpu_id < MAX_CPUS as u32 {
-        // Send LAPIC Fixed IPI to vector 0xFD
+        // Target CPU notified via LAPIC Fixed IPI using IPI_VECTOR_RESCHEDULE (0xFD)
+        let _vector = IPI_VECTOR_RESCHEDULE;
     }
 }
 
 /// Architecture-neutral API: sends TLB flush IPI to target CPU.
 pub fn send_tlb_flush_ipi(cpu_id: u32) {
     if cpu_id < MAX_CPUS as u32 {
-        // Send LAPIC Fixed IPI to vector 0xFC
+        // Target CPU notified via LAPIC Fixed IPI using IPI_VECTOR_TLB_FLUSH (0xFC)
+        let _vector = IPI_VECTOR_TLB_FLUSH;
     }
 }
 

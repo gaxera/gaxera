@@ -3,6 +3,8 @@
 #![feature(never_type)]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 pub mod arch;
 pub mod framebuffer;

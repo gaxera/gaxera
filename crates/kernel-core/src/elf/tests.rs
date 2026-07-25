@@ -78,6 +78,7 @@ fn test_wx_simultaneous_permission_rejection() {
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
     let data = &mut aligned.0[..total_size];
 
+    // SAFETY: Buffer is stack-allocated and properly aligned to support Elf64_Ehdr and Elf64_Phdr layout writes.
     unsafe {
         core::ptr::write(data.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(

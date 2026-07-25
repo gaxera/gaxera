@@ -281,6 +281,7 @@ mod tests {
         );
 
         // Cleanup host memory
+        // SAFETY: Deallocates test frame backing memory allocated via std::alloc::alloc in test module setup.
         unsafe {
             dealloc(
                 frame as *mut u8,

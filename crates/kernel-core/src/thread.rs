@@ -1,3 +1,4 @@
+use crate::affinity::CpuAffinityMask;
 use crate::object::ObjectId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -23,6 +24,8 @@ pub struct Thread<T> {
     cspace: Option<ObjectId>,
     base_priority: u8,
     effective_priority: u8,
+    assigned_cpu: u32,
+    affinity: CpuAffinityMask,
     pub arch: T,
     pub ipc_receive_buffer: Option<gaxera_abi::ipc::InlineMessage>,
 }
@@ -36,6 +39,8 @@ impl<T> Thread<T> {
             cspace: None,
             base_priority: 0,
             effective_priority: 0,
+            assigned_cpu: 0,
+            affinity: CpuAffinityMask::all(),
             arch,
             ipc_receive_buffer: None,
         }
@@ -82,13 +87,41 @@ impl<T> Thread<T> {
         self.cspace = Some(cspace);
     }
 
+    pub fn assigned_cpu(&self) -> u32 {
+        self.assigned_cpu
+    }
+
+    pub fn affinity(&self) -> CpuAffinityMask {
+        self.affinity
+    }
+
+    pub fn assign_cpu(&mut self, cpu_id: u32) -> Result<(), ThreadError> {
+        if self.state == ThreadState::Running {
+            return Err(ThreadError::InvalidTransition);
+        }
+        self.assigned_cpu = cpu_id;
+        Ok(())
+    }
+
+    pub fn set_affinity(&mut self, affinity: CpuAffinityMask) -> Result<(), ThreadError> {
+        if self.state == ThreadState::Running {
+            return Err(ThreadError::InvalidTransition);
+        }
+        self.affinity = affinity;
+        Ok(())
+    }
+
     pub fn set_aspace(&mut self, aspace: Option<ObjectId>) {
         self.address_space = aspace;
     }
 
     pub fn make_runnable(&mut self) -> Result<(), ThreadError> {
         match self.state {
-            ThreadState::New | ThreadState::Running | ThreadState::Blocked | ThreadState::Dead => {
+            ThreadState::New
+            | ThreadState::Runnable
+            | ThreadState::Running
+            | ThreadState::Blocked
+            | ThreadState::Dead => {
                 self.state = ThreadState::Runnable;
                 Ok(())
             }

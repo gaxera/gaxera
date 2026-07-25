@@ -3,6 +3,7 @@
 extern crate alloc;
 
 pub mod address_space;
+pub mod affinity;
 
 pub mod capability;
 pub mod contiguous_frame;
@@ -17,6 +18,7 @@ pub mod object;
 pub mod registry;
 pub mod resource;
 pub mod scheduler;
+pub mod scheduler_domain;
 pub mod slab;
 pub mod thread;
 pub mod time;

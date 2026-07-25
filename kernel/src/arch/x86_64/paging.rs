@@ -1298,3 +1298,12 @@ fn align_up(address: u64) -> Result<u64, PagingError> {
 const fn align_down(address: u64) -> u64 {
     address & !(PAGE_SIZE - 1)
 }
+
+/// Invoked by `IPI_VECTOR_TLB_FLUSH` interrupt handler to invalidate TLB on target CPU core (ADR 0031).
+pub fn tlb_shootdown_handler() {
+    let (frame, flags) = Cr3::read();
+    // SAFETY: Reloading CR3 invalidates non-global TLB entries on current CPU.
+    unsafe {
+        Cr3::write(frame, flags);
+    }
+}
