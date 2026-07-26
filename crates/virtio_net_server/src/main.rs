@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), no_main)]
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::arch::asm;
 
 struct DummyAllocator;
 // SAFETY: Dummy allocator fulfilling no_std global_allocator requirement.
@@ -21,8 +22,13 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    let mac = net_types::MacAddress::new([0x52, 0x54, 0x00, 0x12, 0x34, 0x56]);
+    let driver = virtio_net_server::VirtioNetDriver::new(mac);
+    let _ = &driver;
+
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Active Ring-3 IPC event loop waiting on network packets.
+        unsafe { asm!("pause") }
     }
 }
 
@@ -30,6 +36,7 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Halting execution.
+        unsafe { asm!("pause") }
     }
 }

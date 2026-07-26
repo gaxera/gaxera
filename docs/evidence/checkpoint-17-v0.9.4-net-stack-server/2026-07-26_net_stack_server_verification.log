@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/net_stack_server-573ce02df657099d)
+
+running 3 tests
+test tests::test_tcp_stateful_handshake_and_flow_control ... ok
+test tests::test_ip_router_lookup_and_icmp_echo ... ok
+test tests::test_arp_cache_insert_lookup_and_reply ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_stack_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

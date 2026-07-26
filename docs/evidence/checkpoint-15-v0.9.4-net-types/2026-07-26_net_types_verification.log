@@ -1,0 +1,27 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/net_types-c9f2179f0240005e)
+
+running 7 tests
+test tests::test_mac_address_formatting_and_checks ... ok
+test tests::test_packet_ring_header_spsc_math ... ok
+test tests::test_ipv4_cidr_matching ... ok
+test tests::test_provider_ipc_version_negotiation ... ok
+test tests::test_net_rights_attenuation ... ok
+test tests::test_session_state_machine ... ok
+test tests::test_ethernet_header_encode_parse ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running ../../tests/net_integration.rs (target/debug/deps/net_integration-a7d136fa27b09669)
+
+running 1 test
+test test_end_to_end_gaxnet_stack_pipeline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

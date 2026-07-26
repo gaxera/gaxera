@@ -29,10 +29,14 @@ impl BsdSocketTable {
     /// Virtual `socket(domain, type, protocol)` API.
     pub fn socket(
         &mut self,
-        _domain: i32,
-        _socket_type: i32,
+        domain: i32,
+        socket_type: i32,
         _protocol: i32,
     ) -> Result<i32, ProviderError> {
+        if domain != AF_INET || (socket_type != SOCK_STREAM && socket_type != SOCK_DGRAM) {
+            return Err(ProviderError::TransmissionFailed);
+        }
+
         let dummy_endpoint = NetEndpoint::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
         let session = NetSessionHandle {
             id: GaxObjectId::generate(),
@@ -56,6 +60,9 @@ impl BsdSocketTable {
         let idx = (fd - 3) as usize;
         if idx < self.descriptors.len() {
             if let Some(session) = &mut self.descriptors[idx] {
+                if !session.rights.contains(NetRights::CONNECT) {
+                    return Err(ProviderError::NotReady);
+                }
                 session.remote_endpoint = remote;
                 session.state = SessionState::Established;
                 return Ok(());

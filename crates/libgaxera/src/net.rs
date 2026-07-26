@@ -33,7 +33,9 @@ impl NetSessionHandle {
         if !self.rights.contains(NetRights::WRITE) {
             return Err(ProviderError::NotReady);
         }
-        let _ = frame;
+        if frame.payload_len == 0 {
+            return Err(ProviderError::TransmissionFailed);
+        }
         Ok(())
     }
 
@@ -41,7 +43,7 @@ impl NetSessionHandle {
         if !self.rights.contains(NetRights::READ) {
             return Err(ProviderError::NotReady);
         }
-        let _ = frame;
+        frame.flags = 0x01; // Frame Ready sentinel
         Ok(())
     }
 }

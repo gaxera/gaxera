@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), no_main)]
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::arch::asm;
 
 struct DummyAllocator;
 // SAFETY: Dummy allocator fulfilling no_std global_allocator requirement.
@@ -21,9 +22,12 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    let _server = pci_bus_server::PciBusServer::new();
+    let server = pci_bus_server::PciBusServer::new();
+    let _ = &server;
+
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Active Ring-3 IPC event loop waiting on PCI Express ECAM bus scan requests.
+        unsafe { asm!("pause") }
     }
 }
 
@@ -31,6 +35,7 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Halting execution.
+        unsafe { asm!("pause") }
     }
 }

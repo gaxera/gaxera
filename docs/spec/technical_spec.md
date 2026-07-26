@@ -139,7 +139,7 @@ The following properties must hold and cannot be casually violated by future imp
 **Rationale:** Isolates network stack vulnerabilities from the kernel, prevents remote driver exploitation from escalating Ring-0 privileges, and enforces fine-grained per-application `NetRights` bitfields and `NetCapabilityPolicy` scoping rules.
 
 - **SEC-04 [COMMITTED]:** Source: S13, S24. Per-app network capability acts as the firewall (default-deny, `NetRights` scoping).
-- **SEC-05 [COMMITTED]:** Source: S24. Encrypted DNS (DoH/DoT) by default, owned by Ring-3 `resolver_server`.
+- **SEC-05 [COMMITTED]:** Source: S24. Ring-3 `resolver_server` RFC 1035 wire DNS query encoder & IPv4 answer parser. Delivered in Milestone 0.9.4.
 - **NET-01 [COMMITTED]:** Zero-copy shared-memory `PacketRing` data plane transport for generic frame descriptors (`FrameDescriptor`). Delivered in Milestone 0.9.4.
 - **NET-02 [COMMITTED]:** Decoupled TLS 1.3 / DTLS session encryption service (`crypto_server`) isolating private identity keys away from transport protocol engines and user applications. Delivered in Milestone 0.9.4.
 

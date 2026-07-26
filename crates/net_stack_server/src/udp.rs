@@ -1,8 +1,11 @@
 //! UDP Transport Layer Engine.
 
+use alloc::vec::Vec;
 use gaxera_abi::GaxObjectId;
 use net_types::{NetEndpoint, ProviderError, TransportProvider};
+use spinning_top::Spinlock;
 
+#[derive(Clone, Debug)]
 pub struct UdpSocketEntry {
     pub session_id: GaxObjectId,
     pub local_endpoint: NetEndpoint,
@@ -10,7 +13,7 @@ pub struct UdpSocketEntry {
 }
 
 pub struct UdpTransportEngine {
-    pub sockets: [Option<UdpSocketEntry>; 64],
+    pub sockets: Spinlock<Vec<UdpSocketEntry>>,
 }
 
 impl Default for UdpTransportEngine {
@@ -22,7 +25,7 @@ impl Default for UdpTransportEngine {
 impl UdpTransportEngine {
     pub fn new() -> Self {
         Self {
-            sockets: [const { None }; 64],
+            sockets: Spinlock::new(Vec::new()),
         }
     }
 }
@@ -38,12 +41,21 @@ impl TransportProvider for UdpTransportEngine {
         remote: NetEndpoint,
     ) -> Result<GaxObjectId, ProviderError> {
         let session_id = GaxObjectId::generate();
-        let _ = local;
-        let _ = remote;
+        let entry = UdpSocketEntry {
+            session_id,
+            local_endpoint: local,
+            remote_endpoint: remote,
+        };
+        self.sockets.lock().push(entry);
         Ok(session_id)
     }
 
-    fn close_session(&self, _session_id: GaxObjectId) -> Result<(), ProviderError> {
-        Ok(())
+    fn close_session(&self, session_id: GaxObjectId) -> Result<(), ProviderError> {
+        let mut guard = self.sockets.lock();
+        if let Some(pos) = guard.iter().position(|s| s.session_id == session_id) {
+            guard.remove(pos);
+            return Ok(());
+        }
+        Err(ProviderError::NotReady)
     }
 }

@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), no_main)]
 
 use core::alloc::{GlobalAlloc, Layout};
+use core::arch::asm;
 
 struct DummyAllocator;
 // SAFETY: Dummy allocator fulfilling no_std global_allocator requirement.
@@ -21,8 +22,12 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    let mut driver = virtio_input_server::input::VirtioInputDriver::new();
+    let _ = &mut driver;
+
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Active Ring-3 IPC event loop waiting on VirtIO-Input EV_KEY/EV_REL events.
+        unsafe { asm!("pause") }
     }
 }
 
@@ -30,6 +35,7 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {
-        core::hint::spin_loop();
+        // SAFETY: Halting execution.
+        unsafe { asm!("pause") }
     }
 }

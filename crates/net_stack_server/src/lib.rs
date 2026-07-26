@@ -2,6 +2,8 @@
 
 #![no_std]
 
+extern crate alloc;
+
 pub mod arp;
 pub mod ip_router;
 pub mod namespace;

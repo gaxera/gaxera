@@ -66,12 +66,12 @@ fn test_end_to_end_gaxnet_stack_pipeline() {
     assert!(!child_rights.contains(NetRights::LISTEN));
 
     // 7. Domain Resolver Service
-    let resolver = DnsResolverServer;
+    let resolver = DnsResolverServer::new();
     let addrs = resolver.resolve_domain("localhost").unwrap();
     assert_eq!(addrs[0], IpAddr::V4(Ipv4Addr::LOOPBACK));
 
     // 8. Session Crypto Service
-    let crypto = TlsCryptoServer;
+    let crypto = TlsCryptoServer::new();
     let payload = b"GaxNet Secure Data Payload";
     let mut cipher = [0u8; 64];
     let mut decrypted = [0u8; 64];

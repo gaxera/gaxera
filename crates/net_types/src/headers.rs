@@ -313,3 +313,59 @@ impl TcpHeader {
         ))
     }
 }
+
+/// RFC 1035 DNS Wire Packet Header (12 bytes).
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[repr(C, packed)]
+pub struct DnsHeader {
+    pub id: u16,      // Transaction ID
+    pub flags: u16,   // QR, Opcode, AA, TC, RD, RA, Z, RCODE
+    pub qdcount: u16, // Question Count
+    pub ancount: u16, // Answer Count
+    pub nscount: u16, // Authority Record Count
+    pub arcount: u16, // Additional Record Count
+}
+
+impl DnsHeader {
+    pub const LEN: usize = 12;
+    pub const FLAG_QUERY: u16 = 0x0000;
+    pub const FLAG_RESPONSE: u16 = 0x8000;
+    pub const FLAG_RECURSION_DESIRED: u16 = 0x0100;
+
+    pub fn parse(bytes: &[u8]) -> Option<(Self, &[u8])> {
+        if bytes.len() < Self::LEN {
+            return None;
+        }
+        let id = u16::from_be_bytes([bytes[0], bytes[1]]);
+        let flags = u16::from_be_bytes([bytes[2], bytes[3]]);
+        let qdcount = u16::from_be_bytes([bytes[4], bytes[5]]);
+        let ancount = u16::from_be_bytes([bytes[6], bytes[7]]);
+        let nscount = u16::from_be_bytes([bytes[8], bytes[9]]);
+        let arcount = u16::from_be_bytes([bytes[10], bytes[11]]);
+
+        Some((
+            Self {
+                id,
+                flags,
+                qdcount,
+                ancount,
+                nscount,
+                arcount,
+            },
+            &bytes[Self::LEN..],
+        ))
+    }
+
+    pub fn encode(&self, out: &mut [u8]) -> Result<usize, crate::errors::HeaderError> {
+        if out.len() < Self::LEN {
+            return Err(crate::errors::HeaderError::BufferTooShort);
+        }
+        out[0..2].copy_from_slice(&self.id.to_be_bytes());
+        out[2..4].copy_from_slice(&self.flags.to_be_bytes());
+        out[4..6].copy_from_slice(&self.qdcount.to_be_bytes());
+        out[6..8].copy_from_slice(&self.ancount.to_be_bytes());
+        out[8..10].copy_from_slice(&self.nscount.to_be_bytes());
+        out[10..12].copy_from_slice(&self.arcount.to_be_bytes());
+        Ok(Self::LEN)
+    }
+}

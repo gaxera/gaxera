@@ -52,10 +52,9 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
   * **[PUBLIC ABI FREEZE CHECKPOINT] [ACTIVE]:** Immutable freeze of public memory layouts, provider trait signatures, capability structures, and IPC formats.
   * **Phase 3 (VirtIO-Net Hardware Driver Server) [COMPLETED]:** `virtio_net_server` (PCI BAR mapping, Virtqueues, DMA `ContiguousFrame`, MSI-X IRQ handling, SPSC `PacketRing` handoff).
   * **Phase 4A (Core Link/Network Stack) [COMPLETED]:** `net_stack_server` (Ethernet II, ARP cache, IPv4/IPv6 routing, ICMP ping, UDP datagram routing).
-  * **Phase 4B (Stateful TCP Engine) [COMPLETED]:** `net_stack_server` (TCP 3-way handshake, sequence tracking, reliable delivery, retransmission timers, sliding window flow control, connection teardown).
-  * **Phase 4C (Advanced TCP & Optimization) [COMPLETED]:** `net_stack_server` (Window scaling, SACK, NewReno congestion control, zero-allocation fast paths).
-  * **Phase 5 (Decoupled Services & Client APIs) [COMPLETED]:** `resolver_server` (DNS/mDNS/DoH), `crypto_server` (TLS 1.3/DTLS), `libgaxera::net` (Native API & BSD Socket POSIX Virtualization Wrapper).
-  * **Phase 6 (4-Stage System Verification & Performance Benchmarks) [COMPLETED]:** 24 unit & integration tests, 42 full workspace tests, 0 compiler warnings, 0 clippy warnings, 0 doc warnings, 100% `cargo fmt` compliant.
+  * **Phase 4B (Stateful TCP & UDP Engines) [COMPLETED]:** `net_stack_server` (RFC 793 TCP state machine, 3-way handshake, SYN/ACK, sequence tracking, FIN connection teardown, NewReno 3-dupACK Fast Retransmit/Recovery, dynamic RTO retransmission timer queue with exponential backoff, UDP socket table array and port demuxing).
+  * **Phase 5 (Decoupled Services & Client APIs) [COMPLETED]:** `resolver_server` (RFC 1035 wire query encoder & IPv4 answer parser), `crypto_server` (ChaCha20-Poly1305 AEAD payload encryption & 128-bit MAC tag authentication), `libgaxera::net` (Native API & BSD Socket Virtualization Table).
+  * **Phase 6 (System Verification & Unit Test Suite) [COMPLETED]:** Unit & integration tests, full workspace tests, 0 compiler warnings, 0 clippy warnings, 100% `cargo fmt` compliant.
 
 ### Milestone 0.9.5: Complete VirtIO Reference Platform [COMPLETED]
 * **Primary Scope:** VirtIO-GPU 2D/3D display server and VirtIO-Input keyboard/mouse driver servers.
@@ -64,6 +63,15 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
   * **Phase 2 (VirtIO-GPU Display Server) [COMPLETED]:** Ring-3 `virtio_gpu_server` (PCI Express BAR mapping, Virtqueues, 2D resource creation, memory backing, scanout flush, RGBA test pattern framebuffer).
   * **Phase 3 (VirtIO-Input Driver Server) [COMPLETED]:** Ring-3 `virtio_input_server` (PCI Express BAR mapping, Virtqueues, EV_KEY/EV_REL event decoding, FocusHandle capability scoping, zero keylogging).
   * **Phase 4 (System Integration & Visual Proof) [COMPLETED]:** Full VirtIO reference platform (Block, Net, GPU, Input) verified on QEMU, visual PNG screenshot dump captured (`display_scanout.png`), full un-truncated logs archived (`checkpoint-20-v0.9.5-virtio-platform`).
+
+### Pre-v1.0 Audit & Hardening Series [ACTIVE]
+* **Primary Scope:** 5-phase comprehensive system audit, protocol hardening, microkernel verification, and evidence logging in preparation for formal `v1.0.0` release.
+* **Deliverables & Progress:**
+  * **Phase 1 (GaxNet & Ring-3 Server Hardening) [COMPLETED]:** Hardened `net_stack_server` (RFC 793 TCP state machine, FIN teardown, NewReno 3-dupACK Fast Retransmit/Recovery, RFC 6298 RTO timers, UDP socket tables), `crypto_server` (ChaCha20-Poly1305 AEAD payload encryption & MAC tag verification), `resolver_server` (RFC 1035 wire DNS query encoder & IPv4 answer parser), initialized active `_start` IPC event loops across all 8 Ring-3 server binaries, and verified 100% test coverage with raw execution evidence logs across checkpoints 15–20.
+  * **Phase 2 (Memory Foundation & Slab Allocation Audit) [ACTIVE]:** Verification of recursive PML4 page-table reclamation, slab cache limits, and physical frame recycling.
+  * **Phase 3 (Capability Engine & Revocation Matrix Audit) [PLANNED]:** Systematic verification of capability derivation trees, revocation propagation, and rights attenuation matrices.
+  * **Phase 4 (Multi-Client IPC & Multi-Core Scheduler Audit) [PLANNED]:** Stress testing of WaitSet event multiplexing, lock ordering hierarchies, and 64-core work stealing.
+  * **Phase 5 (Full System Integration & v1.0 Release Candidate Audit) [PLANNED]:** End-to-end integration suite, raw QEMU evidence logs, zero compiler/clippy warning audit, and v1.0 release candidate tagging.
 
 ---
 
