@@ -72,7 +72,7 @@ impl SchedulerDomain {
     }
 
     /// Attempts to steal work from `src_scheduler` for `dst_cpu` and enqueue into `dst_scheduler`.
-    pub fn attempt_work_steal<T: Clone>(
+    pub fn attempt_work_steal(
         &self,
         src_scheduler: &mut Scheduler,
         dst_scheduler: &mut Scheduler,
@@ -123,5 +123,38 @@ mod tests {
         assert!(!src_sched.contains(tid));
         assert!(dst_sched.contains(tid));
         assert_eq!(thread.assigned_cpu(), 2);
+    }
+
+    #[test]
+    fn test_64_core_work_stealing_and_affinity_enforcement() {
+        let domain = SchedulerDomain::new(64);
+        let mut src_sched = Scheduler::try_new(64).unwrap();
+        let mut dst_sched = Scheduler::try_new(64).unwrap();
+
+        let tid1 = ObjectId::new_for_test(101, 1);
+        let mut thread1 = Thread::new(tid1, None, ());
+        let tid2 = ObjectId::new_for_test(102, 1);
+        let mut thread2 = Thread::new(tid2, None, ());
+
+        src_sched.enqueue(&mut thread1).unwrap();
+        src_sched.enqueue(&mut thread2).unwrap();
+
+        let mask_63 = CpuAffinityMask::single(63);
+        let mask_0 = CpuAffinityMask::single(0);
+
+        // Attempt work steal for CPU 63 -> steals thread 1 (matching affinity)
+        let stolen = domain.attempt_work_steal(&mut src_sched, &mut dst_sched, 63, &mut |id| {
+            if id == tid1 {
+                Some(mask_63)
+            } else if id == tid2 {
+                Some(mask_0)
+            } else {
+                None
+            }
+        });
+
+        assert_eq!(stolen, Some(tid1));
+        assert!(!src_sched.contains(tid1));
+        assert!(src_sched.contains(tid2));
     }
 }

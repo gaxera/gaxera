@@ -74,9 +74,13 @@ fn run_init() -> Result<(), ()> {
         let _ = registry.register(name, EndpointHandle::from_raw(endpoint));
     }
 
-    // 5. Derive the Endpoint into both child CSpaces at Handle(1)
-    derive_capability(endpoint, ramfs_cspace, Rights::ALL)?;
-    derive_capability(endpoint, script_cspace, Rights::ALL)?;
+    // 5. Derive the Endpoint into child CSpaces with narrowed least-privilege capability rights
+    derive_capability(
+        endpoint,
+        ramfs_cspace,
+        Rights::READ | Rights::WRITE | Rights::MANAGE,
+    )?;
+    derive_capability(endpoint, script_cspace, Rights::READ | Rights::EXECUTE)?;
 
     // 6. Create a DebugConsole and derive into script_session CSpace at Handle(2)
     let console = factory_create(factory, ObjectType::DebugConsole)?;
@@ -101,9 +105,19 @@ fn run_init() -> Result<(), ()> {
             let offset = vaddr & 0xFFF;
             let aligned_size = (mem_size + offset + 0xFFF) & !0xFFF;
             let mem_obj = factory_create_memory(factory, aligned_size)?;
-            map_memory(ramfs_aspace, mem_obj, aligned_vaddr, Rights::ALL)?;
+            map_memory(
+                ramfs_aspace,
+                mem_obj,
+                aligned_vaddr,
+                Rights::READ | Rights::WRITE | Rights::MAP,
+            )?;
             let temp_vaddr = ramfs_load + 16 * 1024 * 1024 + aligned_vaddr;
-            map_memory(self_aspace, mem_obj, temp_vaddr, Rights::ALL)?;
+            map_memory(
+                self_aspace,
+                mem_obj,
+                temp_vaddr,
+                Rights::READ | Rights::WRITE | Rights::MAP,
+            )?;
             if phdr.p_filesz > 0 {
                 // SAFETY: We just mapped this memory range and verified the sizes.
                 unsafe {
@@ -123,7 +137,7 @@ fn run_init() -> Result<(), ()> {
         ramfs_aspace,
         ramfs_stack_mem,
         ramfs_stack - stack_size,
-        Rights::ALL,
+        Rights::READ | Rights::WRITE | Rights::MAP,
     )?;
     thread_configure(
         ramfs_thread,
@@ -152,9 +166,19 @@ fn run_init() -> Result<(), ()> {
             let offset = vaddr & 0xFFF;
             let aligned_size = (mem_size + offset + 0xFFF) & !0xFFF;
             let mem_obj = factory_create_memory(factory, aligned_size)?;
-            map_memory(script_aspace, mem_obj, aligned_vaddr, Rights::ALL)?;
+            map_memory(
+                script_aspace,
+                mem_obj,
+                aligned_vaddr,
+                Rights::READ | Rights::WRITE | Rights::MAP,
+            )?;
             let temp_vaddr = script_load + 16 * 1024 * 1024 + aligned_vaddr;
-            map_memory(self_aspace, mem_obj, temp_vaddr, Rights::ALL)?;
+            map_memory(
+                self_aspace,
+                mem_obj,
+                temp_vaddr,
+                Rights::READ | Rights::WRITE | Rights::MAP,
+            )?;
             if phdr.p_filesz > 0 {
                 // SAFETY: We just mapped this memory range and verified the sizes.
                 unsafe {
@@ -173,7 +197,7 @@ fn run_init() -> Result<(), ()> {
         script_aspace,
         script_stack_mem,
         script_stack - stack_size,
-        Rights::ALL,
+        Rights::READ | Rights::WRITE | Rights::MAP,
     )?;
     thread_configure(
         script_thread,

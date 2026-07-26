@@ -169,13 +169,24 @@ impl TlsCryptoServer {
 
     /// Evaluates RFC 8439 Poly1305 MAC tag over payload using 3-limb 44-bit modular arithmetic modulo 2^130 - 5.
     pub fn poly1305_mac(&self, ciphertext: &[u8], nonce: &[u8; 12]) -> [u8; 16] {
-        // Derive Poly1305 key using ChaCha20 block 0
         let mut poly_key_block = [0u8; 64];
         self.chacha20_block(0, nonce, &mut poly_key_block);
+        self.poly1305_mac_with_key(
+            ciphertext,
+            nonce,
+            &poly_key_block[0..32].try_into().unwrap(),
+        )
+    }
 
-        // Clamp r parameter (first 16 bytes)
+    /// Evaluates RFC 8439 Poly1305 MAC tag with explicit 32-byte key block.
+    pub fn poly1305_mac_with_key(
+        &self,
+        ciphertext: &[u8],
+        _nonce: &[u8; 12],
+        key_block: &[u8; 32],
+    ) -> [u8; 16] {
         let mut r_bytes = [0u8; 16];
-        r_bytes.copy_from_slice(&poly_key_block[0..16]);
+        r_bytes.copy_from_slice(&key_block[0..16]);
         r_bytes[3] &= 15;
         r_bytes[7] &= 15;
         r_bytes[11] &= 15;
@@ -184,129 +195,191 @@ impl TlsCryptoServer {
         r_bytes[8] &= 252;
         r_bytes[12] &= 252;
 
-        // Parse r into three 44-bit limbs
-        let r0 = u64::from_le_bytes([
-            r_bytes[0], r_bytes[1], r_bytes[2], r_bytes[3], r_bytes[4], r_bytes[5], 0, 0,
-        ]) & 0xFFF_FFFF_FFFF;
-        let r1 = (u64::from_le_bytes([
-            r_bytes[5],
-            r_bytes[6],
-            r_bytes[7],
-            r_bytes[8],
+        let r0 = (u64::from_le_bytes([r_bytes[0], r_bytes[1], r_bytes[2], r_bytes[3], 0, 0, 0, 0]))
+            & 0x3FF_FFFF;
+        let r1 =
+            ((u64::from_le_bytes([r_bytes[3], r_bytes[4], r_bytes[5], r_bytes[6], 0, 0, 0, 0]))
+                >> 2)
+                & 0x3FF_FFFF;
+        let r2 =
+            ((u64::from_le_bytes([r_bytes[6], r_bytes[7], r_bytes[8], r_bytes[9], 0, 0, 0, 0]))
+                >> 4)
+                & 0x3FF_FFFF;
+        let r3 = ((u64::from_le_bytes([
             r_bytes[9],
             r_bytes[10],
             r_bytes[11],
+            r_bytes[12],
             0,
-        ]) >> 4)
-            & 0xFFF_FFFF_FFFF;
-        let r2 = (u64::from_le_bytes([
-            r_bytes[10],
-            r_bytes[11],
+            0,
+            0,
+            0,
+        ])) >> 6)
+            & 0x3FF_FFFF;
+        let r4 = ((u64::from_le_bytes([
             r_bytes[12],
             r_bytes[13],
             r_bytes[14],
             r_bytes[15],
             0,
             0,
-        ]) >> 8)
-            & 0x3FF_FFFF_FFFF;
+            0,
+            0,
+        ])) >> 8)
+            & 0x3FF_FFFF;
 
-        let s0 = u64::from_le_bytes([
-            poly_key_block[16],
-            poly_key_block[17],
-            poly_key_block[18],
-            poly_key_block[19],
-            poly_key_block[20],
-            poly_key_block[21],
-            poly_key_block[22],
-            poly_key_block[23],
-        ]);
-        let s1 = u64::from_le_bytes([
-            poly_key_block[24],
-            poly_key_block[25],
-            poly_key_block[26],
-            poly_key_block[27],
-            poly_key_block[28],
-            poly_key_block[29],
-            poly_key_block[30],
-            poly_key_block[31],
-        ]);
+        let s1 = r1 * 5;
+        let s2 = r2 * 5;
+        let s3 = r3 * 5;
+        let s4 = r4 * 5;
 
         let mut h0 = 0u64;
         let mut h1 = 0u64;
         let mut h2 = 0u64;
-
-        let d1 = r1 * 5;
-        let d2 = r2 * 5;
+        let mut h3 = 0u64;
+        let mut h4 = 0u64;
 
         for chunk in ciphertext.chunks(16) {
             let mut block = [0u8; 17];
             block[..chunk.len()].copy_from_slice(chunk);
-            block[chunk.len()] = 0x01; // Append 0x01 byte delimiter per RFC 8439
+            block[chunk.len()] = 0x01; // RFC 8439 delimiter byte
 
-            let b0 = u64::from_le_bytes([
-                block[0], block[1], block[2], block[3], block[4], block[5], 0, 0,
-            ]) & 0xFFF_FFFF_FFFF;
-            let b1 = (u64::from_le_bytes([
-                block[5], block[6], block[7], block[8], block[9], block[10], block[11], 0,
-            ]) >> 4)
-                & 0xFFF_FFFF_FFFF;
-            let b2 = (u64::from_le_bytes([
-                block[10], block[11], block[12], block[13], block[14], block[15], block[16], 0,
-            ]) >> 8)
-                & 0x3FF_FFFF_FFFF;
+            let b0 = (u64::from_le_bytes([block[0], block[1], block[2], block[3], 0, 0, 0, 0]))
+                & 0x3FF_FFFF;
+            let b1 = ((u64::from_le_bytes([block[3], block[4], block[5], block[6], 0, 0, 0, 0]))
+                >> 2)
+                & 0x3FF_FFFF;
+            let b2 = ((u64::from_le_bytes([block[6], block[7], block[8], block[9], 0, 0, 0, 0]))
+                >> 4)
+                & 0x3FF_FFFF;
+            let b3 =
+                ((u64::from_le_bytes([block[9], block[10], block[11], block[12], 0, 0, 0, 0]))
+                    >> 6)
+                    & 0x3FF_FFFF;
+            let b4 = ((u64::from_le_bytes([
+                block[12], block[13], block[14], block[15], block[16], 0, 0, 0,
+            ])) >> 8)
+                & 0x3FF_FFFF;
 
             h0 += b0;
             h1 += b1;
             h2 += b2;
+            h3 += b3;
+            h4 += b4;
 
-            // Multiply (h * r) % (2^130 - 5)
-            let c0 = (h0 as u128) * (r0 as u128)
-                + (h1 as u128) * (d2 as u128)
-                + (h2 as u128) * (d1 as u128);
-            let c1 = (h0 as u128) * (r1 as u128)
+            let d0 = (h0 as u128) * (r0 as u128)
+                + (h1 as u128) * (s4 as u128)
+                + (h2 as u128) * (s3 as u128)
+                + (h3 as u128) * (s2 as u128)
+                + (h4 as u128) * (s1 as u128);
+            let d1 = (h0 as u128) * (r1 as u128)
                 + (h1 as u128) * (r0 as u128)
-                + (h2 as u128) * (d2 as u128);
-            let c2 = (h0 as u128) * (r2 as u128)
+                + (h2 as u128) * (s4 as u128)
+                + (h3 as u128) * (s3 as u128)
+                + (h4 as u128) * (s2 as u128);
+            let d2 = (h0 as u128) * (r2 as u128)
                 + (h1 as u128) * (r1 as u128)
-                + (h2 as u128) * (r0 as u128);
+                + (h2 as u128) * (r0 as u128)
+                + (h3 as u128) * (s4 as u128)
+                + (h4 as u128) * (s3 as u128);
+            let d3 = (h0 as u128) * (r3 as u128)
+                + (h1 as u128) * (r2 as u128)
+                + (h2 as u128) * (r1 as u128)
+                + (h3 as u128) * (r0 as u128)
+                + (h4 as u128) * (s4 as u128);
+            let d4 = (h0 as u128) * (r4 as u128)
+                + (h1 as u128) * (r3 as u128)
+                + (h2 as u128) * (r2 as u128)
+                + (h3 as u128) * (r1 as u128)
+                + (h4 as u128) * (r0 as u128);
 
-            // Carry propagation and reduction modulo 2^130 - 5
-            let carry0 = (c0 >> 44) as u64;
-            h0 = (c0 & 0xFFF_FFFF_FFFF) as u64;
+            let c0 = (d0 >> 26) as u64;
+            h0 = (d0 & 0x3FF_FFFF) as u64;
+            let d1 = d1 + (c0 as u128);
+            let c1 = (d1 >> 26) as u64;
+            h1 = (d1 & 0x3FF_FFFF) as u64;
+            let d2 = d2 + (c1 as u128);
+            let c2 = (d2 >> 26) as u64;
+            h2 = (d2 & 0x3FF_FFFF) as u64;
+            let d3 = d3 + (c2 as u128);
+            let c3 = (d3 >> 26) as u64;
+            h3 = (d3 & 0x3FF_FFFF) as u64;
+            let d4 = d4 + (c3 as u128);
+            let c4 = (d4 >> 26) as u64;
+            h4 = (d4 & 0x3FF_FFFF) as u64;
 
-            let c1 = c1 + (carry0 as u128);
-            let carry1 = (c1 >> 44) as u64;
-            h1 = (c1 & 0xFFF_FFFF_FFFF) as u64;
-
-            let c2 = c2 + (carry1 as u128);
-            let carry2 = (c2 >> 42) as u64;
-            h2 = (c2 & 0x3FF_FFFF_FFFF) as u64;
-
-            h0 += carry2 * 5;
-            let carry0 = h0 >> 44;
-            h0 &= 0xFFF_FFFF_FFFF;
-            h1 += carry0;
+            h0 += c4 * 5;
+            let c0 = h0 >> 26;
+            h0 &= 0x3FF_FFFF;
+            h1 += c0;
         }
 
         // Final reduction modulo 2^130 - 5
-        let carry = (h0 >> 44) + (h1 >> 44);
-        h0 &= 0xFFF_FFFF_FFFF;
-        h1 &= 0xFFF_FFFF_FFFF;
-        h2 += carry;
+        let c0 = h0 >> 26;
+        h0 &= 0x3FF_FFFF;
+        h1 += c0;
+        let c1 = h1 >> 26;
+        h1 &= 0x3FF_FFFF;
+        h2 += c1;
+        let c2 = h2 >> 26;
+        h2 &= 0x3FF_FFFF;
+        h3 += c2;
+        let c3 = h3 >> 26;
+        h3 &= 0x3FF_FFFF;
+        h4 += c3;
+        let c4 = h4 >> 26;
+        h4 &= 0x3FF_FFFF;
+        h0 += c4 * 5;
+        let c0 = h0 >> 26;
+        h0 &= 0x3FF_FFFF;
+        h1 += c0;
 
-        // Reconstruct 128-bit integer and add s
-        let h_low = h0 | ((h1 & 0xFFFFF) << 44);
-        let h_high = (h1 >> 20) | (h2 << 24);
+        let g0 = h0.wrapping_add(5);
+        let c0 = g0 >> 26;
+        let g0 = g0 & 0x3FF_FFFF;
+        let g1 = h1.wrapping_add(c0);
+        let c1 = g1 >> 26;
+        let g1 = g1 & 0x3FF_FFFF;
+        let g2 = h2.wrapping_add(c1);
+        let c2 = g2 >> 26;
+        let g2 = g2 & 0x3FF_FFFF;
+        let g3 = h3.wrapping_add(c2);
+        let c3 = g3 >> 26;
+        let g3 = g3 & 0x3FF_FFFF;
+        let g4 = h4.wrapping_add(c3).wrapping_sub(1 << 26);
 
-        let res_low = (h_low as u128).wrapping_add(s0 as u128);
-        let res_high = (h_high as u128)
-            .wrapping_add(s1 as u128)
-            .wrapping_add(res_low >> 64);
+        let mask = (g4 >> 63).wrapping_sub(1);
+        h0 = (h0 & !mask) | (g0 & mask);
+        h1 = (h1 & !mask) | (g1 & mask);
+        h2 = (h2 & !mask) | (g2 & mask);
+        h3 = (h3 & !mask) | (g3 & mask);
+        h4 = (h4 & !mask) | ((g4.wrapping_add(1 << 26)) & mask);
+
+        h0 &= 0x3FF_FFFF;
+        h1 &= 0x3FF_FFFF;
+        h2 &= 0x3FF_FFFF;
+        h3 &= 0x3FF_FFFF;
+        h4 &= 0x3FF_FFFF;
+
+        let f0 = (h0 | (h1 << 26)) & 0xFFFF_FFFF;
+        let f1 = ((h1 >> 6) | (h2 << 20)) & 0xFFFF_FFFF;
+        let f2 = ((h2 >> 12) | (h3 << 14)) & 0xFFFF_FFFF;
+        let f3 = ((h3 >> 18) | (h4 << 8)) & 0xFFFF_FFFF;
+
+        let s0 = u64::from_le_bytes(key_block[16..24].try_into().unwrap());
+        let s1 = u64::from_le_bytes(key_block[24..32].try_into().unwrap());
+
+        let h_low = f0 | (f1 << 32);
+        let h_high = f2 | (f3 << 32);
+
+        let res_low = h_low.wrapping_add(s0);
+        let res_high = h_high
+            .wrapping_add(s1)
+            .wrapping_add(if res_low < h_low { 1 } else { 0 });
 
         let mut tag = [0u8; 16];
-        tag[0..8].copy_from_slice(&(res_low as u64).to_le_bytes());
-        tag[8..16].copy_from_slice(&(res_high as u64).to_le_bytes());
+        tag[0..8].copy_from_slice(&res_low.to_le_bytes());
+        tag[8..16].copy_from_slice(&res_high.to_le_bytes());
         tag
     }
 
@@ -449,5 +522,30 @@ mod tests {
             crypto.decrypt_payload(&cipher[..enc_len], &mut decrypted),
             Err(ProviderError::CryptoError)
         );
+    }
+
+    #[test]
+    fn test_rfc8439_poly1305_known_answer_test_vector() {
+        let crypto = TlsCryptoServer::new();
+        let msg = b"Cryptographic Forum Research Group";
+
+        // Official RFC 8439 Section 2.5.2 Test Vector parameters
+        let poly_key: [u8; 32] = [
+            0x85, 0xd6, 0xbe, 0x78, 0x57, 0x55, 0x6d, 0x33, 0x7f, 0x44, 0x52, 0xfe, 0x42, 0xd5,
+            0x06, 0xa8, 0x01, 0x03, 0x80, 0x8a, 0xfb, 0x0d, 0xb2, 0xfd, 0x4a, 0xbf, 0xf6, 0xaf,
+            0x41, 0x49, 0xf5, 0x1b,
+        ];
+
+        let nonce = [0u8; 12];
+        let tag = crypto.poly1305_mac_with_key(msg, &nonce, &poly_key);
+
+        // Expected Tag from RFC 8439 Section 2.5.2:
+        // a8:06:1d:c1:30:51:36:c6:c2:2b:8b:af:0c:01:27:a9
+        let expected_tag: [u8; 16] = [
+            0xa8, 0x06, 0x1d, 0xc1, 0x30, 0x51, 0x36, 0xc6, 0xc2, 0x2b, 0x8b, 0xaf, 0x0c, 0x01,
+            0x27, 0xa9,
+        ];
+
+        assert_eq!(tag, expected_tag);
     }
 }

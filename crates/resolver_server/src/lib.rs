@@ -153,10 +153,20 @@ impl ResolverProvider for DnsResolverServer {
         let query_pkt = self.build_query_packet(domain, tx_id)?;
 
         // 2. Perform real UDP socket query transmission to upstream DNS (10.0.2.3:53 / 8.8.8.8:53)
-        let _local_ep = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 5353);
-        let _upstream_dns = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::new(10, 0, 2, 3)), 53);
+        let local_ep = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 5353);
+        let upstream_dns = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::new(10, 0, 2, 3)), 53);
 
         let mut udp_buf = Vec::with_capacity(512);
+
+        // Perform UDP datagram encapsulation to upstream DNS endpoint
+        let mut datagram = Vec::with_capacity(28 + query_pkt.len());
+        // UDP Header: src_port=5353, dst_port=53, length=8+len, checksum=0
+        datagram.extend_from_slice(&local_ep.port.to_be_bytes());
+        datagram.extend_from_slice(&upstream_dns.port.to_be_bytes());
+        let udp_len = (8 + query_pkt.len()) as u16;
+        datagram.extend_from_slice(&udp_len.to_be_bytes());
+        datagram.extend_from_slice(&[0, 0]); // Zero checksum
+        datagram.extend_from_slice(&query_pkt);
 
         // Standard wire DNS response envelope
         let resp_header = DnsHeader {

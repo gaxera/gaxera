@@ -248,54 +248,100 @@ impl TcpTransportEngine {
         retransmitted: &[TcpHeader],
         out_frames: &mut Vec<Vec<u8>>,
     ) {
+        let guard = self.tcbs.lock();
         for hdr in retransmitted {
+            // Find matching TCB for dynamic endpoint IP resolution
+            let tcb_opt = guard.iter().find(|t| {
+                t.local_endpoint.port == hdr.src_port && t.remote_endpoint.port == hdr.dst_port
+            });
+
+            let (src_ip_bytes, dst_ip_bytes) = match tcb_opt {
+                Some(tcb) => {
+                    let src = match tcb.local_endpoint.ip {
+                        net_types::IpAddr::V4(ip) => ip.0,
+                        _ => [10, 0, 2, 15],
+                    };
+                    let dst = match tcb.remote_endpoint.ip {
+                        net_types::IpAddr::V4(ip) => ip.0,
+                        _ => [10, 0, 2, 2],
+                    };
+                    (src, dst)
+                }
+                None => ([10, 0, 2, 15], [10, 0, 2, 2]),
+            };
+
             let mut frame = Vec::with_capacity(128);
-            // Ethernet II (14 bytes) + IPv4 (20 bytes) + TCP (20 bytes)
+
+            // 1. Ethernet II Header (14 bytes)
             let eth_hdr = [
-                0x52, 0x54, 0x00, 0x12, 0x34, 0x56, 0x52, 0x54, 0x00, 0x12, 0x34, 0x57, 0x08, 0x00,
+                0x52, 0x54, 0x00, 0x12, 0x34, 0x56, // Dst MAC
+                0x52, 0x54, 0x00, 0x12, 0x34, 0x57, // Src MAC
+                0x08, 0x00, // EtherType: IPv4
             ];
             frame.extend_from_slice(&eth_hdr);
 
-            let ip_hdr = [
-                0x45, 0x00, 0x00, 0x28, 0x12, 0x34, 0x40, 0x00, 0x40, 0x06, 0x00, 0x00, 10, 0, 2,
-                15, 10, 0, 2, 2,
-            ];
+            // 2. IPv4 Header (20 bytes)
+            let mut ip_hdr = [0u8; 20];
+            ip_hdr[0] = 0x45; // Version 4, IHL 5
+            ip_hdr[1] = 0x00; // DSCP/ECN
+            ip_hdr[2..4].copy_from_slice(&40u16.to_be_bytes()); // Total length: 20 IP + 20 TCP = 40
+            ip_hdr[4..6].copy_from_slice(&0x1234u16.to_be_bytes()); // Identification
+            ip_hdr[6..8].copy_from_slice(&0x4000u16.to_be_bytes()); // Flags (DF)
+            ip_hdr[8] = 64; // TTL
+            ip_hdr[9] = 6; // Protocol: TCP
+            ip_hdr[12..16].copy_from_slice(&src_ip_bytes);
+            ip_hdr[16..20].copy_from_slice(&dst_ip_bytes);
+
+            // Compute 16-bit IPv4 Header Checksum
+            let ip_cksum = compute_internet_checksum(&ip_hdr);
+            ip_hdr[10..12].copy_from_slice(&ip_cksum.to_be_bytes());
             frame.extend_from_slice(&ip_hdr);
 
+            // 3. TCP Segment Header (20 bytes)
             let mut tcp_buf = [0u8; 20];
-            hdr.src_port
-                .to_be_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, &b)| tcp_buf[i] = b);
-            hdr.dst_port
-                .to_be_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, &b)| tcp_buf[2 + i] = b);
-            hdr.seq_num
-                .to_be_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, &b)| tcp_buf[4 + i] = b);
-            hdr.ack_num
-                .to_be_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, &b)| tcp_buf[8 + i] = b);
-            tcp_buf[12] = 0x50;
+            tcp_buf[0..2].copy_from_slice(&hdr.src_port.to_be_bytes());
+            tcp_buf[2..4].copy_from_slice(&hdr.dst_port.to_be_bytes());
+            tcp_buf[4..8].copy_from_slice(&hdr.seq_num.to_be_bytes());
+            tcp_buf[8..12].copy_from_slice(&hdr.ack_num.to_be_bytes());
+            tcp_buf[12] = 0x50; // Data offset: 5 words (20 bytes)
             tcp_buf[13] = hdr.flags;
-            hdr.window_size
-                .to_be_bytes()
-                .iter()
-                .enumerate()
-                .for_each(|(i, &b)| tcp_buf[14 + i] = b);
+            tcp_buf[14..16].copy_from_slice(&hdr.window_size.to_be_bytes());
+            tcp_buf[16..18].copy_from_slice(&[0, 0]); // Checksum zeroed for calculation
+
+            // 4. TCP Pseudo-Header Checksum Calculation (RFC 793)
+            let mut pseudo_buf = Vec::with_capacity(32);
+            pseudo_buf.extend_from_slice(&src_ip_bytes);
+            pseudo_buf.extend_from_slice(&dst_ip_bytes);
+            pseudo_buf.push(0); // Zero byte
+            pseudo_buf.push(6); // Protocol: TCP (6)
+            pseudo_buf.extend_from_slice(&20u16.to_be_bytes()); // TCP Segment Length
+            pseudo_buf.extend_from_slice(&tcp_buf);
+
+            let tcp_cksum = compute_internet_checksum(&pseudo_buf);
+            tcp_buf[16..18].copy_from_slice(&tcp_cksum.to_be_bytes());
             frame.extend_from_slice(&tcp_buf);
 
             out_frames.push(frame);
         }
     }
+}
 
+/// Computes RFC 1071 / RFC 793 16-bit One's Complement Internet Checksum.
+fn compute_internet_checksum(bytes: &[u8]) -> u16 {
+    let mut sum = 0u32;
+    for chunk in bytes.chunks(2) {
+        let word = if chunk.len() == 2 {
+            u16::from_be_bytes([chunk[0], chunk[1]]) as u32
+        } else {
+            (chunk[0] as u32) << 8
+        };
+        sum = sum.wrapping_add(word);
+    }
+    while (sum >> 16) != 0 {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+    !(sum as u16)
+}
 impl TransportProvider for TcpTransportEngine {
     fn protocol_id(&self) -> u8 {
         6 // TCP

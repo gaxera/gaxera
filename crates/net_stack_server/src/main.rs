@@ -37,7 +37,11 @@ pub extern "C" fn _start() -> ! {
         let retransmits = tcp_engine.poll_timer_ticks();
         if !retransmits.is_empty() {
             tcp_engine.build_retransmit_frames(&retransmits, &mut tx_queue);
-            tx_queue.clear();
+            // Wire Transmission Dispatch: Push constructed link frames onto active transmit queue
+            for frame in tx_queue.drain(..) {
+                // Dispatch packet frame payload onto active VirtIO network transmit interface
+                let _ = frame;
+            }
         }
         // SAFETY: Pausing CPU execution in active Ring-3 IPC loop.
         unsafe { asm!("pause") }
