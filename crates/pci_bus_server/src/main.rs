@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), no_main)]
 
 use core::alloc::{GlobalAlloc, Layout};
+#[cfg(not(test))]
 use core::arch::asm;
 
 struct DummyAllocator;

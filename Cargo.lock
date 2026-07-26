@@ -54,6 +54,7 @@ dependencies = [
  "gaxera-abi",
  "libgaxera",
  "net_types",
+ "spinning_top 0.3.0",
 ]
 
 [[package]]

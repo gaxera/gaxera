@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), no_main)]
 
 use core::alloc::{GlobalAlloc, Layout};
+#[cfg(not(test))]
 use core::arch::asm;
 
 struct DummyAllocator;
@@ -28,7 +29,8 @@ pub extern "C" fn _start() -> ! {
     let _ = (&tcp_engine, &udp_engine, &router);
 
     loop {
-        // SAFETY: Active Ring-3 IPC event loop waiting on TCP/UDP socket events.
+        let _retransmits = tcp_engine.poll_timer_ticks();
+        // SAFETY: Pausing CPU execution in active Ring-3 IPC loop.
         unsafe { asm!("pause") }
     }
 }

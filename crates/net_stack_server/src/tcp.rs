@@ -229,6 +229,18 @@ impl TcpTransportEngine {
             tcbs: Spinlock::new(Vec::new()),
         }
     }
+
+    /// Polls timer ticks across all active TCP Control Blocks and collects retransmitted segment headers.
+    pub fn poll_timer_ticks(&self) -> Vec<TcpHeader> {
+        let mut guard = self.tcbs.lock();
+        let mut retransmissions = Vec::new();
+        for tcb in guard.iter_mut() {
+            if let Some(retransmit_hdr) = tcb.handle_timer_tick() {
+                retransmissions.push(retransmit_hdr);
+            }
+        }
+        retransmissions
+    }
 }
 
 impl TransportProvider for TcpTransportEngine {
@@ -254,5 +266,42 @@ impl TransportProvider for TcpTransportEngine {
             return Ok(());
         }
         Err(ProviderError::NotReady)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tcp_retransmission_timer_silent_loss_recovery() {
+        let engine = TcpTransportEngine::new();
+        let local = NetEndpoint::new(net_types::IpAddr::V4(net_types::Ipv4Addr::LOOPBACK), 80);
+        let remote = NetEndpoint::new(net_types::IpAddr::V4(net_types::Ipv4Addr::LOOPBACK), 54321);
+
+        let sid = engine.create_session(local, remote).unwrap();
+
+        // Access TCB and enqueue in-flight unacked segment with RTO 2 ticks
+        {
+            let mut guard = engine.tcbs.lock();
+            let tcb = guard.iter_mut().find(|t| t.session_id == sid).unwrap();
+            tcb.state = SessionState::Established;
+            tcb.retransmit_queue.push(PendingSegment {
+                seq_num: 1000,
+                length: 1460,
+                rto_ticks: 1,
+                retransmit_count: 0,
+            });
+        }
+
+        // Tick 1: No timeout yet
+        let retrans1 = engine.poll_timer_ticks();
+        assert!(retrans1.is_empty());
+
+        // Tick 2: Timeout fires! RTO retransmission segment returned
+        let retrans2 = engine.poll_timer_ticks();
+        assert_eq!(retrans2.len(), 1);
+        assert_eq!(retrans2[0].seq_num, 1000);
+        assert_eq!(retrans2[0].flags, tcp_flags::ACK);
     }
 }

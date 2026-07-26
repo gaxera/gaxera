@@ -54,6 +54,12 @@ impl ContiguousFrameObject {
         self.mapping_count
     }
 
+    pub fn is_order_aligned(&self) -> bool {
+        let expected_count = 1usize << self.order;
+        let alignment = (expected_count as u64) * 4096;
+        self.page_count == expected_count && self.base_frame.is_multiple_of(alignment)
+    }
+
     pub fn add_mapping(&mut self) {
         self.mapping_count += 1;
     }
@@ -85,5 +91,16 @@ mod tests {
         assert_eq!(frame.mapping_count(), 1);
         frame.remove_mapping();
         assert_eq!(frame.mapping_count(), 0);
+
+        assert!(frame.is_order_aligned());
+
+        let misaligned_frame = ContiguousFrameObject::new(
+            ObjectId::from_raw(2),
+            0x11000, // Not 16 KiB aligned
+            4,
+            2,
+            ResourceDomainId::new(1),
+        );
+        assert!(!misaligned_frame.is_order_aligned());
     }
 }
