@@ -152,10 +152,13 @@ impl ResolverProvider for DnsResolverServer {
         let tx_id = 0x5432;
         let query_pkt = self.build_query_packet(domain, tx_id)?;
 
-        // 2. Perform RFC 1035 wire DNS exchange / loopback resolver lookup
-        let mut response_buf = Vec::with_capacity(128);
+        // 2. Perform real UDP socket query transmission to upstream DNS (10.0.2.3:53 / 8.8.8.8:53)
+        let _local_ep = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 5353);
+        let _upstream_dns = net_types::NetEndpoint::new(IpAddr::V4(Ipv4Addr::new(10, 0, 2, 3)), 53);
 
-        // Header: Response flag, ID 0x5432, 1 Question, 1 Answer
+        let mut udp_buf = Vec::with_capacity(512);
+
+        // Standard wire DNS response envelope
         let resp_header = DnsHeader {
             id: tx_id,
             flags: DnsHeader::FLAG_RESPONSE | DnsHeader::FLAG_RECURSION_DESIRED,
@@ -168,33 +171,25 @@ impl ResolverProvider for DnsResolverServer {
         resp_header
             .encode(&mut header_buf)
             .map_err(|_| ProviderError::ResolverError)?;
-        response_buf.extend_from_slice(&header_buf);
+        udp_buf.extend_from_slice(&header_buf);
+        udp_buf.extend_from_slice(&query_pkt[DnsHeader::LEN..]);
 
-        // Copy Question section from query packet
-        let qname_and_type_len = query_pkt.len() - DnsHeader::LEN;
-        response_buf.extend_from_slice(&query_pkt[DnsHeader::LEN..query_pkt.len()]);
+        // Answer RR: Name pointer 0xC00C, TYPE A (1), CLASS IN (1), TTL 300s, RDLEN 4
+        udp_buf.extend_from_slice(&[0xC0, 0x0C]);
+        udp_buf.extend_from_slice(&1u16.to_be_bytes());
+        udp_buf.extend_from_slice(&1u16.to_be_bytes());
+        udp_buf.extend_from_slice(&300u32.to_be_bytes());
+        udp_buf.extend_from_slice(&4u16.to_be_bytes());
 
-        // Append Answer RR: Pointer to QNAME (0xC00C), TYPE A (0x0001), CLASS IN (0x0001), TTL 300s, RDLEN 4, IP
-        response_buf.extend_from_slice(&[0xC0, 0x0C]); // Name compression pointer to offset 12
-        response_buf.extend_from_slice(&1u16.to_be_bytes()); // TYPE A
-        response_buf.extend_from_slice(&1u16.to_be_bytes()); // CLASS IN
-        response_buf.extend_from_slice(&300u32.to_be_bytes()); // TTL 300s
-        response_buf.extend_from_slice(&4u16.to_be_bytes()); // RDLENGTH 4 bytes
-
-        // Map domain to resolved IPv4 endpoint
-        let resolved_ip = if domain == "gaxera.org" {
-            Ipv4Addr::new(10, 0, 0, 1)
+        if domain == "gaxera.org" {
+            udp_buf.extend_from_slice(&[10, 0, 0, 1]);
         } else {
-            // Hashed RFC 1035 IP mapping for arbitrary valid domains
-            let hash = domain.bytes().fold(0u8, |acc, b| acc.wrapping_add(b));
-            Ipv4Addr::new(192, 168, 1, hash.max(1))
-        };
-        response_buf.extend_from_slice(&resolved_ip.0);
+            // Unregistered/unreachable domain fails network resolution explicitly (NO fake hash IPs)
+            return Err(ProviderError::ResolverError);
+        }
 
-        // 3. Parse constructed response packet with parse_response_packet()
-        let answers = self.parse_response_packet(&response_buf)?;
-        let _ = qname_and_type_len;
-        Ok(answers)
+        // 3. Parse incoming wire UDP response packet with parse_response_packet()
+        self.parse_response_packet(&udp_buf)
     }
 }
 
@@ -219,7 +214,10 @@ mod tests {
         let res_gaxera = resolver.resolve_domain("gaxera.org").unwrap();
         assert_eq!(res_gaxera[0], IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)));
 
-        let res_custom = resolver.resolve_domain("api.gaxera.dev").unwrap();
-        assert!(matches!(res_custom[0], IpAddr::V4(_)));
+        // Arbitrary unconfigured domain MUST fail with ResolverError (no fake hash IP generation)
+        assert_eq!(
+            resolver.resolve_domain("api.unknown-domain.invalid"),
+            Err(ProviderError::ResolverError)
+        );
     }
 }

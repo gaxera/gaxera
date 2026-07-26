@@ -292,6 +292,142 @@ mod tests {
     }
 
     #[test]
+    fn three_tier_cascade_revocation_across_spaces() {
+        let mut domain_a = domain(DOMAIN_A, 2, 8);
+        let mut domain_b = domain(DOMAIN_B, 2, 8);
+        let mut domain_c = domain(ResourceDomainId::new(3), 2, 8);
+        let mut arena = ObjectArena::try_new(2).unwrap();
+        let object = endpoint(&mut arena, &mut domain_a);
+
+        let mut space_a = CapabilitySpace::try_new(&domain_a, 4).unwrap();
+        let mut space_b = CapabilitySpace::try_new(&domain_b, 4).unwrap();
+        let mut space_c = CapabilitySpace::try_new(&domain_c, 4).unwrap();
+        let mut system = CapabilitySystem::try_new(12).unwrap();
+
+        let root = system
+            .insert_root(
+                &mut space_a,
+                &mut domain_a,
+                object,
+                ObjectType::Endpoint,
+                Rights::MANAGE | Rights::READ,
+                &arena,
+            )
+            .unwrap();
+
+        let child = system
+            .derive(
+                &space_a,
+                root,
+                &mut space_b,
+                &mut domain_b,
+                Rights::MANAGE | Rights::READ,
+                &arena,
+            )
+            .unwrap();
+
+        let grandchild = system
+            .derive(
+                &space_b,
+                child,
+                &mut space_c,
+                &mut domain_c,
+                Rights::READ,
+                &arena,
+            )
+            .unwrap();
+
+        // Revoke at intermediate level (space_b, child)
+        system.revoke(&space_b, child, &arena).unwrap();
+
+        // Root capability in space_a remains valid
+        assert_eq!(
+            system.lookup(&space_a, root, ObjectType::Endpoint, Rights::READ, &arena),
+            Ok(object)
+        );
+
+        // Child in space_b and Grandchild in space_c are revoked
+        assert_eq!(
+            system.lookup(&space_b, child, ObjectType::Endpoint, Rights::READ, &arena),
+            Err(CapabilityError::Revoked)
+        );
+        assert_eq!(
+            system.lookup(
+                &space_c,
+                grandchild,
+                ObjectType::Endpoint,
+                Rights::READ,
+                &arena
+            ),
+            Err(CapabilityError::Revoked)
+        );
+    }
+
+    #[test]
+    fn generational_handle_invalidation_prevents_stale_access() {
+        let mut owner = domain(DOMAIN_A, 2, 8);
+        let mut arena = ObjectArena::try_new(4).unwrap();
+        let obj1 = endpoint(&mut arena, &mut owner);
+        let obj2 = endpoint(&mut arena, &mut owner);
+
+        let mut space = CapabilitySpace::try_new(&owner, 4).unwrap();
+        let mut system = CapabilitySystem::try_new(8).unwrap();
+
+        let old_handle = system
+            .insert_root(
+                &mut space,
+                &mut owner,
+                obj1,
+                ObjectType::Endpoint,
+                Rights::READ,
+                &arena,
+            )
+            .unwrap();
+
+        // Delete handle to free slot 0 and increment slot generation
+        system.delete(&mut space, &mut owner, old_handle).unwrap();
+
+        // Insert new capability into slot 0 with generation 2
+        let new_handle = system
+            .insert_root(
+                &mut space,
+                &mut owner,
+                obj2,
+                ObjectType::Endpoint,
+                Rights::READ,
+                &arena,
+            )
+            .unwrap();
+
+        assert_ne!(old_handle, new_handle);
+        assert_eq!(old_handle.slot(), new_handle.slot());
+
+        // Old handle lookup fails with StaleHandle
+        assert_eq!(
+            system.lookup(
+                &space,
+                old_handle,
+                ObjectType::Endpoint,
+                Rights::READ,
+                &arena
+            ),
+            Err(CapabilityError::StaleHandle)
+        );
+
+        // New handle lookup succeeds with obj2
+        assert_eq!(
+            system.lookup(
+                &space,
+                new_handle,
+                ObjectType::Endpoint,
+                Rights::READ,
+                &arena
+            ),
+            Ok(obj2)
+        );
+    }
+
+    #[test]
     fn rights_subset_matrix_is_exhaustive_for_all_initial_bits() {
         for parent_bits in 0_u32..(1 << 8) {
             let parent = Rights::from_bits(parent_bits);

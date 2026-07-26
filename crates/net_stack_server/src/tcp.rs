@@ -241,7 +241,60 @@ impl TcpTransportEngine {
         }
         retransmissions
     }
-}
+
+    /// Encapsulates retransmitted TCP headers into IPv4 and Ethernet link frames for wire transmission.
+    pub fn build_retransmit_frames(
+        &self,
+        retransmitted: &[TcpHeader],
+        out_frames: &mut Vec<Vec<u8>>,
+    ) {
+        for hdr in retransmitted {
+            let mut frame = Vec::with_capacity(128);
+            // Ethernet II (14 bytes) + IPv4 (20 bytes) + TCP (20 bytes)
+            let eth_hdr = [
+                0x52, 0x54, 0x00, 0x12, 0x34, 0x56, 0x52, 0x54, 0x00, 0x12, 0x34, 0x57, 0x08, 0x00,
+            ];
+            frame.extend_from_slice(&eth_hdr);
+
+            let ip_hdr = [
+                0x45, 0x00, 0x00, 0x28, 0x12, 0x34, 0x40, 0x00, 0x40, 0x06, 0x00, 0x00, 10, 0, 2,
+                15, 10, 0, 2, 2,
+            ];
+            frame.extend_from_slice(&ip_hdr);
+
+            let mut tcp_buf = [0u8; 20];
+            hdr.src_port
+                .to_be_bytes()
+                .iter()
+                .enumerate()
+                .for_each(|(i, &b)| tcp_buf[i] = b);
+            hdr.dst_port
+                .to_be_bytes()
+                .iter()
+                .enumerate()
+                .for_each(|(i, &b)| tcp_buf[2 + i] = b);
+            hdr.seq_num
+                .to_be_bytes()
+                .iter()
+                .enumerate()
+                .for_each(|(i, &b)| tcp_buf[4 + i] = b);
+            hdr.ack_num
+                .to_be_bytes()
+                .iter()
+                .enumerate()
+                .for_each(|(i, &b)| tcp_buf[8 + i] = b);
+            tcp_buf[12] = 0x50;
+            tcp_buf[13] = hdr.flags;
+            hdr.window_size
+                .to_be_bytes()
+                .iter()
+                .enumerate()
+                .for_each(|(i, &b)| tcp_buf[14 + i] = b);
+            frame.extend_from_slice(&tcp_buf);
+
+            out_frames.push(frame);
+        }
+    }
 
 impl TransportProvider for TcpTransportEngine {
     fn protocol_id(&self) -> u8 {
