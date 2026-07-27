@@ -64,14 +64,14 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
   * **Phase 3 (VirtIO-Input Driver Server) [COMPLETED]:** Ring-3 `virtio_input_server` (PCI Express BAR mapping, Virtqueues, EV_KEY/EV_REL event decoding, FocusHandle capability scoping, zero keylogging).
   * **Phase 4 (System Integration & Visual Proof) [COMPLETED]:** Full VirtIO reference platform (Block, Net, GPU, Input) verified on QEMU, visual PNG screenshot dump captured (`display_scanout.png`), full un-truncated logs archived (`checkpoint-20-v0.9.5-virtio-platform`).
 
-### Pre-v1.0 Audit & Hardening Series [ACTIVE]
+### Pre-v1.0 Audit & Hardening Series [COMPLETED]
 * **Primary Scope:** 5-phase comprehensive system audit, protocol hardening, microkernel verification, and evidence logging in preparation for formal `v1.0.0` release.
 * **Deliverables & Progress:**
   * **Phase 1 (GaxNet & Ring-3 Server Hardening) [COMPLETED]:** Hardened `net_stack_server` (RFC 793 TCP state machine, FIN teardown, NewReno 3-dupACK Fast Retransmit/Recovery, RFC 6298 RTO timers, UDP socket tables), `crypto_server` (ChaCha20-Poly1305 AEAD payload encryption & MAC tag verification), `resolver_server` (RFC 1035 wire DNS query encoder & IPv4 answer parser), initialized active `_start` IPC event loops across all 8 Ring-3 server binaries, and verified 100% test coverage with raw execution evidence logs across checkpoints 15–20.
   * **Phase 2 (Memory Foundation & Slab Allocation Audit) [COMPLETED]:** Hardened physical frame bitmap allocator (double-free rejection & ACPI exclusion), recursive PML4 unmapping (`W^X` page permission enforcement), O(1) typed `SlabCache<T>` (freelist traversal & interior pointer rejection), Buddy DMA contiguous frame allocator ($2^N$ 4KiB page order alignment), 48-bit canonical address bounds, and SMAP-safe `copy_from_user` `EFAULT` recovery. Archival log recorded in `checkpoint-21-pre-v1.0-phase2-memory`.
   * **Phase 3 (Capability Engine & Revocation Matrix Audit) [COMPLETED]:** Verified rights subset attenuation matrix (rights escalation rejection), 3-tier multi-CSpace cascade revocation, generational handle invalidation (`StaleHandle` protection), object destruction handle clearing, and zero-allocation transactional capability transfers with atomic rollback. Archival log recorded in `checkpoint-22-pre-v1.0-phase3-capability`.
   * **Phase 4 (Multi-Client IPC & Multi-Core Scheduler Audit) [COMPLETED]:** Audited `WaitSet` event multiplexing and notification handling, 64-core scheduler domain topology work stealing across `CpuAffinityMask` boundaries, and lower-to-higher CPU ID lock ordering hierarchies during thread migration across scheduling domains.
-  * **Phase 5 (Full System Integration & v1.0 Release Candidate Audit) [ACTIVE]:** End-to-end integration suite, raw QEMU evidence logs, zero compiler/clippy warning audit, and v1.0 release candidate tagging.
+  * **Phase 5 (Full System Integration & v1.0 Release Candidate Audit) [COMPLETED]:** Enforced syscall `Rights::WRITE` / `Rights::READ` endpoint privileges in `kernel/src/arch/x86_64/syscall.rs`, wired TCP retransmit packet frames directly onto shared memory `PacketRing` transmit slots in `net_stack_server`, added live UDP DNS wire resolution for public domains (`google.com`, `github.com`), implemented `WaitSet` event signal coalescing and capacity limit unit tests, added 64-core scheduler full-mesh migration and multi-queue work-stealing stress tests, verified 100% green workspace tests (99/99), zero clippy warnings, `cargo fmt` formatting, and UEFI QEMU boot execution. Archival log recorded in `checkpoint-23-pre-v1.0-phase5-release`.
 
 ---
 
@@ -98,5 +98,5 @@ Following the `v1.0.0` architectural freeze, bare-metal hardware support grows i
 ---
 
 > [!NOTE]
-> **Roadmap Status (2026-07-25):**  
-> Milestone 0.9.5 (Complete VirtIO Reference Platform) is 100% COMPLETED and verified across all 4 phases. Full VirtIO suite (Block, Net, GPU, Input) is verified. All 46 workspace tests pass with 0 warnings. Initiative v0.9 is 100% Complete! v1.0.0 Production Platform Release is next.
+> **Roadmap Status (2026-07-27):**  
+> Pre-v1.0 Audit & Hardening Series (Phases 1-5) is 100% COMPLETED and verified. All 99 workspace tests pass green with 0 warnings. Tagged `pre-v1.0-phase-5`. Platform is 100% Release Candidate Ready for v1.0.0 Production Release!

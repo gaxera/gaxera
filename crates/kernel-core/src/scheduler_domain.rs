@@ -100,6 +100,7 @@ mod tests {
     use super::*;
     use crate::object::ObjectId;
     use crate::thread::Thread;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_scheduler_domain_migration_protocol() {
@@ -156,5 +157,99 @@ mod tests {
         assert_eq!(stolen, Some(tid1));
         assert!(!src_sched.contains(tid1));
         assert!(src_sched.contains(tid2));
+    }
+
+    #[test]
+    fn test_64_core_topology_full_mesh_migration() {
+        let domain = SchedulerDomain::new(64);
+        let mut sched0 = Scheduler::try_new(16).unwrap();
+        let mut sched1 = Scheduler::try_new(16).unwrap();
+        let mut sched31 = Scheduler::try_new(16).unwrap();
+        let mut sched32 = Scheduler::try_new(16).unwrap();
+        let mut sched63 = Scheduler::try_new(16).unwrap();
+
+        let tid = ObjectId::new_for_test(500, 1);
+        let mut thread = Thread::new(tid, None, ());
+
+        // Enqueue thread initially on CPU 0
+        sched0.enqueue(&mut thread).unwrap();
+        assert_eq!(thread.assigned_cpu(), 0);
+
+        // Forward migrations (src < dst): 0 -> 1 -> 31 -> 63
+        domain
+            .migrate_thread(&mut thread, &mut sched0, &mut sched1, 0, 1)
+            .unwrap();
+        assert_eq!(thread.assigned_cpu(), 1);
+
+        domain
+            .migrate_thread(&mut thread, &mut sched1, &mut sched31, 1, 31)
+            .unwrap();
+        assert_eq!(thread.assigned_cpu(), 31);
+
+        domain
+            .migrate_thread(&mut thread, &mut sched31, &mut sched63, 31, 63)
+            .unwrap();
+        assert_eq!(thread.assigned_cpu(), 63);
+
+        // Reverse migrations (src > dst): 63 -> 32 -> 0 (testing decreasing CPU lock order)
+        domain
+            .migrate_thread(&mut thread, &mut sched63, &mut sched32, 63, 32)
+            .unwrap();
+        assert_eq!(thread.assigned_cpu(), 32);
+
+        domain
+            .migrate_thread(&mut thread, &mut sched32, &mut sched0, 32, 0)
+            .unwrap();
+        assert_eq!(thread.assigned_cpu(), 0);
+    }
+
+    #[test]
+    fn test_64_core_multi_queue_work_stealing_stress() {
+        let domain = SchedulerDomain::new(64);
+        let mut src_sched = Scheduler::try_new(256).unwrap();
+        let mut dst_sched = Scheduler::try_new(256).unwrap();
+
+        // Enqueue 256 threads across CPUs 0..63
+        let mut threads: Vec<Thread<()>> = (0..256)
+            .map(|i| Thread::new(ObjectId::new_for_test(1000 + i as u32, 1), None, ()))
+            .collect();
+
+        for thread in threads.iter_mut() {
+            src_sched.enqueue(thread).unwrap();
+        }
+
+        // Steal work for CPU 63 from CPU 0
+        let affinity = CpuAffinityMask::single(63);
+        let stolen =
+            domain.attempt_work_steal(&mut src_sched, &mut dst_sched, 63, &mut |_| Some(affinity));
+        assert!(stolen.is_some());
+    }
+
+    #[test]
+    fn test_64_core_thread_ownership_exclusivity_invariant() {
+        let domain = SchedulerDomain::new(64);
+        let mut sched0 = Scheduler::try_new(64).unwrap();
+        let mut sched1 = Scheduler::try_new(64).unwrap();
+
+        let mut t1 = Thread::new(ObjectId::new_for_test(7001, 1), None, ());
+        let mut t2 = Thread::new(ObjectId::new_for_test(7002, 1), None, ());
+
+        sched0.enqueue(&mut t1).unwrap();
+        sched0.enqueue(&mut t2).unwrap();
+
+        // Total runnable threads across sched0 and sched1 must equal 2
+        assert_eq!(sched0.count() + sched1.count(), 2);
+
+        // Migrate t1 from CPU 0 to CPU 1
+        domain
+            .migrate_thread(&mut t1, &mut sched0, &mut sched1, 0, 1)
+            .unwrap();
+
+        // Enforce exact thread exclusivity invariant: t1 is in sched1, t2 is in sched0
+        assert_eq!(sched0.count(), 1);
+        assert_eq!(sched1.count(), 1);
+        assert_eq!(sched0.count() + sched1.count(), 2);
+        assert!(sched1.contains(t1.id()));
+        assert!(sched0.contains(t2.id()));
     }
 }

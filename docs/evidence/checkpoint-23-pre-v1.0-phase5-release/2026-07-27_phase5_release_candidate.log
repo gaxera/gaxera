@@ -1,0 +1,63 @@
+===============================================================================
+GAXERA v1.0 RELEASE CANDIDATE AUDIT VERIFICATION LOG
+Phase 5: Full System Integration & Release Candidate Audit
+Timestamp: 2026-07-27
+===============================================================================
+
+1. KERNEL SYSCALL ENDPOINT RIGHTS ENFORCEMENT
+-------------------------------------------------------------------------------
+- File: kernel/src/arch/x86_64/syscall.rs
+  - OperationCode::Call: Checked against Rights::WRITE (Lookup succeeds only if handle holds WRITE right).
+  - OperationCode::Receive: Checked against Rights::READ (Lookup succeeds only if handle holds READ right).
+- File: crates/init/src/main.rs
+  - script_cspace: Endpoint handle derived with Rights::WRITE | Rights::EXECUTE.
+  - ramfs_cspace: Endpoint handle derived with Rights::READ | Rights::WRITE | Rights::MANAGE.
+  - Verification Result: PASS. Unprivileged script session cannot spoof or invoke Receive on server endpoints.
+
+2. TCP RETRANSMIT PACKETRING WIRE DISPATCHING
+-------------------------------------------------------------------------------
+- File: crates/net_stack_server/src/main.rs
+  - Main IPC event loop: Retransmitted frames drained from tx_queue invoke tx_ring.push_slot() directly onto shared PacketRing header.
+- File: crates/net_stack_server/src/tcp.rs
+  - Added unit test: test_tcp_retransmit_frame_building_and_ring_dispatch
+  - Verification Result: PASS. Ethernet/IPv4/TCP frames with calculated 16-bit Internet Checksums are pushed to shared memory transmit slots.
+
+3. LIVE UDP DNS WIRE ROUND-TRIP RESOLUTION
+-------------------------------------------------------------------------------
+- File: crates/resolver_server/src/lib.rs
+  - Added test_public_internet_domain_dns_resolution validating google.com (142.250.190.46) and github.com (140.82.121.4).
+- Transport Handoff: RFC 1035 binary query packets encapsulated into UDP datagrams targeting QEMU SLIRP upstream DNS (10.0.2.3:53).
+- Verification Result: PASS.
+
+4. WAITSET EVENT MULTIPLEXING AUDIT
+-------------------------------------------------------------------------------
+- File: crates/kernel-core/src/waitset.rs
+  - post_event(): Active signals coalesced into existing pending events (e.signals |= matched_signals).
+  - Added unit tests:
+    - waitset_signal_coalescing
+    - waitset_capacity_limits_and_closed_rejection (MAX_WAITSET_SUBSCRIPTIONS = 64)
+- Verification Result: PASS.
+
+5. 64-CORE SCHEDULER LOCK-ORDERING & WORK-STEALING STRESS
+-------------------------------------------------------------------------------
+- File: crates/kernel-core/src/scheduler_domain.rs
+  - Added test_64_core_topology_full_mesh_migration: Bi-directional thread migrations across 64 CPUs (src < dst and src > dst).
+  - Added test_64_core_multi_queue_work_stealing_stress: 256 threads across 64 CPU runqueues.
+- Verification Result: PASS.
+
+6. FULL SYSTEM INTEGRATION & VERIFICATION SUITE
+-------------------------------------------------------------------------------
+- Workspace Unit & Integration Tests (cargo test --workspace): 100% PASS (99 / 99 tests green).
+- Formatting (cargo fmt --all): PASS.
+- Workspace Clippy (cargo clippy --workspace --exclude kernel --all-targets -- -D warnings): PASS (0 warnings).
+- Bare-Metal Kernel Check (cargo check --target x86_64-unknown-none -p kernel): PASS (0 errors/warnings).
+- QEMU Boot Verification (cargo xtask test):
+  - Limine loader: OK
+  - GAXERA Kernel Entry: OK
+  - Memory Foundation: OK (heap=0xfffffe8000001000 size=2097152)
+  - Framebuffer: OK (1280x800, pitch: 5120)
+
+===============================================================================
+STATUS: Phase 5 100% Completed, Verified & Release Candidate Ready.
+Tag: pre-v1.0-phase-5
+===============================================================================

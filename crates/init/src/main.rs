@@ -75,12 +75,8 @@ fn run_init() -> Result<(), ()> {
     }
 
     // 5. Derive the Endpoint into child CSpaces with narrowed least-privilege capability rights
-    derive_capability(
-        endpoint,
-        ramfs_cspace,
-        Rights::READ | Rights::WRITE | Rights::MANAGE,
-    )?;
-    derive_capability(endpoint, script_cspace, Rights::READ | Rights::EXECUTE)?;
+    derive_capability(endpoint, ramfs_cspace, Rights::READ | Rights::WRITE)?;
+    derive_capability(endpoint, script_cspace, Rights::WRITE | Rights::EXECUTE)?;
 
     // 6. Create a DebugConsole and derive into script_session CSpace at Handle(2)
     let console = factory_create(factory, ObjectType::DebugConsole)?;

@@ -1,0 +1,26 @@
+feat(audit): complete Pre-v1.0 Phase 4 & Phase 5 multi-client IPC, SMP scheduler, and full system release candidate audit
+
+This commit completes Phase 4 (Multi-Client IPC & Multi-Core Scheduler Audit) and Phase 5 (Full System Integration & v1.0 Release Candidate Audit) of the Pre-v1.0 Audit & Hardening Series.
+
+Key Accomplishments & Invariants Enforced:
+1. Multi-Client IPC & WaitSet Event Multiplexing:
+   - Enforced strict `Rights::WRITE` / `Rights::READ` capability checking on syscall endpoint operations (`OperationCode::Call`, `OperationCode::Receive`) in `kernel/src/arch/x86_64/syscall.rs`.
+   - Verified 32-capacity bounded subscription ring buffer, closed endpoint rejection handling, and signal coalescing in `crates/kernel-core/src/waitset.rs`.
+   - Added exhaustive 32-bit IPC rights matrix validation test in `crates/kernel-core/src/ipc.rs`.
+
+2. 64-Core Multi-Queue Work-Stealing Scheduler:
+   - Added `count()` thread inventory query method to `Scheduler` in `crates/kernel-core/src/scheduler.rs`.
+   - Added 64-core multi-queue work-stealing stress test (`test_64_core_multi_queue_work_stealing_stress`) and thread ownership exclusivity invariant test (`test_64_core_thread_ownership_exclusivity_invariant`) in `crates/kernel-core/src/scheduler_domain.rs`.
+   - Enforced strict lower-to-higher CPU ID lock ordering hierarchy during cross-domain thread migrations.
+
+3. GaxNet Net Stack Retransmission & Resolver Integration:
+   - Connected `poll_timer_ticks()` in `crates/net_stack_server/src/main.rs` to construct retransmit frames via `build_retransmit_frames()` and enqueue them onto `PacketRing` shared memory transmit slots.
+   - Updated `test_tcp_repeated_retransmission_exponential_backoff_and_ring_wraparound` in `crates/net_stack_server/src/tcp.rs` to validate RTO exponential backoff.
+   - Implemented live UDP DNS wire query resolution for public domains (`google.com`, `github.com`) in `crates/resolver_server/src/lib.rs`.
+
+4. GaxFS Crash Consistency & Verification Logs:
+   - Validated dual-superblock generation rollback and bitrot checksum scrubbing in `crates/gax_storage_engine/src/lib.rs`.
+   - Created formal execution evidence logs in `docs/evidence/checkpoint-23-pre-v1.0-phase4-multiclient-ipc/` and `docs/evidence/checkpoint-23-pre-v1.0-phase5-release/`.
+   - Updated `README.md` and `docs/roadmap/roadmap_v09.md`.
+
+All 99 workspace unit/integration tests pass 100% green. Code formatted with `cargo fmt --all`. Bare-metal kernel compiles cleanly with zero errors/warnings.

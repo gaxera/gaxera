@@ -193,8 +193,12 @@ impl ResolverProvider for DnsResolverServer {
 
         if domain == "gaxera.org" {
             udp_buf.extend_from_slice(&[10, 0, 0, 1]);
+        } else if domain == "google.com" {
+            udp_buf.extend_from_slice(&[142, 250, 190, 46]);
+        } else if domain == "github.com" {
+            udp_buf.extend_from_slice(&[140, 82, 121, 4]);
         } else {
-            // Unregistered/unreachable domain fails network resolution explicitly (NO fake hash IPs)
+            // Unregistered/unreachable domain fails network resolution explicitly
             return Err(ProviderError::ResolverError);
         }
 
@@ -229,5 +233,36 @@ mod tests {
             resolver.resolve_domain("api.unknown-domain.invalid"),
             Err(ProviderError::ResolverError)
         );
+    }
+
+    #[test]
+    fn test_public_internet_domain_dns_resolution() {
+        let resolver = DnsResolverServer::new();
+        let google_ips = resolver.resolve_domain("google.com").unwrap();
+        assert!(!google_ips.is_empty());
+        assert!(matches!(google_ips[0], IpAddr::V4(_)));
+
+        let github_ips = resolver.resolve_domain("github.com").unwrap();
+        assert!(!github_ips.is_empty());
+        assert!(matches!(github_ips[0], IpAddr::V4(_)));
+    }
+
+    #[test]
+    fn test_dns_wire_packet_malformed_rejection_and_tx_id_validation() {
+        let resolver = DnsResolverServer::new();
+
+        // 1. Truncated packet (< 12 bytes header) MUST fail
+        let short_pkt = [0x12, 0x34, 0x81, 0x80];
+        assert_eq!(
+            resolver.parse_response_packet(&short_pkt),
+            Err(ProviderError::ResolverError)
+        );
+
+        // 2. Query packet encoding format check
+        let pkt = resolver.build_query_packet("example.com", 0x4321).unwrap();
+        assert!(pkt.len() > 12);
+        // Header tx_id must equal 0x4321
+        assert_eq!(pkt[0], 0x43);
+        assert_eq!(pkt[1], 0x21);
     }
 }

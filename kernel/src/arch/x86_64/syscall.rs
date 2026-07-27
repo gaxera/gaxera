@@ -589,7 +589,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Endpoint,
-                        gaxera_abi::Rights::NONE,
+                        gaxera_abi::Rights::WRITE,
                         arena_ref,
                     );
                     if let Ok(endpoint_id) = endpoint_result {
@@ -725,7 +725,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Endpoint,
-                        gaxera_abi::Rights::NONE,
+                        gaxera_abi::Rights::READ,
                         arena_ref,
                     );
                     if let Ok(endpoint_id) = endpoint_result {

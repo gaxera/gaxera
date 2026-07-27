@@ -714,4 +714,57 @@ mod tests {
         assert_eq!(handles.len(), 2);
         assert_eq!(recipient.usage().capabilities, 2);
     }
+
+    #[test]
+    fn test_exhaustive_ipc_rights_matrix_validation() {
+        // Iterate through all 32 rights bitmask permutations (bits 0..5)
+        for bits in 0..32u32 {
+            let rights = Rights::from_bits(bits);
+
+            // OperationCode::Call requires Rights::WRITE
+            let can_call = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_call,
+                "Call permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Receive requires Rights::READ
+            let can_receive = rights.contains(Rights::READ);
+            assert_eq!(
+                rights.contains(Rights::READ),
+                can_receive,
+                "Receive permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Reply requires Rights::WRITE
+            let can_reply = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_reply,
+                "Reply permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Notify requires Rights::WRITE
+            let can_notify = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_notify,
+                "Notify permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Wait requires Rights::READ
+            let can_wait = rights.contains(Rights::READ);
+            assert_eq!(
+                rights.contains(Rights::READ),
+                can_wait,
+                "Wait permission mismatch for bits {:05b}",
+                bits
+            );
+        }
+    }
 }

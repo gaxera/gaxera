@@ -52,6 +52,10 @@ impl Scheduler {
         })
     }
 
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
     /// Request direct thread switch from current thread to target receiver thread for fast-path IPC.
     pub fn try_direct_switch(
         &mut self,

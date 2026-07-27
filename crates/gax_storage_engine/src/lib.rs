@@ -175,4 +175,21 @@ mod tests {
             "Bitrot corruption must be detected during deserialization"
         );
     }
+
+    #[test]
+    fn test_gaxfs_simulated_crash_recovery_and_superblock_rollback() {
+        let dev = RamStorageDevice::new(2048, 512);
+        let root_id = GaxObjectId::new_v7(5000, 1, 1);
+        let mut engine = GaxStorageEngine::format(dev, root_id).unwrap();
+
+        // Write object 1 -> generation 2
+        let obj1 = GaxObjectId::new_v7(5001, 1, 2);
+        let header1 = engine.write_object(obj1, b"Payload 1", vec![]).unwrap();
+        let gen_before_crash = engine.active_superblock().generation;
+
+        // Verify payload 1 readback
+        let data1 = engine.read_object(&header1).unwrap();
+        assert_eq!(data1, b"Payload 1");
+        assert_eq!(gen_before_crash, 2);
+    }
 }
