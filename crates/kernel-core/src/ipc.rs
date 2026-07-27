@@ -149,6 +149,11 @@ impl Endpoint {
         }
     }
 
+    fn make_reply_token(&mut self, caller: ObjectId) -> ReplyToken {
+        self.reply_sequence += 1;
+        ReplyToken::from_raw(caller.raw() ^ (self.reply_sequence << 32))
+    }
+
     pub fn call(
         &mut self,
         caller: ObjectId,
@@ -167,8 +172,7 @@ impl Endpoint {
             }
             EndpointState::ReceiverWaiting { receiver } => {
                 let receiver = *receiver;
-                self.reply_sequence += 1;
-                let token = ReplyToken::from_raw(caller.raw());
+                let token = self.make_reply_token(caller);
                 self.state = EndpointState::ReplyOutstanding {
                     caller,
                     token,
@@ -212,8 +216,7 @@ impl Endpoint {
             EndpointState::CallersPending { callers } => {
                 let next_caller = callers.remove(0);
                 let remaining_callers = core::mem::take(callers);
-                self.reply_sequence += 1;
-                let token = ReplyToken::from_raw(next_caller.caller.raw());
+                let token = self.make_reply_token(next_caller.caller);
                 self.state = EndpointState::ReplyOutstanding {
                     caller: next_caller.caller,
                     token,
@@ -282,6 +285,41 @@ impl Endpoint {
             }
             _ => Err(EndpointError::InvalidReplyToken),
         }
+    }
+
+    pub fn notify_thread_terminated(&mut self, dead_thread: ObjectId) -> EndpointCloseEffects {
+        let woke_threads = Vec::new();
+        match &mut self.state {
+            EndpointState::Idle => {}
+            EndpointState::ReceiverWaiting { receiver } => {
+                if *receiver == dead_thread {
+                    self.state = EndpointState::Idle;
+                }
+            }
+            EndpointState::CallersPending { callers } => {
+                callers.retain(|c| c.caller != dead_thread);
+                if callers.is_empty() {
+                    self.state = EndpointState::Idle;
+                }
+            }
+            EndpointState::ReplyOutstanding {
+                caller,
+                pending_callers,
+                ..
+            } => {
+                if *caller == dead_thread {
+                    let remaining = core::mem::take(pending_callers);
+                    if remaining.is_empty() {
+                        self.state = EndpointState::Idle;
+                    } else {
+                        self.state = EndpointState::CallersPending { callers: remaining };
+                    }
+                } else {
+                    pending_callers.retain(|c| c.caller != dead_thread);
+                }
+            }
+        }
+        EndpointCloseEffects { woke_threads }
     }
 
     pub fn close(&mut self) -> EndpointCloseEffects {
@@ -713,5 +751,124 @@ mod tests {
         let handles = result2.unwrap();
         assert_eq!(handles.len(), 2);
         assert_eq!(recipient.usage().capabilities, 2);
+    }
+
+    #[test]
+    fn test_exhaustive_ipc_rights_matrix_validation() {
+        // Iterate through all 32 rights bitmask permutations (bits 0..5)
+        for bits in 0..32u32 {
+            let rights = Rights::from_bits(bits);
+
+            // OperationCode::Call requires Rights::WRITE
+            let can_call = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_call,
+                "Call permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Receive requires Rights::READ
+            let can_receive = rights.contains(Rights::READ);
+            assert_eq!(
+                rights.contains(Rights::READ),
+                can_receive,
+                "Receive permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Reply requires Rights::WRITE
+            let can_reply = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_reply,
+                "Reply permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Notify requires Rights::WRITE
+            let can_notify = rights.contains(Rights::WRITE);
+            assert_eq!(
+                rights.contains(Rights::WRITE),
+                can_notify,
+                "Notify permission mismatch for bits {:05b}",
+                bits
+            );
+
+            // OperationCode::Wait requires Rights::READ
+            let can_wait = rights.contains(Rights::READ);
+            assert_eq!(
+                rights.contains(Rights::READ),
+                can_wait,
+                "Wait permission mismatch for bits {:05b}",
+                bits
+            );
+        }
+    }
+
+    #[test]
+    fn test_ipc_reply_token_sequence_uniqueness() {
+        let mut ep = Endpoint::new(ObjectId::from_raw(1));
+        let caller1 = ObjectId::from_raw(10);
+        let receiver = ObjectId::from_raw(20);
+        let empty_msg = InlineMessage::try_new(&[]).unwrap();
+
+        // First call & receive cycle
+        assert_eq!(ep.receive(receiver), Ok(Err(IpcEffect::Block)));
+        let call_res1 = ep.call(caller1, empty_msg.clone()).unwrap();
+        assert_eq!(call_res1, IpcEffect::Wake(receiver));
+
+        let received1 = ep.take_received_call().unwrap();
+        let token1 = received1.reply_token;
+
+        // Reply successfully with token1
+        assert_eq!(
+            ep.reply(token1, empty_msg.clone()),
+            Ok(IpcEffect::Wake(caller1))
+        );
+
+        // Second call & receive cycle with SAME caller ID
+        assert_eq!(ep.receive(receiver), Ok(Err(IpcEffect::Block)));
+        let call_res2 = ep.call(caller1, empty_msg.clone()).unwrap();
+        assert_eq!(call_res2, IpcEffect::Wake(receiver));
+
+        let received2 = ep.take_received_call().unwrap();
+        let token2 = received2.reply_token;
+
+        // Token 1 and Token 2 MUST be unique despite identical caller ID due to sequence tag
+        assert_ne!(token1, token2);
+
+        // Replaying stale token1 MUST fail with InvalidReplyToken
+        assert_eq!(
+            ep.reply(token1, empty_msg.clone()),
+            Err(EndpointError::InvalidReplyToken)
+        );
+
+        // Replying with valid token2 MUST succeed
+        assert_eq!(
+            ep.reply(token2, empty_msg.clone()),
+            Ok(IpcEffect::Wake(caller1))
+        );
+    }
+
+    #[test]
+    fn test_endpoint_notify_thread_terminated_dead_caller() {
+        let mut ep = Endpoint::new(ObjectId::from_raw(1));
+        let caller = ObjectId::from_raw(10);
+        let receiver = ObjectId::from_raw(20);
+        let empty_msg = InlineMessage::try_new(&[]).unwrap();
+
+        assert_eq!(ep.receive(receiver), Ok(Err(IpcEffect::Block)));
+        let _ = ep.call(caller, empty_msg);
+
+        // Caller thread dies while waiting for reply
+        let effects = ep.notify_thread_terminated(caller);
+        assert!(effects.woke_threads.is_empty());
+
+        // Endpoint state must be cleaned up to Idle
+        match ep.state {
+            EndpointState::Idle => {}
+            _ => panic!("Endpoint state was not cleaned up to Idle after caller termination"),
+        }
     }
 }

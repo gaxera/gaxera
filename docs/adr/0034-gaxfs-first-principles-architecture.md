@@ -29,8 +29,11 @@ GaxFS is an **Object Store**, not a traditional POSIX file hierarchy.
 - Renaming or moving an object updates a view entry, but **never changes the object's identity (`GaxObjectId`)**.
 
 ### 2.2 Reusable Generic Storage Engine (`gax_storage_engine`)
-Persistence, Copy-on-Write (CoW) page allocation, transactions, 256-bit BLAKE3 checksums, block cache, and recovery are owned by a generic, reusable Ring-3 storage engine library crate: **`gax_storage_engine`**.
+Persistence, Copy-on-Write (CoW) page allocation, transactions, 256-bit integrity checksums (currently a rolling mixing function; BLAKE3 is the target for production adversarial environments), block cache, and recovery are owned by a generic, reusable Ring-3 storage engine library crate: **`gax_storage_engine`**.
 - `gax_storage_engine` owns no filesystem semantics (object types, metadata dictionaries, namespaces, relationships, and capabilities belong exclusively to GaxFS).
+
+#### Threat Model: Storage Integrity
+The current checksum implementation is non-cryptographic and intended for trusted block device stacks. For untrusted or adversarial storage backends, upgrading the checksum generator to BLAKE3 or SHA-256 is required.
 
 ### 2.3 Strict Architectural Separation: Storage Journal vs Public Event Log
 GaxFS maintains a clear conceptual boundary between internal durability and public event emission:

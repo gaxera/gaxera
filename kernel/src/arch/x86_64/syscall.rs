@@ -589,7 +589,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Endpoint,
-                        gaxera_abi::Rights::NONE,
+                        gaxera_abi::Rights::WRITE,
                         arena_ref,
                     );
                     if let Ok(endpoint_id) = endpoint_result {
@@ -725,7 +725,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         cspace,
                         handle,
                         gaxera_abi::ObjectType::Endpoint,
-                        gaxera_abi::Rights::NONE,
+                        gaxera_abi::Rights::READ,
                         arena_ref,
                     );
                     if let Ok(endpoint_id) = endpoint_result {
@@ -1489,8 +1489,41 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                 Some(n) => n,
                                 None => break 'sys_invoke u64::MAX,
                             };
-                            let signals = notif.take_signals();
-                            signals as u64
+                            let wait_res = notif.wait(current_thread_id);
+                            drop(notifications);
+
+                            match wait_res {
+                                Ok(Ok(signals)) => signals as u64,
+                                Ok(Err(_thread_id)) => {
+                                    // SAFETY: Single core BSP, no data races.
+                                    let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+                                    let scheduler = scheduler_cell.as_mut().unwrap();
+
+                                    // SAFETY: Thread access is single-CPU isolated during syscall context.
+                                    let thread = unsafe {
+                                        crate::arch::x86_64::thread::THREADS
+                                            .get_mut(current_thread_id)
+                                    }
+                                    .unwrap();
+                                    let _ = scheduler.block_current(thread);
+                                    if let Some(next) = scheduler.dequeue_next() {
+                                        scheduler.set_current_thread(Some(next));
+                                        crate::arch::x86_64::preemption::switch_to_next(
+                                            current_thread_id,
+                                            next,
+                                        )
+                                        .unwrap();
+                                    }
+
+                                    let mut notifications = crate::global::NOTIFICATIONS.lock();
+                                    if let Some(n) = notifications.get_mut(notif_id) {
+                                        n.take_signals() as u64
+                                    } else {
+                                        0
+                                    }
+                                }
+                                Err(_) => break 'sys_invoke u64::MAX,
+                            }
                         }
                         Err(_) => break 'sys_invoke u64::MAX,
                     }

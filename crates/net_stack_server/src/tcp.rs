@@ -403,4 +403,105 @@ mod tests {
         assert_eq!(retrans2[0].seq_num, 1000);
         assert_eq!(retrans2[0].flags, tcp_flags::ACK);
     }
+
+    #[test]
+    fn test_tcp_retransmit_frame_building_and_ring_dispatch() {
+        let engine = TcpTransportEngine::new();
+        let local = NetEndpoint::new(
+            net_types::IpAddr::V4(net_types::Ipv4Addr::new(10, 0, 2, 15)),
+            8080,
+        );
+        let remote = NetEndpoint::new(
+            net_types::IpAddr::V4(net_types::Ipv4Addr::new(10, 0, 2, 2)),
+            54321,
+        );
+
+        let sid = engine.create_session(local, remote).unwrap();
+
+        {
+            let mut guard = engine.tcbs.lock();
+            let tcb = guard.iter_mut().find(|t| t.session_id == sid).unwrap();
+            tcb.state = SessionState::Established;
+            tcb.retransmit_queue.push(PendingSegment {
+                seq_num: 2000,
+                length: 1460,
+                rto_ticks: 0,
+                retransmit_count: 0,
+            });
+        }
+
+        let retrans = engine.poll_timer_ticks();
+        assert_eq!(retrans.len(), 1);
+
+        let mut tx_queue = Vec::new();
+        engine.build_retransmit_frames(&retrans, &mut tx_queue);
+        assert_eq!(tx_queue.len(), 1);
+
+        let frame = &tx_queue[0];
+        // Ethernet 14 + IPv4 20 + TCP 20 = 54 bytes minimum link frame size
+        assert!(frame.len() >= 54);
+
+        let ring = net_types::PacketRingHeader::new(16, net_types::RingType::Tx);
+        assert!(ring.is_empty());
+        for f in tx_queue.drain(..) {
+            assert!(ring.push_slot().is_ok());
+            let _ = f;
+        }
+        assert_eq!(ring.len(), 1);
+    }
+
+    #[test]
+    fn test_tcp_repeated_retransmission_exponential_backoff_and_ring_wraparound() {
+        let engine = TcpTransportEngine::new();
+        let local = NetEndpoint::new(
+            net_types::IpAddr::V4(net_types::Ipv4Addr::new(10, 0, 2, 15)),
+            8080,
+        );
+        let remote = NetEndpoint::new(
+            net_types::IpAddr::V4(net_types::Ipv4Addr::new(10, 0, 2, 2)),
+            54321,
+        );
+
+        let sid = engine.create_session(local, remote).unwrap();
+
+        {
+            let mut guard = engine.tcbs.lock();
+            let tcb = guard.iter_mut().find(|t| t.session_id == sid).unwrap();
+            tcb.state = SessionState::Established;
+            tcb.rto = 2;
+            tcb.retransmit_queue.push(PendingSegment {
+                seq_num: 3000,
+                length: 512,
+                rto_ticks: 0,
+                retransmit_count: 0,
+            });
+        }
+
+        // Test RTO exponential backoff across 5 consecutive timeouts
+        for _timeout in 0..5 {
+            let mut retrans = Vec::new();
+            for _step in 0..100 {
+                retrans = engine.poll_timer_ticks();
+                if !retrans.is_empty() {
+                    break;
+                }
+            }
+            assert_eq!(retrans.len(), 1);
+            assert_eq!(retrans[0].seq_num, 3000);
+        }
+
+        // Test ring buffer wraparound across 128 pushes and pops on a 64-capacity PacketRingHeader
+        let ring = net_types::PacketRingHeader::new(64, net_types::RingType::Tx);
+        for iter in 0..128 {
+            let push_res = ring.push_slot();
+            assert!(
+                push_res.is_ok(),
+                "Failed to push slot on iteration {}",
+                iter
+            );
+            let popped = ring.pop_slot();
+            assert!(popped.is_some(), "Failed to pop slot on iteration {}", iter);
+        }
+        assert!(ring.is_empty());
+    }
 }

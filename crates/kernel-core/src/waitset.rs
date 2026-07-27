@@ -105,7 +105,13 @@ impl WaitSet {
         if let Some(sub) = self.subscriptions.iter().find(|s| s.object == object) {
             let matched_signals = sub.signals & active_signals;
             if matched_signals != 0 {
-                if self.ready_events.len() < MAX_WAITSET_EVENTS {
+                if let Some(existing) = self
+                    .ready_events
+                    .iter_mut()
+                    .find(|e| e.cookie == sub.cookie)
+                {
+                    existing.signals |= matched_signals;
+                } else if self.ready_events.len() < MAX_WAITSET_EVENTS {
                     self.ready_events.push(WaitSetEvent {
                         cookie: sub.cookie,
                         signals: matched_signals,
@@ -223,5 +229,83 @@ mod tests {
         let res = ws.wait(thread).unwrap().unwrap();
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].cookie, 0xB2);
+    }
+
+    #[test]
+    fn waitset_signal_coalescing() {
+        let mut ws = WaitSet::new(test_id(1));
+        let obj = test_id(10);
+
+        ws.add_subscription(obj, 0xC3, 0b1111).unwrap();
+
+        // Post bit 0b0001 then 0b0010 for same cookie
+        assert_eq!(ws.post_event(obj, 0b0001), None);
+        assert_eq!(ws.post_event(obj, 0b0010), None);
+
+        // Signal bits coalesced into 1 pending event
+        assert_eq!(ws.pending_event_count(), 1);
+        let events = ws.wait(test_id(99)).unwrap().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].cookie, 0xC3);
+        assert_eq!(events[0].signals, 0b0011);
+    }
+
+    #[test]
+    fn waitset_capacity_limits_and_closed_rejection() {
+        let mut ws = WaitSet::new(test_id(1));
+
+        // Fill subscriptions to MAX_WAITSET_SUBSCRIPTIONS (64)
+        for i in 0..MAX_WAITSET_SUBSCRIPTIONS {
+            ws.add_subscription(test_id(100 + i as u32), i as u64, 1)
+                .unwrap();
+        }
+
+        // 65th subscription fails with Full
+        assert_eq!(
+            ws.add_subscription(test_id(999), 999, 1),
+            Err(WaitSetError::Full)
+        );
+
+        // Close waitset
+        ws.close();
+
+        // Operations on closed waitset return Closed or None
+        assert_eq!(
+            ws.add_subscription(test_id(1), 1, 1),
+            Err(WaitSetError::Closed)
+        );
+        assert_eq!(
+            ws.remove_subscription(test_id(100)),
+            Err(WaitSetError::Closed)
+        );
+        assert_eq!(ws.wait(test_id(1)), Err(WaitSetError::Closed));
+        assert_eq!(ws.post_event(test_id(100), 1), None);
+    }
+
+    #[test]
+    fn waitset_fifo_ordering_and_wake_before_wait_race_prevention() {
+        let mut ws = WaitSet::new(test_id(1));
+        let obj1 = test_id(101);
+        let obj2 = test_id(102);
+        let obj3 = test_id(103);
+
+        ws.add_subscription(obj1, 0x11, 0b1).unwrap();
+        ws.add_subscription(obj2, 0x22, 0b1).unwrap();
+        ws.add_subscription(obj3, 0x33, 0b1).unwrap();
+
+        // Post events in sequence 101, 102, 103 BEFORE wait() is called
+        assert_eq!(ws.post_event(obj1, 0b1), None);
+        assert_eq!(ws.post_event(obj2, 0b1), None);
+        assert_eq!(ws.post_event(obj3, 0b1), None);
+
+        // Wait immediately returns all 3 pending events in strict FIFO ordering
+        let res = ws.wait(test_id(500)).unwrap().unwrap();
+        assert_eq!(res.len(), 3);
+        assert_eq!(res[0].cookie, 0x11);
+        assert_eq!(res[1].cookie, 0x22);
+        assert_eq!(res[2].cookie, 0x33);
+
+        // Queue is drained
+        assert_eq!(ws.pending_event_count(), 0);
     }
 }

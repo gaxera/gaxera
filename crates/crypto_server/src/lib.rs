@@ -1,4 +1,9 @@
 //! Ring-3 TLS 1.3 / DTLS Session Encryption & Certificate Service (`crypto_server`).
+//!
+//! ## Security Notice
+//! - Session key is compile-time static (development/testing only).
+//! - Nonce counter is per-instance, no replay detection.
+//! - MAC comparison uses constant-time logic (`ct_eq`).
 
 #![no_std]
 
@@ -23,6 +28,12 @@ impl TlsCryptoServer {
     /// Constant magic words for ChaCha20 state matrix ("expand 32-byte k").
     const CONSTANTS: [u32; 4] = [0x61707865, 0x3320646e, 0x79622d32, 0x6b206574];
 
+    /// # Security Notice
+    ///
+    /// This implementation uses a **compile-time static session key** for
+    /// development and testing only. For production deployment, the key MUST
+    /// be provisioned through a secure key derivation or hardware RNG mechanism.
+    /// The nonce counter is per-instance and does not support replay detection.
     pub fn new() -> Self {
         Self {
             // 256-bit static session key for Ring-3 AEAD engine
@@ -390,6 +401,19 @@ impl TlsCryptoServer {
         nonce[8..12].copy_from_slice(&[0xA1, 0xB2, 0xC3, 0xD4]);
         nonce
     }
+
+    /// Constant-time 16-byte MAC comparison preventing timing side-channel attacks.
+    #[inline(never)]
+    pub fn ct_eq(a: &[u8; 16], b: &[u8]) -> bool {
+        if b.len() != 16 {
+            return false;
+        }
+        let mut acc = 0u8;
+        for i in 0..16 {
+            acc |= a[i] ^ b[i];
+        }
+        acc == 0
+    }
 }
 
 impl CryptoProvider for TlsCryptoServer {
@@ -455,11 +479,11 @@ impl CryptoProvider for TlsCryptoServer {
         };
         let nonce = self.make_nonce(seq);
 
-        // 1. Verify Poly1305 MAC tag
+        // 1. Verify Poly1305 MAC tag using constant-time comparison
         let expected_tag = self.poly1305_mac(&ciphertext[..payload_len], &nonce);
         let actual_tag = &ciphertext[payload_len..payload_len + Self::TAG_LEN];
 
-        if expected_tag != actual_tag {
+        if !Self::ct_eq(&expected_tag, actual_tag) {
             return Err(ProviderError::CryptoError); // Authentication failure!
         }
 
@@ -485,6 +509,43 @@ impl CryptoProvider for TlsCryptoServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_constant_time_mac_comparison_correctness() {
+        let tag1: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let tag2: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        assert!(TlsCryptoServer::ct_eq(&tag1, &tag2));
+
+        for i in 0..16 {
+            let mut diff = tag1;
+            diff[i] ^= 0xFF;
+            assert!(!TlsCryptoServer::ct_eq(&tag1, &diff));
+        }
+    }
+
+    #[test]
+    fn test_ct_eq_rejects_length_mismatch() {
+        let tag: [u8; 16] = [1; 16];
+        assert!(!TlsCryptoServer::ct_eq(&tag, &[1u8; 15]));
+        assert!(!TlsCryptoServer::ct_eq(&tag, &[1u8; 17]));
+    }
+
+    #[test]
+    fn test_chacha20_poly1305_round_trip() {
+        let crypto = TlsCryptoServer::new();
+        let plain = b"Gaxera Microkernel Ring-3 TLS Engine Confidential Data";
+        let mut cipher = [0u8; 128];
+        let mut decrypted = [0u8; 128];
+
+        let enc_len = crypto.encrypt_payload(plain, &mut cipher).unwrap();
+        assert_eq!(enc_len, plain.len() + TlsCryptoServer::TAG_LEN);
+
+        let dec_len = crypto
+            .decrypt_payload(&cipher[..enc_len], &mut decrypted)
+            .unwrap();
+        assert_eq!(dec_len, plain.len());
+        assert_eq!(&decrypted[..dec_len], plain);
+    }
 
     #[test]
     fn test_rfc8439_chacha20_poly1305_encrypt_decrypt() {

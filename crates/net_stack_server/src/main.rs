@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+#[allow(unused_imports)]
 use alloc::vec::Vec;
 use core::alloc::{GlobalAlloc, Layout};
 #[cfg(not(test))]
@@ -31,6 +32,7 @@ pub extern "C" fn _start() -> ! {
     let router = net_stack_server::ip_router::IpRouter::new();
     let _ = (&tcp_engine, &udp_engine, &router);
 
+    let tx_ring = net_types::PacketRingHeader::new(64, net_types::RingType::Tx);
     let mut tx_queue = Vec::new();
 
     loop {
@@ -39,7 +41,8 @@ pub extern "C" fn _start() -> ! {
             tcp_engine.build_retransmit_frames(&retransmits, &mut tx_queue);
             // Wire Transmission Dispatch: Push constructed link frames onto active transmit queue
             for frame in tx_queue.drain(..) {
-                // Dispatch packet frame payload onto active VirtIO network transmit interface
+                // Push slot index onto shared PacketRing transmit queue
+                let _ = tx_ring.push_slot();
                 let _ = frame;
             }
         }

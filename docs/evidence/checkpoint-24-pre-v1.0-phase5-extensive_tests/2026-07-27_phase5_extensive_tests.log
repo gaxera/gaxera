@@ -1,0 +1,897 @@
+]633;E;} > /home/nyx/gaxera/docs/evidence/checkpoint-24-pre-v1.0-phase5-extensive_tests/2026-07-27_phase5_extensive_tests.log 2>&1;f403fdaa-562f-4e69-8ac0-06f16d60a371]633;C=== GAXERA PRE-V1.0 EXTENSIVE TEST RUN ===
+Date: 2026-07-27T12:03:30Z
+Commit: 9c27cae0eba35a611394a704c4b15c5d6b3570d5
+
+==========================================
+=== SECTION 1: cargo fmt --all --check ===
+==========================================
+
+==========================================
+=== SECTION 2: cargo test --workspace --exclude kernel ===
+==========================================
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/crypto_server-4cff778d6e27e26a)
+
+running 6 tests
+test tests::test_constant_time_mac_comparison_correctness ... ok
+test tests::test_chacha20_poly1305_round_trip ... ok
+test tests::test_ct_eq_rejects_length_mismatch ... ok
+test tests::test_tampered_ciphertext_fails_poly1305_authentication ... ok
+test tests::test_rfc8439_chacha20_poly1305_encrypt_decrypt ... ok
+test tests::test_rfc8439_poly1305_known_answer_test_vector ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/gax_storage_engine-f20283393cfefd01)
+
+running 10 tests
+test extent_allocator::tests::test_extent_allocation_and_deallocation ... ok
+test integrity::tests::test_checksum_computation_and_verification ... ok
+test journal::tests::test_journal_record_serialization ... ok
+test object_header::tests::test_object_header_serialization_with_relationships ... ok
+test superblock::tests::test_dual_superblock_crash_recovery ... ok
+test superblock::tests::test_superblock_serialization_round_trip ... ok
+test tests::test_bitrot_payload_checksum_scrubbing ... ok
+test tests::test_gaxfs_simulated_crash_recovery_and_superblock_rollback ... ok
+test tests::test_storage_engine_format_write_read_cycle ... ok
+test tests::test_hundred_generations_commit_rollover ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/gaxera_abi-49d6290a90f31c3b)
+
+running 7 tests
+test ipc::tests::inline_message_zero_length ... ok
+test ipc::tests::reply_token_encoding ... ok
+test ipc::tests::inline_message_full_length ... ok
+test ipc::tests::transfer_descriptor_representation ... ok
+test ipc::tests::inline_message_oversized_rejection ... ok
+test service::tests::test_service_wire_roundtrip_and_malformed_rejection ... ok
+test tests::test_object_type_set_completeness ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_event_log-9c7574cbd1bb51d3)
+
+running 5 tests
+test checkpoint::tests::test_checkpoint_tracking_and_lowest_sequence ... ok
+test log::tests::test_ring_buffer_multi_wrap_around_and_pruning ... ok
+test ring_buffer::tests::test_ring_buffer_push_and_read ... ok
+test log::tests::test_subscriber_self_healing_rehydration ... ok
+test log::tests::test_subscriber_registration_and_event_publishing ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_types-c7163ee9a255c14e)
+
+running 4 tests
+test capabilities::tests::test_revocation_behavior ... ok
+test capabilities::tests::test_rights_attenuation_and_amplification_prevention ... ok
+test object_id::tests::test_nil_id ... ok
+test object_id::tests::test_uuidv7_construction_and_ordering ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_vector_index-c0428180acf62ac2)
+
+running 3 tests
+test vector_index::tests::test_vector_search_with_capability_isolation ... ok
+test quantization::tests::test_turboquant_lloyd_max_renormalized_compression ... ok
+test vector_index::tests::test_512_dim_high_dimensional_vector_recall_benchmark ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/kernel_core-d8a3e48bb5dcd5f7)
+
+running 87 tests
+test contiguous_frame::tests::contiguous_frame_properties_and_mapping_counts ... ok
+test affinity::tests::test_cpu_affinity_mask_operations ... ok
+test elf::tests::test_elf_accepts_max_user_vaddr_segment ... ok
+test elf::tests::test_elf_rejects_kernel_vaddr_segment ... ok
+test address_space::tests::address_space_move_only_and_non_owning_token ... ok
+test elf::tests::test_invalid_alignment ... ok
+test elf::tests::test_elf_rejects_vaddr_overflow_into_kernel ... ok
+test elf::tests::test_invalid_ehsize ... ok
+test elf::tests::test_invalid_phentsize ... ok
+test elf::tests::test_malformed_pt_load_arithmetic_overflow ... ok
+test elf::tests::test_malformed_pt_load_filesz_greater_than_memsz ... ok
+test elf::tests::test_malformed_pt_load_out_of_bounds_file_offset ... ok
+test elf::tests::test_valid_elf ... ok
+test elf::tests::test_truncated_program_headers ... ok
+test elf::tests::test_wx_simultaneous_permission_rejection ... ok
+test elf::tests::test_truncated_buffer_smaller_than_header ... ok
+test interrupt::tests::interrupt_object_binding_and_masking ... ok
+test ipc::tests::endpoint_caller_cancelled_while_queued ... ok
+test ipc::tests::endpoint_close_effects ... ok
+test ipc::tests::endpoint_caller_first_rendezvous ... ok
+test ipc::tests::capability_transfer_transaction_all_or_nothing ... ok
+test ipc::tests::endpoint_queue_capacity_exact_32_and_33rd_rejected ... ok
+test ipc::tests::endpoint_receiver_first_rendezvous ... ok
+test ipc::tests::endpoint_second_receiver_rejected ... ok
+test ipc::tests::endpoint_reply_stale_or_forged ... ok
+test ipc::tests::test_endpoint_notify_thread_terminated_dead_caller ... ok
+test ipc::tests::endpoint_closes_while_callers_waiting_and_server_crash ... ok
+test ipc::tests::test_ipc_reply_token_sequence_uniqueness ... ok
+test mapping::tests::mapping_subregion_derivation_validation ... ok
+test ipc::tests::test_exhaustive_ipc_rights_matrix_validation ... ok
+test notification::tests::notification_signal_coalescing_and_take ... ok
+test notification::tests::notification_close_effects ... ok
+test ipc::tests::endpoint_fifo_order_preserved_across_multiple_cycles ... ok
+test mapping::tests::mapping_object_pure_metadata_and_validation ... ok
+test notification::tests::notification_signal_wakes_waiting_thread ... ok
+test registry::tests::test_registry_remove ... ok
+test notification::tests::notification_wait_with_pending_signals_returns_immediately ... ok
+test scheduler::tests::contains_reports_presence ... ok
+test scheduler::tests::current_thread_cannot_be_enqueued ... ok
+test scheduler::tests::dequeue_returns_fifo_order ... ok
+test scheduler::tests::enqueue_rejects_duplicate ... ok
+test scheduler::tests::enqueue_rejects_full_queue ... ok
+test notification::tests::notification_wait_without_signals_records_waiter ... ok
+test scheduler::tests::scheduler_apply_wake ... ok
+test registry::tests::test_registry_get_mut ... ok
+test scheduler::tests::scheduler_block_current ... ok
+test scheduler::tests::scheduler_priority_ordering ... ok
+test scheduler::tests::scheduler_quantum_tracking ... ok
+test registry::tests::test_registry_insert_get ... ok
+test scheduler_domain::tests::test_64_core_thread_ownership_exclusivity_invariant ... ok
+test scheduler::tests::scheduler_queue_logic ... ok
+test scheduler_domain::tests::test_64_core_work_stealing_and_affinity_enforcement ... ok
+test scheduler_domain::tests::test_scheduler_domain_migration_protocol ... ok
+test ipc::tests::endpoint_multiclient_caller_queueing ... ok
+test scheduler::tests::committed_yield_rotates_fifo_without_allocation ... ok
+test slab::tests::slab_cache_hardening_validation ... ok
+test tests::deleting_a_parent_handle_does_not_revoke_a_child ... ok
+test scheduler_domain::tests::test_64_core_multi_queue_work_stealing_stress ... ok
+test tests::derivation_can_only_narrow_rights ... ok
+test tests::destroyed_objects_invalidate_existing_capabilities ... ok
+test slab::tests::slab_cache_allocation_and_deallocation ... ok
+test tests::prepared_transfer_rolls_back_when_target_cannot_accept_it ... ok
+test tests::scheduler_queue_logic ... ok
+test tests::thread_state_transitions ... ok
+test tests::three_tier_cascade_revocation_across_spaces ... ok
+test thread::tests::thread_priority_inheritance_boost_and_restore ... ok
+test time::tests::deadline_ordering_and_expiry ... ok
+test time::tests::display_format ... ok
+test scheduler_domain::tests::test_64_core_topology_full_mesh_migration ... ok
+test time::tests::monotonic_clock_advance ... ok
+test time::tests::ticks_arithmetic ... ok
+test tests::resource_limits_are_recoverable_errors ... ok
+test timer::tests::timer_object_arm_fire_cancel ... ok
+test tests::generational_handle_invalidation_prevents_stale_access ... ok
+test timer::tests::timer_object_close ... ok
+test tests::object_creation_is_fallible_and_reuse_invalidates_stale_identity ... ok
+test timer::tests::timer_object_rearm ... ok
+test timer::tests::timer_queue_advance_and_remove ... ok
+test waitset::tests::waitset_add_remove_subscription ... ok
+test tests::revocation_invalidates_descendants_across_spaces ... ok
+test waitset::tests::waitset_fifo_ordering_and_wake_before_wait_race_prevention ... ok
+test waitset::tests::waitset_remove_subscription_purges_pending_events ... ok
+test waitset::tests::waitset_post_event_and_atomic_wait ... ok
+test waitset::tests::waitset_signal_coalescing ... ok
+test timer::tests::timer_queue_ordering_and_capacity ... ok
+test waitset::tests::waitset_capacity_limits_and_closed_rejection ... ok
+test tests::rights_subset_matrix_is_exhaustive_for_all_initial_bits ... ok
+
+test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/libgaxera-0f21c1ff538ffc26)
+
+running 8 tests
+test abi_tests::operation_code_coverage_assertion ... ok
+test abi_tests::abi_layout_and_size_invariants ... ok
+test compat::sockets::tests::test_bsd_sockets_virtualization ... ok
+test virtio::tests::test_corrupted_chain_rejection ... ok
+test virtio::tests::test_negotiate_queue_size ... ok
+test virtio::tests::virtqueue_descriptor_allocation_and_chaining ... ok
+test driver::tests::contiguous_frame_handle_properties ... ok
+test virtio::tests::test_calculate_notify_vaddr ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/net_stack_server-573ce02df657099d)
+
+running 6 tests
+test tcp::tests::test_tcp_repeated_retransmission_exponential_backoff_and_ring_wraparound ... ok
+test tcp::tests::test_tcp_retransmission_timer_silent_loss_recovery ... ok
+test tcp::tests::test_tcp_retransmit_frame_building_and_ring_dispatch ... ok
+test tests::test_arp_cache_insert_lookup_and_reply ... ok
+test tests::test_ip_router_lookup_and_icmp_echo ... ok
+test tests::test_tcp_stateful_handshake_and_flow_control ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/net_types-fe452b3bbec28de3)
+
+running 7 tests
+test tests::test_ipv4_cidr_matching ... ok
+test tests::test_ethernet_header_encode_parse ... ok
+test tests::test_mac_address_formatting_and_checks ... ok
+test tests::test_net_rights_attenuation ... ok
+test tests::test_provider_ipc_version_negotiation ... ok
+test tests::test_packet_ring_header_spsc_math ... ok
+test tests::test_session_state_machine ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running ../../tests/net_integration.rs (target/debug/deps/net_integration-9d8a50467e175e78)
+
+running 1 test
+test test_end_to_end_gaxnet_stack_pipeline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/pci_bus_server-a345fe1398151922)
+
+running 3 tests
+test tests::test_pci_multi_function_device_scan ... ok
+test tests::test_pci_bus_server_scan_segment_mock ... ok
+test tests::test_pci_capability_list_parsing ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/query_planner-757d6e3ec57b180c)
+
+running 3 tests
+test planner::tests::test_multi_predicate_intersection_and_short_circuit ... ok
+test planner::tests::test_planner_selective_index_pruning ... ok
+test builder::tests::test_query_builder_fluent_api ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/end_to_end_integration.rs (target/debug/deps/end_to_end_integration-c6223a52b12d8787)
+
+running 1 test
+test test_milestone_093_full_system_integration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/resolver_server-e53dc9cdc1c627db)
+
+running 4 tests
+test tests::test_dns_wire_packet_malformed_rejection_and_tx_id_validation ... ok
+test tests::test_public_internet_domain_dns_resolution ... ok
+test tests::test_domain_resolution_wire_rfc1035_execution ... ok
+test tests::test_rfc1035_dns_query_encode ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/virtio_block_server-9ed30d5d7f03c3cc)
+
+running 2 tests
+test tests::test_validate_block_request ... ok
+test tests::test_translate_virtio_status ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/virtio_gpu_server-e59b0966aa4ff3cb)
+
+running 2 tests
+test tests::test_end_to_end_virtio_reference_platform_suite ... ok
+test tests::test_virtio_gpu_driver_commands_and_pattern ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/virtio_input_server-4693d7861575c988)
+
+running 2 tests
+test tests::test_keyboard_key_event_decoding_and_focus_scoping ... ok
+test tests::test_pointer_relative_move_decoding ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/virtio_net_server-345bd5310776ca73)
+
+running 1 test
+test driver::tests::test_virtio_net_driver_init_and_provider ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/xtask-b504c31a6780957a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests crypto_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gax_storage_engine
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxera_abi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_event_log
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_vector_index
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests kernel_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests libgaxera
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_stack_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pci_bus_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests query_planner
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests resolver_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_block_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_gpu_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_input_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_net_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+==========================================
+=== SECTION 3: Individual Crate Tests ===
+==========================================
+--- Testing crate: kernel-core ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/kernel_core-d8a3e48bb5dcd5f7)
+
+running 87 tests
+test contiguous_frame::tests::contiguous_frame_properties_and_mapping_counts ... ok
+test address_space::tests::address_space_move_only_and_non_owning_token ... ok
+test elf::tests::test_elf_rejects_kernel_vaddr_segment ... ok
+test elf::tests::test_elf_rejects_vaddr_overflow_into_kernel ... ok
+test elf::tests::test_elf_accepts_max_user_vaddr_segment ... ok
+test elf::tests::test_invalid_alignment ... ok
+test affinity::tests::test_cpu_affinity_mask_operations ... ok
+test elf::tests::test_invalid_phentsize ... ok
+test elf::tests::test_malformed_pt_load_arithmetic_overflow ... ok
+test elf::tests::test_malformed_pt_load_filesz_greater_than_memsz ... ok
+test elf::tests::test_invalid_ehsize ... ok
+test elf::tests::test_malformed_pt_load_out_of_bounds_file_offset ... ok
+test elf::tests::test_truncated_buffer_smaller_than_header ... ok
+test elf::tests::test_truncated_program_headers ... ok
+test elf::tests::test_valid_elf ... ok
+test elf::tests::test_wx_simultaneous_permission_rejection ... ok
+test interrupt::tests::interrupt_object_binding_and_masking ... ok
+test ipc::tests::capability_transfer_transaction_all_or_nothing ... ok
+test ipc::tests::endpoint_caller_cancelled_while_queued ... ok
+test ipc::tests::endpoint_caller_first_rendezvous ... ok
+test ipc::tests::endpoint_close_effects ... ok
+test ipc::tests::endpoint_closes_while_callers_waiting_and_server_crash ... ok
+test ipc::tests::endpoint_fifo_order_preserved_across_multiple_cycles ... ok
+test ipc::tests::endpoint_multiclient_caller_queueing ... ok
+test ipc::tests::endpoint_queue_capacity_exact_32_and_33rd_rejected ... ok
+test ipc::tests::endpoint_receiver_first_rendezvous ... ok
+test ipc::tests::endpoint_reply_stale_or_forged ... ok
+test ipc::tests::endpoint_second_receiver_rejected ... ok
+test ipc::tests::test_endpoint_notify_thread_terminated_dead_caller ... ok
+test ipc::tests::test_exhaustive_ipc_rights_matrix_validation ... ok
+test ipc::tests::test_ipc_reply_token_sequence_uniqueness ... ok
+test mapping::tests::mapping_object_pure_metadata_and_validation ... ok
+test mapping::tests::mapping_subregion_derivation_validation ... ok
+test notification::tests::notification_close_effects ... ok
+test notification::tests::notification_signal_coalescing_and_take ... ok
+test notification::tests::notification_signal_wakes_waiting_thread ... ok
+test notification::tests::notification_wait_with_pending_signals_returns_immediately ... ok
+test notification::tests::notification_wait_without_signals_records_waiter ... ok
+test registry::tests::test_registry_get_mut ... ok
+test registry::tests::test_registry_insert_get ... ok
+test registry::tests::test_registry_remove ... ok
+test scheduler::tests::committed_yield_rotates_fifo_without_allocation ... ok
+test scheduler::tests::contains_reports_presence ... ok
+test scheduler::tests::current_thread_cannot_be_enqueued ... ok
+test scheduler::tests::dequeue_returns_fifo_order ... ok
+test scheduler::tests::enqueue_rejects_duplicate ... ok
+test scheduler::tests::enqueue_rejects_full_queue ... ok
+test scheduler::tests::scheduler_apply_wake ... ok
+test scheduler::tests::scheduler_block_current ... ok
+test scheduler::tests::scheduler_priority_ordering ... ok
+test scheduler::tests::scheduler_quantum_tracking ... ok
+test scheduler::tests::scheduler_queue_logic ... ok
+test scheduler_domain::tests::test_64_core_thread_ownership_exclusivity_invariant ... ok
+test scheduler_domain::tests::test_64_core_topology_full_mesh_migration ... ok
+test scheduler_domain::tests::test_64_core_work_stealing_and_affinity_enforcement ... ok
+test scheduler_domain::tests::test_scheduler_domain_migration_protocol ... ok
+test slab::tests::slab_cache_hardening_validation ... ok
+test slab::tests::slab_cache_allocation_and_deallocation ... ok
+test tests::deleting_a_parent_handle_does_not_revoke_a_child ... ok
+test scheduler_domain::tests::test_64_core_multi_queue_work_stealing_stress ... ok
+test tests::derivation_can_only_narrow_rights ... ok
+test tests::destroyed_objects_invalidate_existing_capabilities ... ok
+test tests::generational_handle_invalidation_prevents_stale_access ... ok
+test tests::object_creation_is_fallible_and_reuse_invalidates_stale_identity ... ok
+test tests::prepared_transfer_rolls_back_when_target_cannot_accept_it ... ok
+test tests::resource_limits_are_recoverable_errors ... ok
+test tests::revocation_invalidates_descendants_across_spaces ... ok
+test tests::scheduler_queue_logic ... ok
+test tests::thread_state_transitions ... ok
+test tests::three_tier_cascade_revocation_across_spaces ... ok
+test thread::tests::thread_priority_inheritance_boost_and_restore ... ok
+test time::tests::deadline_ordering_and_expiry ... ok
+test time::tests::display_format ... ok
+test time::tests::monotonic_clock_advance ... ok
+test tests::rights_subset_matrix_is_exhaustive_for_all_initial_bits ... ok
+test time::tests::ticks_arithmetic ... ok
+test timer::tests::timer_object_arm_fire_cancel ... ok
+test timer::tests::timer_object_close ... ok
+test timer::tests::timer_object_rearm ... ok
+test timer::tests::timer_queue_advance_and_remove ... ok
+test timer::tests::timer_queue_ordering_and_capacity ... ok
+test waitset::tests::waitset_add_remove_subscription ... ok
+test waitset::tests::waitset_capacity_limits_and_closed_rejection ... ok
+test waitset::tests::waitset_fifo_ordering_and_wake_before_wait_race_prevention ... ok
+test waitset::tests::waitset_post_event_and_atomic_wait ... ok
+test waitset::tests::waitset_signal_coalescing ... ok
+test waitset::tests::waitset_remove_subscription_purges_pending_events ... ok
+
+test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests kernel_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: gaxera-abi ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/gaxera_abi-49d6290a90f31c3b)
+
+running 7 tests
+test ipc::tests::inline_message_full_length ... ok
+test ipc::tests::reply_token_encoding ... ok
+test ipc::tests::inline_message_zero_length ... ok
+test ipc::tests::transfer_descriptor_representation ... ok
+test service::tests::test_service_wire_roundtrip_and_malformed_rejection ... ok
+test ipc::tests::inline_message_oversized_rejection ... ok
+test tests::test_object_type_set_completeness ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxera_abi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: libgaxera ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/libgaxera-0f21c1ff538ffc26)
+
+running 8 tests
+test abi_tests::abi_layout_and_size_invariants ... ok
+test compat::sockets::tests::test_bsd_sockets_virtualization ... ok
+test driver::tests::contiguous_frame_handle_properties ... ok
+test abi_tests::operation_code_coverage_assertion ... ok
+test virtio::tests::test_calculate_notify_vaddr ... ok
+test virtio::tests::test_corrupted_chain_rejection ... ok
+test virtio::tests::test_negotiate_queue_size ... ok
+test virtio::tests::virtqueue_descriptor_allocation_and_chaining ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests libgaxera
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: gax_storage_engine ---
+   Compiling gaxfs_types v0.1.0 (/home/nyx/gaxera/crates/gaxfs_types)
+   Compiling gax_storage_engine v0.1.0 (/home/nyx/gaxera/crates/gax_storage_engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s
+     Running unittests src/lib.rs (target/debug/deps/gax_storage_engine-51630ed4fc802234)
+
+running 10 tests
+test extent_allocator::tests::test_extent_allocation_and_deallocation ... ok
+test integrity::tests::test_checksum_computation_and_verification ... ok
+test object_header::tests::test_object_header_serialization_with_relationships ... ok
+test superblock::tests::test_dual_superblock_crash_recovery ... ok
+test superblock::tests::test_superblock_serialization_round_trip ... ok
+test journal::tests::test_journal_record_serialization ... ok
+test tests::test_bitrot_payload_checksum_scrubbing ... ok
+test tests::test_storage_engine_format_write_read_cycle ... ok
+test tests::test_gaxfs_simulated_crash_recovery_and_superblock_rollback ... ok
+test tests::test_hundred_generations_commit_rollover ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gax_storage_engine
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: gaxfs_types ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_types-c7163ee9a255c14e)
+
+running 4 tests
+test capabilities::tests::test_revocation_behavior ... ok
+test object_id::tests::test_nil_id ... ok
+test capabilities::tests::test_rights_attenuation_and_amplification_prevention ... ok
+test object_id::tests::test_uuidv7_construction_and_ordering ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: gaxfs_event_log ---
+   Compiling gaxfs_event_log v0.1.0 (/home/nyx/gaxera/crates/gaxfs_event_log)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_event_log-2663b5cb586388a9)
+
+running 5 tests
+test checkpoint::tests::test_checkpoint_tracking_and_lowest_sequence ... ok
+test ring_buffer::tests::test_ring_buffer_push_and_read ... ok
+test log::tests::test_subscriber_self_healing_rehydration ... ok
+test log::tests::test_ring_buffer_multi_wrap_around_and_pruning ... ok
+test log::tests::test_subscriber_registration_and_event_publishing ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_event_log
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: gaxfs_vector_index ---
+   Compiling gaxfs_vector_index v0.1.0 (/home/nyx/gaxera/crates/gaxfs_vector_index)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running unittests src/lib.rs (target/debug/deps/gaxfs_vector_index-9576027eb1cf396b)
+
+running 3 tests
+test vector_index::tests::test_vector_search_with_capability_isolation ... ok
+test quantization::tests::test_turboquant_lloyd_max_renormalized_compression ... ok
+test vector_index::tests::test_512_dim_high_dimensional_vector_recall_benchmark ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests gaxfs_vector_index
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: net_types ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/net_types-fe452b3bbec28de3)
+
+running 7 tests
+test tests::test_packet_ring_header_spsc_math ... ok
+test tests::test_ethernet_header_encode_parse ... ok
+test tests::test_ipv4_cidr_matching ... ok
+test tests::test_net_rights_attenuation ... ok
+test tests::test_provider_ipc_version_negotiation ... ok
+test tests::test_session_state_machine ... ok
+test tests::test_mac_address_formatting_and_checks ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running ../../tests/net_integration.rs (target/debug/deps/net_integration-9d8a50467e175e78)
+
+running 1 test
+test test_end_to_end_gaxnet_stack_pipeline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_types
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: net_stack_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/net_stack_server-573ce02df657099d)
+
+running 6 tests
+test tcp::tests::test_tcp_retransmission_timer_silent_loss_recovery ... ok
+test tcp::tests::test_tcp_repeated_retransmission_exponential_backoff_and_ring_wraparound ... ok
+test tcp::tests::test_tcp_retransmit_frame_building_and_ring_dispatch ... ok
+test tests::test_arp_cache_insert_lookup_and_reply ... ok
+test tests::test_ip_router_lookup_and_icmp_echo ... ok
+test tests::test_tcp_stateful_handshake_and_flow_control ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests net_stack_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: crypto_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/crypto_server-4cff778d6e27e26a)
+
+running 6 tests
+test tests::test_constant_time_mac_comparison_correctness ... ok
+test tests::test_rfc8439_chacha20_poly1305_encrypt_decrypt ... ok
+test tests::test_chacha20_poly1305_round_trip ... ok
+test tests::test_rfc8439_poly1305_known_answer_test_vector ... ok
+test tests::test_ct_eq_rejects_length_mismatch ... ok
+test tests::test_tampered_ciphertext_fails_poly1305_authentication ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests crypto_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: pci_bus_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/pci_bus_server-a345fe1398151922)
+
+running 3 tests
+test tests::test_pci_capability_list_parsing ... ok
+test tests::test_pci_multi_function_device_scan ... ok
+test tests::test_pci_bus_server_scan_segment_mock ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests pci_bus_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: virtio_block_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/virtio_block_server-9ed30d5d7f03c3cc)
+
+running 2 tests
+test tests::test_translate_virtio_status ... ok
+test tests::test_validate_block_request ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_block_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: virtio_net_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/virtio_net_server-345bd5310776ca73)
+
+running 1 test
+test driver::tests::test_virtio_net_driver_init_and_provider ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_net_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: virtio_gpu_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/virtio_gpu_server-e59b0966aa4ff3cb)
+
+running 2 tests
+test tests::test_end_to_end_virtio_reference_platform_suite ... ok
+test tests::test_virtio_gpu_driver_commands_and_pattern ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests virtio_gpu_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: virtio_input_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/virtio_input_server-4693d7861575c988)
+
+running 2 tests
+test tests::test_pointer_relative_move_decoding ... ok
+test tests::test_keyboard_key_event_decoding_and_focus_scoping ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests virtio_input_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: query_planner ---
+   Compiling query_planner v0.1.0 (/home/nyx/gaxera/crates/query_planner)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src/lib.rs (target/debug/deps/query_planner-131273f8031c7d61)
+
+running 3 tests
+test builder::tests::test_query_builder_fluent_api ... ok
+test planner::tests::test_multi_predicate_intersection_and_short_circuit ... ok
+test planner::tests::test_planner_selective_index_pruning ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/end_to_end_integration.rs (target/debug/deps/end_to_end_integration-c293f198eb963022)
+
+running 1 test
+test test_milestone_093_full_system_integration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests query_planner
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: resolver_server ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/resolver_server-e53dc9cdc1c627db)
+
+running 4 tests
+test tests::test_domain_resolution_wire_rfc1035_execution ... ok
+test tests::test_dns_wire_packet_malformed_rejection_and_tx_id_validation ... ok
+test tests::test_public_internet_domain_dns_resolution ... ok
+test tests::test_rfc1035_dns_query_encode ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests resolver_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+--- Testing crate: script_session ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+
+--- Testing crate: ramfs ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+
+--- Testing crate: init ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+
+
+==========================================
+=== SECTION 4: cargo xtask build ===
+==========================================
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running `target/debug/xtask build`
+=== Building Gaxera Kernel ISO ===
+Compiling kernel binary...
+   Compiling kernel v0.1.0 (/home/nyx/gaxera/kernel)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.45s
+Compiling init binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Assembling ISO directory structure...
+Compiling init binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Compiling ramfs binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+Compiling script_session binary...
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+Packaging GaxFS ramfs.img...
+Packaging bootable ISO image via xorriso...
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:target/gaxera.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  923g free
+Added to ISO image: directory '/'='/home/nyx/gaxera/target/iso_root'
+xorriso : UPDATE :      16 files added in 1 seconds
+xorriso : UPDATE :      16 files added in 1 seconds
+ISO image produced: 12233 sectors
+Written to medium : 12233 sectors at LBA 0
+Writing to 'stdio:target/gaxera.iso' completed successfully.
+
+Installing bootloader record sector...
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0xbf23.
+Secondary header valid.
+Detected ISOHYBRID with a GUID partition table (GPT).
+Converting to MBR for improved compatibility...
+Conversion successful.
+No active partition found, some systems may not boot.
+Setting partition 1 as active to work around the issue...
+Installing to MBR.
+Stage 2 to be located at byte offset 0x200.
+Reminder: Remember to copy the limine-bios.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine BIOS stages installed successfully.
+Gaxera packaging successfully compiled to target/gaxera.iso!
+
+=== TEST RUN COMPLETE ===
+End: 2026-07-27T12:03:34Z

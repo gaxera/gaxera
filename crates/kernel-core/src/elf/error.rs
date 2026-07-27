@@ -10,4 +10,5 @@ pub enum ElfError {
     ProgramHeaderOutOfBounds,
     MalformedHeaderSize,
     InvalidAlignment,
+    KernelAddressViolation,
 }

@@ -184,6 +184,11 @@ impl PciBusServer {
                         header,
                         capabilities,
                     });
+
+                    // If function 0 is a single-function device (bit 7 of HeaderType is 0), skip functions 1..7
+                    if function == 0 && (header_type & 0x80) == 0 {
+                        break;
+                    }
                 }
             }
         }
@@ -228,5 +233,97 @@ mod tests {
         let found = server.find_device(0x1AF4, 0x1000).unwrap();
         assert_eq!(found.header.vendor_id, 0x1AF4);
         assert!(server.find_device(0x1AF4, 0x9999).is_none());
+    }
+
+    #[test]
+    fn test_pci_capability_list_parsing() {
+        let segment = PciSegmentGroup {
+            base_address: 0xE000_0000,
+            segment_group_number: 0,
+            start_bus_number: 0,
+            end_bus_number: 0,
+            reserved: 0,
+        };
+
+        let mut mock_ecam = alloc::vec![0u8; 1024 * 1024];
+
+        // Device 0, Func 0: Vendor 0x1AF4, Device 0x1000
+        mock_ecam[0..2].copy_from_slice(&0x1AF4u16.to_le_bytes());
+        mock_ecam[2..4].copy_from_slice(&0x1000u16.to_le_bytes());
+
+        // Status register (offset 0x06): bit 4 = 1 (Capabilities List present) -> 0x0010
+        mock_ecam[6..8].copy_from_slice(&0x0010u16.to_le_bytes());
+
+        // Capability pointer (offset 0x34): points to offset 0x40
+        mock_ecam[0x34] = 0x40;
+
+        // Cap 1 at 0x40: Cap ID = 0x11 (MSI-X), Next = 0x50
+        mock_ecam[0x40] = 0x11;
+        mock_ecam[0x41] = 0x50;
+
+        // Cap 2 at 0x50: Cap ID = 0x09 (VirtIO Vendor), Next = 0x00
+        mock_ecam[0x50] = 0x09;
+        mock_ecam[0x51] = 0x00;
+
+        let mut server = PciBusServer::new();
+        unsafe {
+            server.scan_segment(&segment, mock_ecam.as_ptr());
+        }
+
+        assert_eq!(server.devices().len(), 1);
+        let dev = &server.devices()[0];
+        assert_eq!(dev.capabilities.len(), 2);
+        assert_eq!(dev.capabilities[0].cap_id, 0x11);
+        assert_eq!(dev.capabilities[0].offset, 0x40);
+        assert_eq!(dev.capabilities[0].next_offset, 0x50);
+
+        assert_eq!(dev.capabilities[1].cap_id, 0x09);
+        assert_eq!(dev.capabilities[1].offset, 0x50);
+        assert_eq!(dev.capabilities[1].next_offset, 0x00);
+    }
+
+    #[test]
+    fn test_pci_multi_function_device_scan() {
+        let segment = PciSegmentGroup {
+            base_address: 0xE000_0000,
+            segment_group_number: 0,
+            start_bus_number: 0,
+            end_bus_number: 0,
+            reserved: 0,
+        };
+
+        let mut mock_ecam = alloc::vec![0u8; 1024 * 1024];
+
+        // Device 0, Func 0 (offset 0x0000): Vendor 0x8086, Device 0x100E, HeaderType = 0x80 (Multi-function bit set)
+        mock_ecam[0..2].copy_from_slice(&0x8086u16.to_le_bytes());
+        mock_ecam[2..4].copy_from_slice(&0x100Eu16.to_le_bytes());
+        mock_ecam[0x0E] = 0x80;
+
+        // Device 0, Func 1 (offset 0x1000): Vendor 0x8086, Device 0x100F
+        mock_ecam[0x1000..0x1002].copy_from_slice(&0x8086u16.to_le_bytes());
+        mock_ecam[0x1002..0x1004].copy_from_slice(&0x100Fu16.to_le_bytes());
+
+        // Device 0, Func 2 (offset 0x2000): Vendor 0xFFFF (not present)
+        mock_ecam[0x2000..0x2002].copy_from_slice(&0xFFFFu16.to_le_bytes());
+
+        // Device 0, Func 3 (offset 0x3000): Vendor 0x8086, Device 0x1010
+        mock_ecam[0x3000..0x3002].copy_from_slice(&0x8086u16.to_le_bytes());
+        mock_ecam[0x3002..0x3004].copy_from_slice(&0x1010u16.to_le_bytes());
+
+        let mut server = PciBusServer::new();
+        unsafe {
+            server.scan_segment(&segment, mock_ecam.as_ptr());
+        }
+
+        // Functions 0, 1, and 3 should be discovered
+        assert_eq!(server.devices().len(), 3);
+        assert_eq!(server.devices()[0].function, 0);
+        assert_eq!(server.devices()[0].header.device_id, 0x100E);
+
+        assert_eq!(server.devices()[1].function, 1);
+        assert_eq!(server.devices()[1].header.device_id, 0x100F);
+
+        assert_eq!(server.devices()[2].function, 3);
+        assert_eq!(server.devices()[2].header.device_id, 0x1010);
     }
 }

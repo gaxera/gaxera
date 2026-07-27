@@ -228,3 +228,64 @@ fn test_malformed_pt_load_arithmetic_overflow() {
     let err = ElfParser::new(&aligned.0[..total_size]).unwrap_err();
     assert_eq!(err, ElfError::ProgramHeaderOutOfBounds);
 }
+
+#[test]
+fn test_elf_rejects_kernel_vaddr_segment() {
+    let ehdr = create_valid_elf_header();
+    let mut phdr = create_valid_program_header();
+    phdr.p_vaddr = 0xFFFF_8000_0000_0000;
+
+    let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
+    let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    unsafe {
+        core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
+        core::ptr::write(
+            aligned.0.as_mut_ptr().add(size_of::<Elf64_Ehdr>()) as *mut Elf64_Phdr,
+            phdr,
+        );
+    }
+
+    let err = ElfParser::new(&aligned.0[..total_size]).unwrap_err();
+    assert_eq!(err, ElfError::KernelAddressViolation);
+}
+
+#[test]
+fn test_elf_rejects_vaddr_overflow_into_kernel() {
+    let ehdr = create_valid_elf_header();
+    let mut phdr = create_valid_program_header();
+    phdr.p_vaddr = 0x0000_7FFF_FFFF_0000;
+    phdr.p_memsz = 0x20000;
+
+    let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
+    let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    unsafe {
+        core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
+        core::ptr::write(
+            aligned.0.as_mut_ptr().add(size_of::<Elf64_Ehdr>()) as *mut Elf64_Phdr,
+            phdr,
+        );
+    }
+
+    let err = ElfParser::new(&aligned.0[..total_size]).unwrap_err();
+    assert_eq!(err, ElfError::KernelAddressViolation);
+}
+
+#[test]
+fn test_elf_accepts_max_user_vaddr_segment() {
+    let ehdr = create_valid_elf_header();
+    let mut phdr = create_valid_program_header();
+    phdr.p_vaddr = 0x0000_7FFF_FFFE_0000;
+    phdr.p_memsz = 0x1000;
+
+    let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
+    let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    unsafe {
+        core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
+        core::ptr::write(
+            aligned.0.as_mut_ptr().add(size_of::<Elf64_Ehdr>()) as *mut Elf64_Phdr,
+            phdr,
+        );
+    }
+
+    assert!(ElfParser::new(&aligned.0[..total_size]).is_ok());
+}

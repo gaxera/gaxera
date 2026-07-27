@@ -71,6 +71,10 @@ Gaxera makes precise, architecturally verifiable security statements:
 - **Protocol Fault Containment:** A remote exploitation or panic in a Ring-3 network protocol service does not directly compromise kernel execution or escalate Ring-0 privileges. The Supervisor detects crashes and restarts the process in < 1 ms.
 - **Blast-Radius Bounding:** Subsystem capability isolation (`NetRights`) restricts compromised user-space services to their explicitly granted policy scopes.
 
+## Known Limitations
+
+- **TCP Initial Sequence Number (ISN):** TCP initial sequence numbers are currently initialized statically (`snd_nxt = 1000`). RFC 6528 mandates cryptographically random ISNs derived via PRNG/hardware entropy for production deployments to mitigate TCP sequence prediction and connection hijacking attacks.
+
 ## References
 - [GaxNet Design Principles](../architecture/gaxnet_design_principles.md)
 - [GaxNet Master Specification](../architecture/gaxnet_specification.md)

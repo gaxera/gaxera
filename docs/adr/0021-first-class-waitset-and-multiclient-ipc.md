@@ -54,3 +54,11 @@ We adopt **First-Class `WaitSet` Kernel Objects & Bounded Multi-Client Endpoint 
 
 1. **Zero Fast-Path Allocations:** Event notifications within `WaitSet` use preallocated slab-cached event slots.
 2. **Deterministic Teardown:** Destroying an `Endpoint` or `WaitSet` atomically invalidates cross-object subscriptions and unblocks pending callers with `EndpointError::Closed`.
+
+---
+
+## Raw `WaitNotification` Semantics
+
+- `OperationCode::WaitNotification (16)` blocks the calling thread if no signals are pending on the target `Notification` object.
+- On signal arrival via `OperationCode::SignalNotification (15)` or IRQ notification dispatch, the waiting thread is woken and returned the accumulated signal bitfield.
+- Userspace applications requiring multiplexed waiting across multiple object types SHOULD prefer `WaitSet`-based event polling (`OperationCode::WaitSetWait`) rather than raw single-notification blocking.

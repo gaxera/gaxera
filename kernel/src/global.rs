@@ -11,6 +11,9 @@ use kernel_core::object::{ObjectArena, ResourceDomain};
 use kernel_core::registry::BTreeRegistry;
 use spinning_top::Spinlock;
 
+// NOTE(SMP-DEFERRED): Lock rank enforcement is currently test-only because the BSP
+// kernel runs single-CPU with interrupts disabled during syscall dispatch. For the
+// future SMP port (ADR 0031), this must become a per-CPU runtime check.
 #[cfg(test)]
 std::thread_local! {
     static CURRENT_LOCK_RANK: core::sync::atomic::AtomicU8 = const { core::sync::atomic::AtomicU8::new(255) };

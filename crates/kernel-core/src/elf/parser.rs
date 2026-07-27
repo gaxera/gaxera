@@ -71,6 +71,16 @@ impl<'a> ElfParser<'a> {
                 if segment_end > data.len() as u64 {
                     return Err(ElfError::ProgramHeaderOutOfBounds);
                 }
+
+                // Enforce user-canonical virtual address space boundary for PT_LOAD segments
+                const USER_VADDR_MAX: u64 = 0x0000_7FFF_FFFF_FFFF;
+                let vaddr_end = ph
+                    .p_vaddr
+                    .checked_add(ph.p_memsz)
+                    .ok_or(ElfError::KernelAddressViolation)?;
+                if vaddr_end > USER_VADDR_MAX + 1 || ph.p_vaddr > USER_VADDR_MAX {
+                    return Err(ElfError::KernelAddressViolation);
+                }
             }
         }
 
