@@ -117,8 +117,8 @@ GaxFS employs a 100% Copy-on-Write (CoW) B+Tree engine for all metadata, extent 
 - Transaction commit sequence:
   1. Write all modified data extents and CoW tree nodes.
   2. Issue hardware flushing fence (`FLUSH_CACHE`).
-  3. Update inactive Superblock with new B+Tree root physical address, incremented generation `N+1`, 256-bit BLAKE3 hash, and atomic commit timestamp.
-  4. On reboot, the storage engine selects the superblock with the highest valid generation and matching BLAKE3 checksum. Crash consistency is 100% guaranteed.
+  3. Update inactive Superblock with new B+Tree root physical address, incremented generation `N+1`, 256-bit integrity checksum (currently a rolling mixing function in `integrity.rs`; BLAKE3 is the target for Initiative `v1.3`), and atomic commit timestamp.
+  4. On reboot, the storage engine selects the superblock with the highest valid generation and matching checksum. Crash consistency is 100% guaranteed.
 
 ### 4.3 Extent Allocation & Free-Space Bitmap
 - **Extents:** Data is stored as contiguous extent runs `(logical_offset, physical_block_start, block_count)`.
@@ -276,8 +276,8 @@ To provide native, instant OS-wide semantic search without ballooning storage or
    - High-dimensional vector embeddings (1536-dim float32 vectors generated from file contents) are compressed by the Ring-3 `search_server` using **TurboQuant** polar quantization down to 1-bit or 2-bit representations (96 to 192 bytes per file).
    - Compressed vector signatures are attached directly to object headers as named secondary attribute streams (`GaxObjectType::ObjectStream`).
 
-2. **TurboVec SIMD Hardware-Accelerated Vector Search:**
-   - The unprivileged `search_server` leverages **TurboVec** SIMD vector execution (AVX-512 / AVX2 / ARM NEON) over TurboQuant-compressed object streams.
+2. **TurboVec Vector Search:**
+   - The unprivileged `search_server` executes TurboVec vector search over TurboQuant-compressed object streams (prototype uses scalar similarity loops; AVX-512 / AVX2 / ARM NEON SIMD intrinsics are targeted for post-v1 optimization).
    - Evaluates similarity distance across 100,000+ filesystem objects in `< 1 millisecond` on host CPU hardware without GPU dependencies.
 
 3. **Architectural Guarantee:**

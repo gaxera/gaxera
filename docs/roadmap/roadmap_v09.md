@@ -103,5 +103,5 @@ Following the `v1.0.0` architectural freeze, bare-metal hardware support grows i
 ---
 
 > [!NOTE]
-> **Roadmap Status (2026-07-27):**  
-> Pre-v1.0 Audit & Hardening Series (Phases 1-5) is 100% COMPLETED and verified. All 99 workspace tests pass green with 0 warnings. Tagged `pre-v1.0-phase-5`. Platform is 100% Release Candidate Ready for v1.0.0 Production Release!
+> **Roadmap & Audit Audit Status (2026-07-30):**  
+> Pre-v1.0 Audit & Hardening Series (Phases 1-5) is 100% COMPLETED and verified at tag `pre-v1.0-phase-5`. All 99 workspace tests pass green. The microkernel ABI, memory manager, capability matrix, and IPC invariants are locked for the **v1.0.0 Architectural Baseline**. Subsystem maturity levels are explicitly classified in `README.md` and release evidence: VirtIO QEMU Reference Platform (BSP execution); GaxFS CoW Storage Engine Prototype; GaxNet Ring-3 Protocol Stack & AEAD Encryption Prototype; 64-Core SMP Scheduler Topology Model. Platform is ready for formal `v1.0.0` baseline tagging!

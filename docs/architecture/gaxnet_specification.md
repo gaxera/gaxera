@@ -49,7 +49,7 @@ GaxNet establishes a strict separation between Control Plane and Data Plane exec
 +------------------------------------+   +------------------------------+
 | Ring-3 Resolver Service            |   | Ring-3 Crypto Service        |
 | (`resolver_server`)                |   | (`crypto_server`)            |
-| - DNS / DoH / mDNS Engine          |   | - TLS 1.3 / DTLS Encryption  |
+| - DNS / DoH / mDNS Engine          |   | - AEAD Payload Encryption    |
 | - Domain Cache & Provenance        |   | - Certificate & Key Isolation|
 +-----------------+------------------+   +--------------+---------------+
                   |                                     |
