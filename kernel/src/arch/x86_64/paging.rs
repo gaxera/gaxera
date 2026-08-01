@@ -733,13 +733,23 @@ impl KernelPageTables {
     where
         A: FrameAllocator<Size4KiB>,
     {
+        let is_acpi_reclaimable = physical_range_has_kind(
+            context,
+            physical_address,
+            PAGE_SIZE,
+            MemoryKind::AcpiReclaimable,
+        );
+        let is_acpi_nvs =
+            physical_range_has_kind(context, physical_address, PAGE_SIZE, MemoryKind::AcpiNvs);
+        let is_mapped_reserved = physical_range_has_kind(
+            context,
+            physical_address,
+            PAGE_SIZE,
+            MemoryKind::MappedReserved,
+        );
+
         if !physical_address.is_multiple_of(PAGE_SIZE)
-            || !physical_range_has_kind(
-                context,
-                physical_address,
-                PAGE_SIZE,
-                MemoryKind::AcpiReclaimable,
-            )
+            || !(is_acpi_reclaimable || is_acpi_nvs || is_mapped_reserved)
         {
             return Err(PagingError::AcpiTableAddressOutsideReclaimableMemory);
         }

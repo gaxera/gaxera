@@ -42,6 +42,7 @@ mod tests {
             ResourceLimits {
                 objects,
                 capabilities,
+                memory_bytes: 65536,
             },
         )
     }
@@ -498,5 +499,239 @@ mod tests {
         assert_eq!(sched.dequeue_next(), Some(t1.id()));
         assert_eq!(sched.dequeue_next(), Some(t2.id()));
         assert_eq!(sched.dequeue_next(), None);
+    }
+
+    #[test]
+    fn factory_and_resourcedomain_correctness_tests() {
+        let mut dom = domain(DOMAIN_A, 5, 5);
+        let mut arena = ObjectArena::try_new(5).unwrap();
+
+        // 1. Factory type enforcement denial
+        let ep_only_factory = Factory::new(&dom, ObjectTypeSet::of(ObjectType::Endpoint));
+
+        assert!(!ep_only_factory.allows(ObjectType::MemoryObject));
+        assert!(ep_only_factory.allows(ObjectType::Endpoint));
+
+        // Attempting to create MemoryObject via ep_only_factory fails with FactoryDenied, leaving state unchanged
+        assert_eq!(
+            arena.create(&mut dom, ep_only_factory, ObjectType::MemoryObject),
+            Err(ObjectError::FactoryDenied)
+        );
+        assert_eq!(dom.usage().objects, 0);
+
+        // 2. ResourceDomain byte quota enforcement
+        assert_eq!(dom.usage().memory_bytes, 0);
+
+        // Charge 32 KiB
+        assert_eq!(dom.charge_memory(32768), Ok(()));
+        assert_eq!(dom.usage().memory_bytes, 32768);
+
+        // Charge exceeding remaining quota (65536 max limit)
+        assert_eq!(dom.charge_memory(32769), Err(ResourceError::MemoryLimit));
+        assert_eq!(dom.usage().memory_bytes, 32768); // State unchanged on error
+
+        // Rollback memory
+        assert_eq!(dom.rollback_memory(32768), Ok(()));
+        assert_eq!(dom.usage().memory_bytes, 0);
+
+        // 3. Narrow capability rights verification
+        let mem_rights = Rights::MAP | Rights::READ | Rights::WRITE;
+        assert!(!mem_rights.contains(Rights::EXECUTE));
+        assert!(!mem_rights.contains(Rights::FACTORY));
+        assert!(!mem_rights.contains(Rights::ALL));
+        assert!(mem_rights.contains(Rights::MAP));
+        assert!(mem_rights.contains(Rights::READ));
+        assert!(mem_rights.contains(Rights::WRITE));
+    }
+
+    #[test]
+    fn two_independent_delegations_selective_revocation_test() {
+        let mut owner = domain(DOMAIN_A, 10, 20);
+        let mut process_b_dom = domain(DOMAIN_B, 10, 20);
+        let mut process_c_dom = domain(ResourceDomainId::new(3), 10, 20);
+
+        let mut arena = ObjectArena::try_new(10).unwrap();
+        let factory = Factory::new(&owner, ObjectTypeSet::of(ObjectType::MemoryObject));
+        let mem_id = arena
+            .create(&mut owner, factory, ObjectType::MemoryObject)
+            .unwrap();
+
+        let mut mem_obj = crate::memory::MemoryObject::new(mem_id, owner.id(), 65536);
+        assert_eq!(mem_obj.total_refs(), 1); // 1 cap ref
+
+        let mut space_a = CapabilitySpace::try_new(&owner, 8).unwrap();
+        let mut space_a2 = CapabilitySpace::try_new(&owner, 8).unwrap();
+        let mut space_b = CapabilitySpace::try_new(&process_b_dom, 8).unwrap();
+        let mut space_c = CapabilitySpace::try_new(&process_c_dom, 8).unwrap();
+        let mut system = CapabilitySystem::try_new(20).unwrap();
+
+        // Process A creates root cap
+        let root_cap = system
+            .insert_root(
+                &mut space_a,
+                &mut owner,
+                mem_id,
+                ObjectType::MemoryObject,
+                Rights::MAP | Rights::READ | Rights::WRITE | Rights::MANAGE,
+                &arena,
+            )
+            .unwrap();
+
+        // Process A derives branch 1 (cap_b1) into space_a2 and delegates to Process B (cap_b_target)
+        let cap_b1 = system
+            .derive(
+                &space_a,
+                root_cap,
+                &mut space_a2,
+                &mut owner,
+                Rights::MAP | Rights::READ | Rights::WRITE | Rights::MANAGE,
+                &arena,
+            )
+            .unwrap();
+        let _ = mem_obj.inc_capability_ref();
+
+        let cap_b_target = system
+            .derive(
+                &space_a2,
+                cap_b1,
+                &mut space_b,
+                &mut process_b_dom,
+                Rights::MAP | Rights::READ | Rights::WRITE,
+                &arena,
+            )
+            .unwrap();
+        let _ = mem_obj.inc_capability_ref();
+
+        // Process A derives branch 2 (cap_c1) into space_a2 independently and delegates to Process C (cap_c_target)
+        let cap_c1 = system
+            .derive(
+                &space_a,
+                root_cap,
+                &mut space_a2,
+                &mut owner,
+                Rights::MAP | Rights::READ | Rights::WRITE | Rights::MANAGE,
+                &arena,
+            )
+            .unwrap();
+        let _ = mem_obj.inc_capability_ref();
+
+        let cap_c_target = system
+            .derive(
+                &space_a2,
+                cap_c1,
+                &mut space_c,
+                &mut process_c_dom,
+                Rights::MAP | Rights::READ | Rights::WRITE,
+                &arena,
+            )
+            .unwrap();
+        let _ = mem_obj.inc_capability_ref();
+
+        assert_eq!(mem_obj.capability_refs(), 5); // root + b1 + b_target + c1 + c_target
+
+        let node_b1 = system.node_for(&space_a2, cap_b1).unwrap();
+        let node_c1 = system.node_for(&space_a2, cap_c1).unwrap();
+
+        // Process B maps memory -> create mapping M_B with lineage = node_b1
+        let mut mapping_b = crate::mapping::Mapping::try_new_memory_object(
+            crate::object::ObjectId::new_for_test(100, 1),
+            crate::object::ObjectId::new_for_test(200, 1),
+            0x0000_6000_0000_0000,
+            mem_id,
+            0,
+            65536,
+            Rights::MAP | Rights::READ | Rights::WRITE,
+            Some(node_b1),
+        )
+        .unwrap();
+        let _ = mem_obj.inc_mapping_ref();
+
+        // Process C maps memory -> create mapping M_C with lineage = node_c1
+        let mapping_c = crate::mapping::Mapping::try_new_memory_object(
+            crate::object::ObjectId::new_for_test(101, 1),
+            crate::object::ObjectId::new_for_test(201, 1),
+            0x0000_7000_0000_0000,
+            mem_id,
+            0,
+            65536,
+            Rights::MAP | Rights::READ | Rights::WRITE,
+            Some(node_c1),
+        )
+        .unwrap();
+        let _ = mem_obj.inc_mapping_ref();
+
+        assert_eq!(mem_obj.mapping_refs(), 2);
+        assert_eq!(mem_obj.total_refs(), 7);
+
+        // Revoke branch 1 (cap_b1)
+        system.revoke(&space_a2, cap_b1, &arena).unwrap();
+
+        // Verify cap_b1 and cap_b_target are revoked
+        assert_eq!(
+            system.lookup(
+                &space_a2,
+                cap_b1,
+                ObjectType::MemoryObject,
+                Rights::READ,
+                &arena
+            ),
+            Err(CapabilityError::Revoked)
+        );
+        assert_eq!(
+            system.lookup(
+                &space_b,
+                cap_b_target,
+                ObjectType::MemoryObject,
+                Rights::READ,
+                &arena
+            ),
+            Err(CapabilityError::Revoked)
+        );
+
+        // Verify cap_c1 and cap_c_target remain 100% LIVE
+        assert_eq!(
+            system.lookup(
+                &space_a2,
+                cap_c1,
+                ObjectType::MemoryObject,
+                Rights::READ,
+                &arena
+            ),
+            Ok(mem_id)
+        );
+        assert_eq!(
+            system.lookup(
+                &space_c,
+                cap_c_target,
+                ObjectType::MemoryObject,
+                Rights::READ,
+                &arena
+            ),
+            Ok(mem_id)
+        );
+
+        // Selective lineage unmapping: M_B is descendant of node_b1 -> close M_B
+        assert!(system.is_descendant_of(mapping_b.lineage_parent_node().unwrap(), node_b1));
+        assert!(!system.is_descendant_of(mapping_c.lineage_parent_node().unwrap(), node_b1));
+
+        mapping_b.close().unwrap();
+        mem_obj.dec_mapping_ref().unwrap();
+        mem_obj.dec_capability_ref().unwrap(); // cap_b1
+        mem_obj.dec_capability_ref().unwrap(); // cap_b_target
+
+        // Memory object is NOT destroyed because Process C mapping & capabilities remain live!
+        assert!(!mem_obj.can_destroy());
+        assert_eq!(mem_obj.mapping_refs(), 1); // Process C mapping still active
+
+        // Now revoke branch 2 (cap_c1)
+        system.revoke(&space_a2, cap_c1, &arena).unwrap();
+        mem_obj.dec_mapping_ref().unwrap();
+        mem_obj.dec_capability_ref().unwrap(); // cap_c1
+        // 5. Release root_cap and initial MemoryObject capability references -> total_refs reaches 0 -> reclaim & refund
+        mem_obj.dec_capability_ref().unwrap(); // root_cap
+        let can_destroy = mem_obj.dec_capability_ref().unwrap(); // initial creation ref
+
+        assert!(can_destroy);
+        assert!(mem_obj.can_destroy());
     }
 }

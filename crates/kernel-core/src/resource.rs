@@ -20,22 +20,25 @@ impl ResourceDomainId {
 pub struct ResourceLimits {
     pub objects: u32,
     pub capabilities: u32,
+    pub memory_bytes: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ResourceUsage {
     pub objects: u32,
     pub capabilities: u32,
+    pub memory_bytes: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResourceError {
     ObjectLimit,
     CapabilityLimit,
+    MemoryLimit,
     AccountingUnderflow,
 }
 
-/// Bounded accounting authority for object and capability creation.
+/// Bounded accounting authority for object, capability, and physical memory creation.
 ///
 /// The domain deliberately has no physical-address or page-table authority.
 #[derive(Debug, Eq, PartialEq)]
@@ -55,6 +58,7 @@ impl ResourceDomain {
             usage: ResourceUsage {
                 objects: 0,
                 capabilities: 0,
+                memory_bytes: 0,
             },
         }
     }
@@ -105,5 +109,78 @@ impl ResourceDomain {
         }
         self.usage.capabilities -= 1;
         Ok(())
+    }
+
+    pub fn charge_memory(&mut self, bytes: u64) -> Result<(), ResourceError> {
+        let new_usage = self
+            .usage
+            .memory_bytes
+            .checked_add(bytes)
+            .ok_or(ResourceError::MemoryLimit)?;
+        if new_usage > self.limits.memory_bytes {
+            return Err(ResourceError::MemoryLimit);
+        }
+        self.usage.memory_bytes = new_usage;
+        Ok(())
+    }
+
+    pub fn rollback_memory(&mut self, bytes: u64) -> Result<(), ResourceError> {
+        let new_usage = self
+            .usage
+            .memory_bytes
+            .checked_sub(bytes)
+            .ok_or(ResourceError::AccountingUnderflow)?;
+        self.usage.memory_bytes = new_usage;
+        Ok(())
+    }
+
+    pub fn release_memory(&mut self, bytes: u64) -> Result<(), ResourceError> {
+        self.rollback_memory(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resource_domain_memory_quota_charge_and_rollback() {
+        let mut domain = ResourceDomain::new(
+            ResourceDomainId::new(1),
+            ResourceLimits {
+                objects: 10,
+                capabilities: 10,
+                memory_bytes: 65536,
+            },
+        );
+
+        assert_eq!(domain.usage().memory_bytes, 0);
+
+        // Charge valid 32 KiB
+        assert!(domain.charge_memory(32768).is_ok());
+        assert_eq!(domain.usage().memory_bytes, 32768);
+
+        // Charge another 32 KiB -> hits exact limit
+        assert!(domain.charge_memory(32768).is_ok());
+        assert_eq!(domain.usage().memory_bytes, 65536);
+
+        // Charge 1 more byte -> MemoryLimit error, state unchanged
+        assert_eq!(domain.charge_memory(1), Err(ResourceError::MemoryLimit));
+        assert_eq!(domain.usage().memory_bytes, 65536);
+
+        // Rollback 32 KiB
+        assert!(domain.rollback_memory(32768).is_ok());
+        assert_eq!(domain.usage().memory_bytes, 32768);
+
+        // Release remaining 32 KiB
+        assert!(domain.release_memory(32768).is_ok());
+        assert_eq!(domain.usage().memory_bytes, 0);
+
+        // Underflow error on release below zero
+        assert_eq!(
+            domain.release_memory(1),
+            Err(ResourceError::AccountingUnderflow)
+        );
+        assert_eq!(domain.usage().memory_bytes, 0);
     }
 }

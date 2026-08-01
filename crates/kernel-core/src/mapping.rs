@@ -1,5 +1,6 @@
 use gaxera_abi::CachePolicy;
 
+use crate::capability::CapabilityNodeId;
 use crate::object::ObjectId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -9,28 +10,46 @@ pub enum MappingError {
     Closed,
 }
 
-/// Pure Range Metadata Mapping Capability (`ObjectType::Mapping = 6`).
-///
-/// Represents an authorization window over an existing physical address range `[phys_addr, phys_addr + size)`.
-/// Stores zero physical frame vector allocations (`Vec<u64>`), guaranteeing fixed-size struct footprint and
-/// zero fast-path heap memory allocations.
+/// Backing representation for a Mapping bridge.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MappingBacking {
+    MemoryObject {
+        object_id: ObjectId,
+        offset_bytes: u64,
+    },
+    PhysicalRange {
+        physical_base: u64,
+        cache_policy: CachePolicy,
+    },
+}
+
+/// Pure Explicit Bridge Mapping Capability (`ObjectType::Mapping = 6`).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Mapping {
     id: ObjectId,
-    phys_addr: u64,
+    target_address_space: ObjectId,
+    virtual_address: u64,
     size: usize,
-    cache_policy: CachePolicy,
+    permissions: gaxera_abi::Rights,
+    backing: MappingBacking,
+    lineage_parent_node: Option<CapabilityNodeId>,
     closed: bool,
 }
 
 impl Mapping {
-    pub fn try_new(
+    /// Create a MemoryObject bridge Mapping.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new_memory_object(
         id: ObjectId,
-        phys_addr: u64,
+        target_address_space: ObjectId,
+        virtual_address: u64,
+        source_memory_object: ObjectId,
+        offset_bytes: u64,
         size: usize,
-        cache_policy: CachePolicy,
+        permissions: gaxera_abi::Rights,
+        lineage_parent_node: Option<CapabilityNodeId>,
     ) -> Result<Self, MappingError> {
-        if phys_addr & 0xFFF != 0 {
+        if virtual_address & 0xFFF != 0 || offset_bytes & 0xFFF != 0 {
             return Err(MappingError::InvalidAlignment);
         }
         if size == 0 || (size & 0xFFF) != 0 {
@@ -38,9 +57,63 @@ impl Mapping {
         }
         Ok(Self {
             id,
+            target_address_space,
+            virtual_address,
+            size,
+            permissions,
+            backing: MappingBacking::MemoryObject {
+                object_id: source_memory_object,
+                offset_bytes,
+            },
+            lineage_parent_node,
+            closed: false,
+        })
+    }
+
+    /// Backwards compatible 4-argument constructor for MMIO ranges.
+    pub fn try_new(
+        id: ObjectId,
+        phys_addr: u64,
+        size: usize,
+        cache_policy: CachePolicy,
+    ) -> Result<Self, MappingError> {
+        Self::try_new_mmio(
+            id,
+            ObjectId::new_for_test(0, 0),
+            0,
             phys_addr,
             size,
             cache_policy,
+            gaxera_abi::Rights::MAP | gaxera_abi::Rights::READ | gaxera_abi::Rights::WRITE,
+        )
+    }
+
+    pub fn try_new_mmio(
+        id: ObjectId,
+        target_address_space: ObjectId,
+        virtual_address: u64,
+        physical_base: u64,
+        size: usize,
+        cache_policy: CachePolicy,
+        permissions: gaxera_abi::Rights,
+    ) -> Result<Self, MappingError> {
+        if (virtual_address & 0xFFF != 0) || (physical_base & 0xFFF != 0) {
+            return Err(MappingError::InvalidAlignment);
+        }
+        if size == 0 || (size & 0xFFF) != 0 {
+            return Err(MappingError::ZeroSize);
+        }
+        Ok(Self {
+            id,
+            target_address_space,
+            virtual_address,
+            size,
+            permissions,
+            backing: MappingBacking::PhysicalRange {
+                physical_base,
+                cache_policy,
+            },
+            lineage_parent_node: None,
             closed: false,
         })
     }
@@ -49,136 +122,166 @@ impl Mapping {
         self.id
     }
 
-    pub fn phys_addr(&self) -> u64 {
-        self.phys_addr
+    pub fn target_address_space(&self) -> ObjectId {
+        self.target_address_space
+    }
+
+    pub fn virtual_address(&self) -> u64 {
+        self.virtual_address
     }
 
     pub fn size(&self) -> usize {
         self.size
     }
 
+    pub fn permissions(&self) -> gaxera_abi::Rights {
+        self.permissions
+    }
+
+    pub fn backing(&self) -> &MappingBacking {
+        &self.backing
+    }
+
+    pub fn phys_addr(&self) -> Option<u64> {
+        match self.backing {
+            MappingBacking::PhysicalRange { physical_base, .. } => Some(physical_base),
+            MappingBacking::MemoryObject { .. } => None,
+        }
+    }
+
     pub fn cache_policy(&self) -> CachePolicy {
-        self.cache_policy
+        match self.backing {
+            MappingBacking::PhysicalRange { cache_policy, .. } => cache_policy,
+            MappingBacking::MemoryObject { .. } => CachePolicy::Cached,
+        }
+    }
+
+    pub fn lineage_parent_node(&self) -> Option<CapabilityNodeId> {
+        self.lineage_parent_node
     }
 
     pub fn is_closed(&self) -> bool {
         self.closed
     }
 
-    pub fn close(&mut self) {
-        self.closed = true;
-    }
-
-    /// Derive a bounded subregion Mapping from this parent Mapping.
-    pub fn derive_subregion(
-        &self,
-        child_id: ObjectId,
-        offset: usize,
-        length: usize,
-        requested_cache_policy: CachePolicy,
-    ) -> Result<Mapping, MappingError> {
+    pub fn close(&mut self) -> Result<(), MappingError> {
         if self.closed {
             return Err(MappingError::Closed);
         }
-        if offset & 0xFFF != 0 || length & 0xFFF != 0 {
-            return Err(MappingError::InvalidAlignment);
-        }
-        if length == 0 {
-            return Err(MappingError::ZeroSize);
-        }
-
-        let parent_start = self.phys_addr;
-        let parent_end = parent_start
-            .checked_add(self.size as u64)
-            .ok_or(MappingError::InvalidAlignment)?;
-
-        let child_start = parent_start
-            .checked_add(offset as u64)
-            .ok_or(MappingError::InvalidAlignment)?;
-        let child_end = child_start
-            .checked_add(length as u64)
-            .ok_or(MappingError::InvalidAlignment)?;
-
-        if child_start < parent_start || child_end > parent_end {
-            return Err(MappingError::InvalidAlignment);
-        }
-
-        if requested_cache_policy != self.cache_policy && self.cache_policy == CachePolicy::Uncached
-        {
-            return Err(MappingError::InvalidAlignment);
-        }
-
-        Mapping::try_new(child_id, child_start, length, requested_cache_policy)
+        self.closed = true;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gaxera_abi::Rights;
 
     fn test_id(index: u32) -> ObjectId {
         ObjectId::new_for_test(index, 1)
     }
 
     #[test]
-    fn mapping_object_pure_metadata_and_validation() {
-        // Valid page-aligned 64 KiB MMIO mapping
-        let mapping =
-            Mapping::try_new(test_id(1), 0xFEB0_0000, 65536, CachePolicy::Uncached).unwrap();
-        assert_eq!(mapping.phys_addr(), 0xFEB0_0000);
-        assert_eq!(mapping.size(), 65536);
-        assert_eq!(mapping.cache_policy(), CachePolicy::Uncached);
+    fn mapping_bridge_creation_and_validation() {
+        let mem_obj_id = test_id(10);
+        let aspace_id = test_id(20);
+        let parent_node = CapabilityNodeId {
+            index: 1,
+            generation: 1,
+        };
 
-        // Misaligned physical address rejected
+        // Valid page-aligned 64 KiB mapping bridge
+        let mapping = Mapping::try_new_memory_object(
+            test_id(1),
+            aspace_id,
+            0x0000_6000_0000_0000,
+            mem_obj_id,
+            0,
+            65536,
+            Rights::MAP | Rights::READ | Rights::WRITE,
+            Some(parent_node),
+        )
+        .unwrap();
+
         assert_eq!(
-            Mapping::try_new(test_id(2), 0xFEB0_0100, 4096, CachePolicy::Uncached),
+            mapping.backing(),
+            &MappingBacking::MemoryObject {
+                object_id: mem_obj_id,
+                offset_bytes: 0
+            }
+        );
+        assert_eq!(mapping.target_address_space(), aspace_id);
+        assert_eq!(mapping.virtual_address(), 0x0000_6000_0000_0000);
+        assert_eq!(mapping.size(), 65536);
+        assert_eq!(mapping.lineage_parent_node(), Some(parent_node));
+        assert!(!mapping.is_closed());
+
+        // Misaligned virtual address rejected
+        assert_eq!(
+            Mapping::try_new_memory_object(
+                test_id(2),
+                aspace_id,
+                0x0000_6000_0000_0100,
+                mem_obj_id,
+                0,
+                4096,
+                Rights::READ,
+                None,
+            ),
             Err(MappingError::InvalidAlignment)
         );
 
-        // Misaligned size rejected
+        // Misaligned offset rejected
         assert_eq!(
-            Mapping::try_new(test_id(3), 0xFEB0_0000, 1000, CachePolicy::Uncached),
+            Mapping::try_new_memory_object(
+                test_id(3),
+                aspace_id,
+                0x0000_6000_0000_0000,
+                mem_obj_id,
+                100,
+                4096,
+                Rights::READ,
+                None,
+            ),
+            Err(MappingError::InvalidAlignment)
+        );
+
+        // Zero size rejected
+        assert_eq!(
+            Mapping::try_new_memory_object(
+                test_id(4),
+                aspace_id,
+                0x0000_6000_0000_0000,
+                mem_obj_id,
+                0,
+                0,
+                Rights::READ,
+                None,
+            ),
             Err(MappingError::ZeroSize)
         );
     }
 
     #[test]
-    fn mapping_subregion_derivation_validation() {
-        let parent =
-            Mapping::try_new(test_id(1), 0xE000_0000, 0x10000, CachePolicy::Uncached).unwrap();
+    fn double_unmap_rejection() {
+        let mut mapping = Mapping::try_new_memory_object(
+            test_id(1),
+            test_id(20),
+            0x0000_6000_0000_0000,
+            test_id(10),
+            0,
+            4096,
+            Rights::READ,
+            None,
+        )
+        .unwrap();
 
-        // Exact boundary derivation (4 KiB at offset 0)
-        let child1 = parent
-            .derive_subregion(test_id(2), 0, 4096, CachePolicy::Uncached)
-            .unwrap();
-        assert_eq!(child1.phys_addr(), 0xE000_0000);
-        assert_eq!(child1.size(), 4096);
+        // First unmap / close succeeds
+        assert!(mapping.close().is_ok());
+        assert!(mapping.is_closed());
 
-        // Subregion at offset 0x4000
-        let child2 = parent
-            .derive_subregion(test_id(3), 0x4000, 4096, CachePolicy::Uncached)
-            .unwrap();
-        assert_eq!(child2.phys_addr(), 0xE000_4000);
-        assert_eq!(child2.size(), 4096);
-
-        // Overrun parent boundary (len 0x10000 at offset 0x1000)
-        assert_eq!(
-            parent.derive_subregion(test_id(4), 0x1000, 0x10000, CachePolicy::Uncached),
-            Err(MappingError::InvalidAlignment)
-        );
-
-        // Misaligned offset
-        assert_eq!(
-            parent.derive_subregion(test_id(5), 0x100, 4096, CachePolicy::Uncached),
-            Err(MappingError::InvalidAlignment)
-        );
-
-        // Closed parent rejection
-        let mut closed_parent = parent;
-        closed_parent.close();
-        assert_eq!(
-            closed_parent.derive_subregion(test_id(6), 0, 4096, CachePolicy::Uncached),
-            Err(MappingError::Closed)
-        );
+        // Second unmap / close fails with Closed error (double-unmap rejection)
+        assert_eq!(mapping.close(), Err(MappingError::Closed));
     }
 }

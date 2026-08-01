@@ -1,19 +1,18 @@
 [package]
-name = "init"
+name = "userspace-tests"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "init"
+name = "test_memory_lifecycle"
 test = false
 
 [dependencies]
-kernel-core = { path = "../kernel-core" }
 gaxera-abi = { path = "../gaxera-abi" }
-libgaxera = { path = "../libgaxera" }
-
-[lints]
-workspace = true
+libgaxera = { path = "../libgaxera", features = ["alloc_error_handler"] }
 
 [features]
 test-memory-lifecycle = []
+
+[lints]
+workspace = true

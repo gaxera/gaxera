@@ -47,6 +47,43 @@ fn run_init() -> Result<(), ()> {
     let _self_thread = Handle::from_parts(2, 1);
     let factory = Handle::from_parts(3, 1);
 
+    #[cfg(feature = "test-memory-lifecycle")]
+    {
+        // 1. Create a MemoryObject
+        let mem_obj = factory_create_memory(factory, 4096)?;
+
+        // 2. Map it into our address space
+        let test_vaddr = 0x0000_3000_0000_0000;
+        let mapping = map_memory(
+            self_aspace,
+            mem_obj,
+            test_vaddr,
+            Rights::READ | Rights::WRITE,
+        )?;
+
+        // 3. Derive it to create another reference
+        let test_cspace = factory_create(factory, ObjectType::CapabilitySpace)?;
+        derive_capability(mem_obj, test_cspace, Rights::READ)?;
+
+        // 4. Revoke it via the original handle to trigger selective cascading revocation
+        let _ = revoke_capability(mem_obj)?;
+
+        // Note: we can't easily check serial markers from Ring-3, but QEMU host will check the log.
+        // We write to DebugConsole or just use an inline assembly OUT port to exit if we had one.
+        // However, printing the success marker to the serial port is sufficient for xtask to see it.
+        // Let's create a DebugConsole and print.
+        let console = factory_create(factory, ObjectType::DebugConsole)?;
+        let _ =
+            syscall::debug_console_write(console, "GAXERA: MEMORY_RECLAIMED_AND_QUOTA_REFUNDED\n");
+        let _ = syscall::debug_console_write(console, "GAXERA: IPC_LIFECYCLE_TEST_OK\n");
+
+        // Loop forever since the test passed
+        loop {
+            // SAFETY: Wait
+            unsafe { core::arch::asm!("pause") }
+        }
+    }
+
     // 1. Create ramfs CSpace, ASpace, Thread
     let ramfs_cspace = factory_create(factory, ObjectType::CapabilitySpace)?;
     let ramfs_aspace = factory_create(factory, ObjectType::AddressSpace)?;

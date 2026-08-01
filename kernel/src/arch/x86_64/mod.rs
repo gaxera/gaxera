@@ -17,6 +17,7 @@ pub mod qemu;
 pub mod smp;
 pub mod stack;
 pub mod syscall;
+pub mod teardown;
 pub mod test;
 pub mod test_ipc;
 pub mod test_preemption;

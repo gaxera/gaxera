@@ -10,6 +10,20 @@ pub mod service;
 
 pub use object_id::GaxObjectId;
 
+pub mod status {
+    pub const SUCCESS: u64 = 0;
+    pub const INVALID_HANDLE: u64 = 1;
+    pub const RIGHTS_DENIED: u64 = 2;
+    pub const INVALID_ARGUMENT: u64 = 3;
+    pub const RESOURCE_EXHAUSTED: u64 = 4;
+    pub const TIMED_OUT: u64 = 5;
+    pub const MAPPING_COLLISION: u64 = 6;
+    pub const OBJECT_LIMIT: u64 = 7;
+    pub const CAPABILITY_LIMIT: u64 = 8;
+    pub const MEMORY_LIMIT: u64 = 9;
+    pub const INTERNAL_ERROR: u64 = u64::MAX;
+}
+
 pub mod svc {
     pub const RAMFS_BASE: u64 = 0x0000_6000_0000_0000;
     pub const RAMFS_MAX_SIZE: usize = 16 * 1024 * 1024;

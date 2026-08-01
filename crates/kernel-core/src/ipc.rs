@@ -679,6 +679,7 @@ mod tests {
             ResourceLimits {
                 objects,
                 capabilities,
+                memory_bytes: 65536,
             },
         )
     }

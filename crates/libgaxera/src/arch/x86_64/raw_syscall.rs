@@ -16,28 +16,63 @@ pub const INLINE_IPC_REGISTER_BYTES: usize = 64;
 /// Invokes a kernel system call. Register state must match kernel ABI rules.
 #[inline(always)]
 pub unsafe fn raw_syscall6(
+    handle: u64,
     opcode: u64,
     arg1: u64,
     arg2: u64,
     arg3: u64,
     arg4: u64,
-    arg5: u64,
 ) -> u64 {
     let ret: u64;
     // SAFETY: Assembly syscall invocation adhering to x86_64 SysV Gaxera ABI registers.
     unsafe {
         asm!(
             "syscall",
-            inlateout("rax") opcode => ret,
-            in("rdi") arg1,
-            in("rsi") arg2,
-            in("rdx") arg3,
-            in("r10") arg4,
-            in("r8") arg5,
+            inlateout("rax") 10u64 => ret, // 10 is sys_invoke
+            in("rdi") handle,
+            in("rsi") opcode,
+            in("rdx") arg1,
+            in("r10") arg2,
+            in("r8") arg3,
+            in("r9") arg4,
             out("rcx") _,
             out("r11") _,
             options(nostack, preserves_flags)
         );
     }
     ret
+}
+
+/// Execute x86_64 raw assembly syscall returning both rax (status) and rdx (value).
+///
+/// # Safety
+/// Caller must ensure that arguments adhere to kernel ABI register constraints.
+#[inline(always)]
+pub unsafe fn raw_syscall6_ret2(
+    handle: u64,
+    opcode: u64,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+) -> (u64, u64) {
+    let ret_status: u64;
+    let ret_val: u64;
+    // SAFETY: Assembly syscall invocation adhering to x86_64 SysV Gaxera ABI registers.
+    unsafe {
+        asm!(
+            "syscall",
+            inlateout("rax") 10u64 => ret_status, // 10 is sys_invoke
+            inlateout("rdx") arg1 => ret_val,
+            in("rdi") handle,
+            in("rsi") opcode,
+            in("r10") arg2,
+            in("r8") arg3,
+            in("r9") arg4,
+            out("rcx") _,
+            out("r11") _,
+            options(nostack, preserves_flags)
+        );
+    }
+    (ret_status, ret_val)
 }

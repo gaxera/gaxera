@@ -1,19 +1,16 @@
 [package]
-name = "init"
+name = "test_ring3_heap"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "init"
+name = "test_ring3_heap"
 test = false
 
 [dependencies]
 kernel-core = { path = "../kernel-core" }
 gaxera-abi = { path = "../gaxera-abi" }
-libgaxera = { path = "../libgaxera" }
+libgaxera = { path = "../libgaxera", features = ["alloc_error_handler"] }
 
 [lints]
 workspace = true
-
-[features]
-test-memory-lifecycle = []

@@ -31,10 +31,12 @@ This directory contains the public documentation, architectural specifications, 
 3. [v0.6 Core Memory Program](roadmap/roadmap_v06.md) — Physical frame recycling & slab allocators
 4. [v0.7 Multi-Client IPC Program](roadmap/roadmap_v07.md) — Endpoint caller queues & WaitSet multiplexing
 5. [v0.8 Capability Microkernel Program](roadmap/roadmap_v08.md) — IRQs, MMIO, libgaxera, Service Registry & IPC fast-paths
-3. [Developer Workflow](development/workflow.md) — Build, run, and verification commands
-4. [Environment](environment.md) — Tested host and emulator boundary
-5. [Evidence](evidence/) — Checkpoint proof and provenance
-6. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution workflow
+6. [v0.9 Hardware & Services Program](roadmap/roadmap_v09.md) — VirtIO, GaxFS, GaxNet, and SMP reference platform
+7. [v1.1 Ring-3 Memory Foundation](roadmap/roadmap_v11.md) — ResourceDomain quotas, memory capabilities, and fallible heap runtime
+8. [Developer Workflow](development/workflow.md) — Build, run, and verification commands
+9. [Environment](environment.md) — Tested host and emulator boundary
+10. [Evidence](evidence/) — Checkpoint proof and provenance
+11. [CONTRIBUTING.md](../CONTRIBUTING.md) — Contribution workflow
 
 ## Document Taxonomy
 

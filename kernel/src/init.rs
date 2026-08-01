@@ -61,11 +61,12 @@ pub fn spawn_init(
     let limits = kernel_core::resource::ResourceLimits {
         objects: 1024,
         capabilities: 1024,
+        memory_bytes: 64 * 1024 * 1024,
     };
     let mut domain = ResourceDomain::new_for_test(domain_id, limits); // 1 = Domain 1 for init
 
     // Create a Factory capability that can produce all ObjectTypes
-    let factory = Factory::new_for_test(&domain, ObjectTypeSet::ALL);
+    let factory = Factory::new_root(&domain, ObjectTypeSet::ALL);
 
     let aspace_id = arena.create(&mut domain, factory, gaxera_abi::ObjectType::AddressSpace)?;
     let cspace_id = arena.create(
@@ -282,13 +283,13 @@ pub fn spawn_init(
     // Insert boot modules as MemoryObjects (Handles 4+)
     for module in boot_context.boot_modules() {
         let mem_id = arena.create(&mut domain, factory, gaxera_abi::ObjectType::MemoryObject)?;
-        let mut mem_obj = kernel_core::memory::MemoryObject::new(mem_id, module.size);
+        let mut mem_obj = kernel_core::memory::MemoryObject::new(mem_id, domain.id(), module.size);
 
         let start_frame = module.physical_address & !0xFFF;
         let end_frame = (module.physical_address + module.size + 0xFFF) & !0xFFF;
         let mut frame_addr = start_frame;
         while frame_addr < end_frame {
-            mem_obj.add_frame(frame_addr);
+            let _ = mem_obj.add_frame(frame_addr);
             frame_addr += 4096;
         }
 

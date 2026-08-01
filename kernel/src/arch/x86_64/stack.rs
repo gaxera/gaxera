@@ -8,7 +8,7 @@ use crate::memory::physical::PAGE_SIZE;
 
 /// The base virtual address for dynamically allocated per-thread kernel stacks.
 const KERNEL_STACK_BASE: u64 = 0xffff_fe10_0000_0000;
-const STACK_SIZE_PAGES: u64 = 4;
+const STACK_SIZE_PAGES: u64 = 16;
 const GUARD_SIZE_PAGES: u64 = 1;
 const STRIDE_PAGES: u64 = STACK_SIZE_PAGES + GUARD_SIZE_PAGES;
 

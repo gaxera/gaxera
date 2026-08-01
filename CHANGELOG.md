@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-08-01
+
+### Added
+
+- ResourceDomain physical-byte accounting, Factory type authorization, narrow
+  MemoryObject rights, transactional frame rollback, and zero-filled
+  non-executable anonymous memory.
+- MemoryObject capability/mapping/transient reference accounting with mapping
+  lineage and selective revocation cleanup.
+- Fallible `libgaxera::UserspaceAllocator` with fixed 64 KiB chunks and
+  genuine Ring-3 lifecycle and heap QEMU verification profiles.
+- ADR 0039 documenting the verified heap-foundation scope and the deferred
+  production-service bootstrap boundary.
+
+### Deferred
+
+- Hardware IRQ delivery remains a Draft architecture.
+- Production-service allocator migration awaits a generic process bootstrap
+  capability contract.
+
 ## [v0.9.1-recovery] - 2026-07-23
 
 ### Added

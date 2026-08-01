@@ -10,6 +10,10 @@ pub enum SyscallError {
     InvalidArgument,
     ResourceExhausted,
     TimedOut,
+    MappingCollision,
+    ObjectLimit,
+    CapabilityLimit,
+    MemoryLimit,
     InternalError,
     Unknown(u64),
 }
@@ -17,15 +21,133 @@ pub enum SyscallError {
 impl SyscallError {
     pub fn from_code(code: u64) -> Self {
         match code {
-            1 => Self::InvalidHandle,
-            2 => Self::RightsDenied,
-            3 => Self::InvalidArgument,
-            4 => Self::ResourceExhausted,
-            5 => Self::TimedOut,
-            u64::MAX => Self::InternalError,
+            gaxera_abi::status::INVALID_HANDLE => Self::InvalidHandle,
+            gaxera_abi::status::RIGHTS_DENIED => Self::RightsDenied,
+            gaxera_abi::status::INVALID_ARGUMENT => Self::InvalidArgument,
+            gaxera_abi::status::RESOURCE_EXHAUSTED => Self::ResourceExhausted,
+            gaxera_abi::status::TIMED_OUT => Self::TimedOut,
+            gaxera_abi::status::MAPPING_COLLISION => Self::MappingCollision,
+            gaxera_abi::status::OBJECT_LIMIT => Self::ObjectLimit,
+            gaxera_abi::status::CAPABILITY_LIMIT => Self::CapabilityLimit,
+            gaxera_abi::status::MEMORY_LIMIT => Self::MemoryLimit,
+            gaxera_abi::status::INTERNAL_ERROR => Self::InternalError,
             other => Self::Unknown(other),
         }
     }
+
+    pub fn to_code(self) -> u64 {
+        match self {
+            Self::InvalidHandle => gaxera_abi::status::INVALID_HANDLE,
+            Self::RightsDenied => gaxera_abi::status::RIGHTS_DENIED,
+            Self::InvalidArgument => gaxera_abi::status::INVALID_ARGUMENT,
+            Self::ResourceExhausted => gaxera_abi::status::RESOURCE_EXHAUSTED,
+            Self::TimedOut => gaxera_abi::status::TIMED_OUT,
+            Self::MappingCollision => gaxera_abi::status::MAPPING_COLLISION,
+            Self::ObjectLimit => gaxera_abi::status::OBJECT_LIMIT,
+            Self::CapabilityLimit => gaxera_abi::status::CAPABILITY_LIMIT,
+            Self::MemoryLimit => gaxera_abi::status::MEMORY_LIMIT,
+            Self::InternalError => gaxera_abi::status::INTERNAL_ERROR,
+            Self::Unknown(code) => code,
+        }
+    }
+}
+
+/// Decode a raw status code into a Result<(), SyscallError>.
+pub fn decode_status(code: u64) -> Result<(), SyscallError> {
+    if code == gaxera_abi::status::SUCCESS {
+        Ok(())
+    } else {
+        Err(SyscallError::from_code(code))
+    }
+}
+
+/// Dedicated syscall wrapper for MemoryObject creation using a Factory capability.
+///
+/// Returns `Ok(Handle)` on success, or `Err(SyscallError)` on failure.
+/// Because %rax carries status and %rdx carries the returned handle,
+/// a valid handle value can never be mistaken for a syscall error code.
+pub fn factory_create_memory_object(
+    factory: Handle,
+    size_bytes: u64,
+) -> Result<Handle, SyscallError> {
+    let (status, raw_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            factory.raw(),
+            0, // op = 0 for FactoryCreate
+            gaxera_abi::ObjectType::MemoryObject as u64,
+            size_bytes,
+            0,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(raw_handle))
+}
+
+/// Create a kernel object through an explicitly authorized Factory capability.
+pub fn factory_create(
+    factory: Handle,
+    object_type: gaxera_abi::ObjectType,
+) -> Result<Handle, SyscallError> {
+    let (status, raw_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            factory.raw(),
+            0, // FactoryCreate suboperation
+            object_type as u64,
+            0,
+            0,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(raw_handle))
+}
+
+/// Write a bounded diagnostic string through a capability-backed DebugConsole.
+pub fn debug_console_write(console: Handle, message: &str) -> Result<(), SyscallError> {
+    // The Write syscall has four 64-bit payload registers, so its wire limit
+    // is 32 bytes even though inline IPC messages may be larger.
+    for chunk in message.as_bytes().chunks(32) {
+        let mut words = [0u64; 4];
+        for (index, word) in chunk.chunks(8).enumerate() {
+            let mut bytes = [0u8; 8];
+            bytes[..word.len()].copy_from_slice(word);
+            words[index] = u64::from_le_bytes(bytes);
+        }
+        let status = raw_invoke(
+            OperationCode::Write,
+            console,
+            words[0],
+            words[1],
+            words[2],
+            words[3],
+        );
+        decode_status(status)?;
+    }
+    Ok(())
+}
+
+/// Map a MemoryObject into an AddressSpace.
+///
+/// Returns `Ok(Handle)` to the new `Mapping` capability on success, or `Err(SyscallError)` on failure.
+pub fn map_memory(
+    aspace: Handle,
+    memory_object: Handle,
+    vaddr: u64,
+    rights: gaxera_abi::Rights,
+) -> Result<Handle, SyscallError> {
+    let (status, new_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            aspace.raw(),
+            OperationCode::MapMemory as u64,
+            memory_object.raw(),
+            vaddr,
+            rights.bits() as u64,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(new_handle))
 }
 
 /// Execute a generic raw syscall through architecture assembly trampolines.
@@ -35,10 +157,10 @@ pub fn raw_invoke(
     arg1: u64,
     arg2: u64,
     arg3: u64,
-    arg4: u64,
+    _arg4: u64,
 ) -> u64 {
     // SAFETY: Raw assembly syscall adhering to Gaxera ABI register conventions.
-    unsafe { raw_syscall::raw_syscall6(opcode as u64, handle.raw(), arg1, arg2, arg3, arg4) }
+    unsafe { raw_syscall::raw_syscall6(handle.raw(), opcode as u64, arg1, arg2, arg3, _arg4) }
 }
 
 /// Yield execution to the kernel scheduler.
@@ -62,7 +184,16 @@ pub fn exit(code: u64) -> ! {
 
 /// Delete capability handle slot from process CSpace.
 pub fn delete_handle(handle: Handle) -> Result<(), SyscallError> {
-    let ret = raw_invoke(OperationCode::DeleteHandle, handle, 0, 0, 0, 0);
+    // DeleteHandle has no dispatcher capability. Its target handle is the
+    // first syscall argument, which the kernel receives in %rdx.
+    let ret = raw_invoke(
+        OperationCode::DeleteHandle,
+        Handle::INVALID,
+        handle.raw(),
+        0,
+        0,
+        0,
+    );
     if ret == 0 {
         Ok(())
     } else {

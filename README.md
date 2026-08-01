@@ -65,6 +65,10 @@ leak simply don't exist, because they were never built.
 
 **v0.9 — VirtIO Reference Platform, Storage, Networking & SMP Baseline.** Tagged `v0.9.5`. Delivered complete VirtIO virtual hardware reference platform (Block, Net, GPU, Input), GaxFS Copy-on-Write dual superblock storage engine prototype, GaxNet Ring-3 protocol stack with RFC 8439 ChaCha20-Poly1305 AEAD payload encryption (`crypto_server`), zero-copy `PacketRing` buffers, and 64-core SMP scheduler domain topology.
 
+**v1.0.0 — Formal Architectural Baseline.** Tagged `v1.0.0`. Locked the capability microkernel contracts, documented subsystem maturity boundaries, and established the QEMU UEFI reference platform as the supported verification environment. Storage, networking, physical SMP, and hardware-driver layers remain explicitly classified as prototypes or reference implementations where noted below.
+
+**v1.1.0 — Ring-3 Memory Foundation.** The current release candidate adds ResourceDomain byte quotas, Factory type authorization, page-rounded zeroed anonymous MemoryObjects, narrow capability rights, transactional frame rollback, mapping lineage, reference-class reclamation, and a fallible `libgaxera::UserspaceAllocator` verified by genuine Ring-3 QEMU tests. Hardware IRQ delivery remains an architecture draft, and production-service allocator migration is deferred until the process bootstrap capability contract is defined.
+
 ### Pre-v1.0 Audit & Hardening Series
 
 A 5-phase audit and microkernel verification program preparing the system for formal `v1.0.0` release:
@@ -86,15 +90,15 @@ Gaxera `v1.0.0` explicitly classifies subsystem maturity levels:
   * *GaxNet & Security:* Protocol engine and RFC 8439 ChaCha20-Poly1305 AEAD payload encryption. Transmit frames are queued on local `PacketRing` slots, DNS answers are synthesized locally, and full TLS 1.3 handshake negotiation is scheduled for Initiative `v1.4`.
   * *SMP & Execution:* 64-core scheduler domain model and work-stealing algorithms tested via host unit tests; AP bring-up and ICR IPI delivery are simulated (BSP execution). Physical AP bring-up is scheduled for Initiative `v1.2`.
   * *Driver Isolation:* Ring 3 drivers operate in process isolation; bus-mastering drivers function as trusted drivers. Hardware DMA isolation via IOMMU (VT-d/AMD-Vi) is scheduled for Initiative `v1.5`.
-  * *Userspace Heap & Locking:* Ring-3 global allocator currently returns `null_mut()` (services use static layouts); `RankedLock` rank checking is `#[cfg(test)]`-gated. A fallible user heap is scheduled for Initiative `v1.1`.
+  * *Userspace Heap & Locking:* The dedicated Ring-3 heap test service now uses the fallible `MemoryObject`-backed allocator and passes quota, fragmentation, and post-OOM recovery checks. Existing production service entrypoints still use static layouts or the legacy dummy allocator until a generic startup capability contract exists. `RankedLock` rank checking remains `#[cfg(test)]`-gated and is a later SMP hardening item.
 * **Future Architecture:** Physical bare-metal drivers, GaxView native compositor, GaxCompat translation layers, and AI metadata infrastructure.
 
-### Road to Formal v1.0.0 Release
+### Release Road
 
-With pre-v1.0 verification complete, Gaxera is transitioning to its formal **v1.0.0 Release**. This upcoming landmark milestone establishes the official v1.0.0 specification, expanded architectural documentation, and the post-v1.0 consolidated architecture program.
+The formal **v1.0.0 release is complete**. The current v1.1.0 release candidate extends that baseline with the Ring-3 memory foundation while keeping hardware IRQ delivery and production-service migration as separately gated work.
 
-Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v08.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), and [v0.9 Roadmap](docs/roadmap/roadmap_v09.md).
-The exact architecture and methodology are documented in the [Developer Workflow Guide](docs/development/workflow.md), [Technical Specification](docs/spec/technical_spec.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Master Architecture](docs/architecture/gaxfs_master_architecture.md), [GaxNet Master Specification](docs/architecture/gaxnet_specification.md), [VirtIO Platform Specification](docs/architecture/virtio_reference_platform.md), and [ADRs 0000–0036](docs/adr/).
+Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), [v0.9 Roadmap](docs/roadmap/roadmap_v09.md), and the [v1.1 Roadmap](docs/roadmap/roadmap_v11.md).
+The exact architecture and methodology are documented in the [Developer Workflow Guide](docs/development/workflow.md), [Technical Specification](docs/spec/technical_spec.md), [Foundation v0.1 Reference](docs/architecture/foundation_v0.1.md), [Memory Architecture Reference](docs/architecture/memory.md), [IPC Architecture Reference](docs/architecture/ipc.md), [GaxFS Architecture](docs/architecture/gaxfs_specification.md), [GaxNet Master Specification](docs/architecture/gaxnet_specification.md), [VirtIO Platform Specification](docs/architecture/virtio_reference_platform.md), and the [ADR index](docs/adr/).
 
 ## Getting Started
 

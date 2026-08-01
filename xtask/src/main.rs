@@ -53,6 +53,8 @@ enum KernelProfile {
     IpcBenchmark,
     Exception(ExceptionTest),
     InitTest,
+    MemoryLifecycle,
+    Ring3Heap,
 }
 
 impl KernelProfile {
@@ -92,6 +94,8 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::PageFault) => Some("test-page-fault"),
             Self::Exception(ExceptionTest::DoubleFault) => Some("test-double-fault"),
             Self::InitTest => Some("qemu-test"),
+            Self::MemoryLifecycle => Some("test-memory-lifecycle"),
+            Self::Ring3Heap => Some("test-ring3-heap"),
         }
     }
 
@@ -149,6 +153,8 @@ impl KernelProfile {
                 "GAXERA: INIT_TEST_SUCCESS",
                 "[init] Detected script_session crash! Restarting...",
             ],
+            Self::MemoryLifecycle => &["GAXERA: MEMORY_RECLAIMED_AND_QUOTA_REFUNDED"],
+            Self::Ring3Heap => &["GAXERA: RING3_HEAP_TEST_SUCCESS"],
         }
     }
 
@@ -192,6 +198,8 @@ impl KernelProfile {
             Self::Exception(ExceptionTest::PageFault) => "page-fault",
             Self::Exception(ExceptionTest::DoubleFault) => "double-fault",
             Self::InitTest => "init-scenario",
+            Self::MemoryLifecycle => "memory-lifecycle",
+            Self::Ring3Heap => "ring3-heap",
         }
     }
 }
@@ -287,6 +295,8 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "page-fault" => Ok(KernelProfile::Exception(ExceptionTest::PageFault)),
         "double-fault" => Ok(KernelProfile::Exception(ExceptionTest::DoubleFault)),
         "init-scenario" => Ok(KernelProfile::InitTest),
+        "memory-lifecycle" => Ok(KernelProfile::MemoryLifecycle),
+        "ring3-heap" => Ok(KernelProfile::Ring3Heap),
         _ => Err("unknown deterministic test name"),
     }
 }
@@ -462,28 +472,44 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         return Err("kernel compilation failed");
     }
 
-    // Step 1.5: Compile init binary (if present)
-    let init_path = Path::new("crates/init");
-    if init_path.exists() {
-        println!("Compiling init binary...");
+    // Step 1.5: Compile init (or swapped test) binary
+    let mut guest_pkg = "init";
+    let mut guest_path = "crates/init";
+    let mut guest_bin = "init";
+    if let KernelProfile::Ring3Heap = profile {
+        guest_pkg = "test_ring3_heap";
+        guest_path = "crates/test_ring3_heap";
+        guest_bin = "test_ring3_heap";
+    } else if let KernelProfile::MemoryLifecycle = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_memory_lifecycle";
+    }
+
+    if Path::new(guest_path).exists() {
+        println!("Compiling guest binary ({})...", guest_pkg);
+        let mut init_args = vec![
+            "build",
+            "--locked",
+            "--package",
+            guest_pkg,
+            "--target",
+            "x86_64-unknown-none",
+            "-Z",
+            "build-std=core,compiler_builtins,alloc",
+            "-Z",
+            "build-std-features=compiler-builtins-mem",
+        ];
+        if profile.features() == Some("test-memory-lifecycle") {
+            init_args.extend(["--features", "test-memory-lifecycle"]);
+        }
         let status = Command::new("cargo")
-            .args([
-                "build",
-                "--locked",
-                "--package",
-                "init",
-                "--target",
-                "x86_64-unknown-none",
-                "-Z",
-                "build-std=core,compiler_builtins,alloc",
-                "-Z",
-                "build-std-features=compiler-builtins-mem",
-            ])
+            .args(init_args)
             .status()
-            .map_err(|_| "failed to execute cargo build for init")?;
+            .map_err(|_| "failed to execute cargo build for guest binary")?;
 
         if !status.success() {
-            return Err("init compilation failed");
+            return Err("guest binary compilation failed");
         }
     }
 
@@ -504,8 +530,12 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
     )
     .map_err(|_| "failed to copy kernel ELF to boot segment")?;
 
+    let init_compiled_path = format!("target/x86_64-unknown-none/debug/{}", guest_bin);
+    fs::copy(init_compiled_path, boot_dir.join("init.elf"))
+        .map_err(|_| "failed to copy init ELF to boot segment")?;
+
     // Compile and copy boot modules
-    let modules = ["init", "ramfs", "script_session"];
+    let modules = ["ramfs", "script_session"];
     for module in modules {
         let path = Path::new("crates").join(module);
         if path.exists() {
@@ -788,8 +818,10 @@ fn handle_run(
     let marker_seen = markers_seen.iter().all(|seen| *seen);
     if profile.requires_guest_exit() {
         if !marker_seen {
-            println!("DEBUG: Markers seen: {:?}", markers_seen);
-            println!("DEBUG: Expected markers: {:?}", expected_markers);
+            println!(
+                "QEMU exited without the expected marker (status={:?})",
+                status.code()
+            );
             return Err("QEMU exited without the expected kernel test marker");
         }
         if status.code() != Some(QEMU_DEBUG_EXIT_SUCCESS) {
@@ -969,6 +1001,7 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::InterruptNotification,
         KernelProfile::MmioDriver,
         KernelProfile::UserspaceRuntime,
+        KernelProfile::Ring3Heap,
         KernelProfile::ServiceRegistry,
         KernelProfile::IpcBenchmark,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
@@ -1041,6 +1074,12 @@ fn handle_test() -> Result<(), &'static str> {
 
     println!("\n--- Userspace Runtime Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::UserspaceRuntime)?;
+
+    println!("\n--- Ring-3 Memory Lifecycle Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::MemoryLifecycle)?;
+
+    println!("\n--- Ring-3 Heap Runtime Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::Ring3Heap)?;
 
     println!("\n--- Service Registry Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::ServiceRegistry)?;

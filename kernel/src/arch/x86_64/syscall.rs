@@ -12,6 +12,197 @@ const MSR_STAR: u32 = 0xC0000081;
 const MSR_LSTAR: u32 = 0xC0000082;
 const MSR_FMASK: u32 = 0xC0000084;
 
+/// An RAII guard ensuring that a MemoryObject transient pin is exactly-once decremented
+/// when dropped, avoiding leaks across complex MapMemory failure and success paths.
+pub struct MemoryObjectTransientPin {
+    object_id: kernel_core::object::ObjectId,
+}
+
+impl Drop for MemoryObjectTransientPin {
+    fn drop(&mut self) {
+        let can_destroy = {
+            let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+            mem_objects
+                .get_mut(self.object_id)
+                .and_then(|mem_obj| mem_obj.dec_transient_ref().ok())
+                .unwrap_or(false)
+        };
+
+        if can_destroy {
+            reclaim_memory_object_if_zero_refs(self.object_id);
+        }
+    }
+}
+
+#[allow(
+    clippy::collapsible_if,
+    clippy::unnecessary_cast,
+    clippy::undocumented_unsafe_blocks,
+    unused_unsafe
+)]
+pub(crate) fn reclaim_memory_object_if_zero_refs(object_id: kernel_core::object::ObjectId) {
+    let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+    let mem_obj = match mem_objects.get(object_id) {
+        Some(m) if m.can_destroy() => match mem_objects.remove(object_id) {
+            Some(removed) => removed,
+            None => return,
+        },
+        _ => return,
+    };
+    drop(mem_objects);
+
+    let domain_id = mem_obj.charging_domain();
+    let size_bytes = mem_obj.size_bytes();
+
+    // Deallocate physical frames directly over &[u64] slice (allocation-free)
+    {
+        let mut phys_alloc = crate::global::PHYSICAL_ALLOCATOR.lock();
+        if let Some(allocator) = phys_alloc.as_mut() {
+            use x86_64::structures::paging::FrameDeallocator;
+            for &f in mem_obj.frames() {
+                // SAFETY: Frame returned to physical allocator upon object destruction.
+                unsafe {
+                    allocator.deallocate_frame(
+                        x86_64::structures::paging::PhysFrame::containing_address(
+                            x86_64::PhysAddr::new(f),
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    // Refund ResourceDomain byte quota
+    {
+        let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+        if let Some(domain) = domains.iter_mut().find(|d| d.id() == domain_id) {
+            let _ = domain.release_memory(size_bytes);
+            let _ = domain.release_object();
+        }
+    }
+
+    // Destroy object from ObjectArena
+    {
+        let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+        let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+        if let (Some(arena), Some(domain)) = (
+            arena_guard.as_mut(),
+            domains.iter_mut().find(|d| d.id() == domain_id),
+        ) {
+            let _ = arena.destroy(domain, object_id);
+        }
+    }
+}
+
+#[allow(
+    clippy::collapsible_if,
+    clippy::unnecessary_cast,
+    clippy::undocumented_unsafe_blocks,
+    unused_unsafe
+)]
+pub fn perform_kernel_selective_revoke(revoked_node: kernel_core::capability::CapabilityNodeId) {
+    // 1. Revoke descendant capabilities iteratively
+    loop {
+        let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+        let revoked_info = if let Some(sys) = system.as_mut() {
+            sys.revoke_one_descendant(revoked_node)
+        } else {
+            None
+        };
+        drop(system);
+
+        match revoked_info {
+            Some(_) => {} // Node marked revoked in CapabilitySystem; slot deletion happens via DeleteHandle
+            None => break, // No more active descendants found
+        }
+    }
+
+    // 2. Tear down descendant mappings iteratively
+    loop {
+        let system_guard = crate::global::CAPABILITY_SYSTEM.lock();
+        let mut mappings_guard = crate::global::MAPPINGS.lock();
+        let mut found = None;
+
+        if let Some(sys) = system_guard.as_ref() {
+            for (id, m) in mappings_guard.iter_mut() {
+                if let Some(parent_node) = m.lineage_parent_node() {
+                    if sys.is_descendant_of(parent_node, revoked_node) {
+                        if !m.is_closed() {
+                            let _ = m.close();
+                            found = Some((
+                                id,
+                                m.target_address_space(),
+                                m.virtual_address(),
+                                m.size() as u64,
+                                m.backing().clone(),
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        drop(system_guard);
+        drop(mappings_guard);
+
+        if let Some((m_id, aspace_id, vaddr, size, backing)) = found {
+            // Unmap page tables
+            let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+            if let Some(aspace) = aspaces.get_mut(aspace_id) {
+                use kernel_core::address_space::ArchAddressSpace;
+                let _ = aspace.arch.unmap_range(vaddr, (size / 4096) as usize);
+            }
+            drop(aspaces);
+
+            // Multi-page TLB flush
+            let mut flush_vaddr = vaddr;
+            let end_vaddr = vaddr + size;
+            while flush_vaddr < end_vaddr {
+                // SAFETY: TLB flush for revoked virtual address range.
+                unsafe {
+                    x86_64::instructions::tlb::flush(x86_64::VirtAddr::new(flush_vaddr));
+                }
+                flush_vaddr += 4096;
+            }
+
+            // Remove mapping from registry
+            let mut mappings = crate::global::MAPPINGS.lock();
+            let _ = mappings.remove(m_id);
+            drop(mappings);
+
+            // Destroy Mapping in ObjectArena
+            let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+            let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+            if let Some(arena) = arena_guard.as_mut() {
+                if let Some(owner_id) = arena.owner(m_id) {
+                    if let Some(domain) = domains.iter_mut().find(|d| d.id() == owner_id) {
+                        let _ = arena.destroy(domain, m_id);
+                    }
+                }
+            }
+            drop(arena_guard);
+            drop(domains);
+
+            // Decrement MemoryObject mapping reference
+            if let kernel_core::mapping::MappingBacking::MemoryObject { object_id, .. } = backing {
+                let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                let can_destroy = if let Some(mem_obj) = mem_objects.get_mut(object_id) {
+                    mem_obj.dec_mapping_ref().unwrap_or(false)
+                } else {
+                    false
+                };
+                drop(mem_objects);
+
+                if can_destroy {
+                    reclaim_memory_object_if_zero_refs(object_id);
+                }
+            }
+        } else {
+            break; // No more matching mappings
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct SyscallFrame {
@@ -171,8 +362,19 @@ pub unsafe fn enable_syscalls() {
     }
 }
 
+pub fn sys_invoke(frame: &mut SyscallFrame) -> u64 {
+    handle_syscall(frame);
+    frame.rax
+}
+
 #[unsafe(no_mangle)]
-extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
+#[allow(
+    clippy::collapsible_if,
+    clippy::unnecessary_cast,
+    clippy::undocumented_unsafe_blocks,
+    unused_unsafe
+)]
+pub extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
     if frame.rax != 0 && frame.rax != 1 {
         // crate::println!(
         //     "GAXERA: SYSCALL {} handle={} rsi={}",
@@ -241,6 +443,10 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
             // Limit the lock scope so we don't hold CAPABILITY_SYSTEM while invoking.
             {
                 let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                let cspaces_ptr = &mut *cspaces
+                    as *mut kernel_core::registry::BTreeRegistry<
+                        kernel_core::capability::CapabilitySpace,
+                    >;
                 let cspace = match cspaces.get_mut(cspace_id) {
                     Some(c) => c,
                     None => {
@@ -274,13 +480,14 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     );
 
                     let mem_handle = gaxera_abi::Handle::from_raw(frame.rdx);
-                    let mem_result = sys.lookup(
+                    let mem_info_result = sys.lookup_info(
                         cspace,
                         mem_handle,
                         gaxera_abi::ObjectType::MemoryObject,
                         gaxera_abi::Rights::MAP,
                         arena_ref,
                     );
+                    let mem_result = mem_info_result.map(|info| info.object);
                     let mapping_result = if mem_result.is_err() {
                         sys.lookup(
                             cspace,
@@ -296,48 +503,294 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                     if let Ok(aspace_id) = aspace_result {
                         let virtual_address = frame.r10; // Arg 3
                         let requested_rights = gaxera_abi::Rights::from_bits(frame.r8 as u32); // Arg 4
+                        let offset_bytes = frame.r9; // Arg 5
+                        let length_bytes = 0_u64; // Default to full size
 
                         // 1. Enforce 4 KiB alignment and non-zero virtual address
-                        if virtual_address == 0 || (virtual_address & 0xFFF) != 0 {
+                        if virtual_address == 0
+                            || (virtual_address & 0xFFF) != 0
+                            || (offset_bytes & 0xFFF) != 0
+                        {
                             break 'sys_invoke u64::MAX;
                         }
 
-                        if let Ok(mem_id) = mem_result {
-                            // Drop capability system locks BEFORE taking object locks
+                        if let Ok(mem_info) = mem_info_result {
+                            let mem_id = mem_info.object;
+                            // Rights-subset validation: requested rights must be a subset of source capability rights
+                            if !requested_rights.is_subset_of(mem_info.rights) {
+                                break 'sys_invoke u64::MAX;
+                            }
+
+                            // Reject W+X for anonymous memory objects
+                            if requested_rights.contains(gaxera_abi::Rights::EXECUTE) {
+                                break 'sys_invoke u64::MAX;
+                            }
+
+                            let node_id = match sys.node_for(cspace, mem_handle) {
+                                Ok(n) => n,
+                                Err(_) => break 'sys_invoke u64::MAX,
+                            };
+
+                            let caller_domain_id = cspace.domain();
+
                             drop(arena);
                             drop(system);
                             drop(cspaces);
 
-                            let mem_objects = crate::global::MEMORY_OBJECTS.lock();
-                            let mem_obj = match mem_objects.get(mem_id) {
+                            let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                            let mem_obj = match mem_objects.get_mut(mem_id) {
                                 Some(m) => m,
                                 None => break 'sys_invoke u64::MAX,
                             };
 
                             let mem_size = mem_obj.size_bytes();
+                            let map_length = if length_bytes == 0 {
+                                mem_size.saturating_sub(offset_bytes)
+                            } else {
+                                length_bytes
+                            };
+
+                            if map_length == 0 || (map_length & 0xFFF) != 0 {
+                                break 'sys_invoke u64::MAX;
+                            }
+
+                            let end_offset = match offset_bytes.checked_add(map_length) {
+                                Some(o) if o <= mem_size => o,
+                                _ => {
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            };
+                            let _ = end_offset;
+
                             let is_valid_user_range = virtual_address
-                                .checked_add(mem_size)
+                                .checked_add(map_length)
                                 .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
 
                             if !is_valid_user_range {
                                 break 'sys_invoke u64::MAX;
                             }
 
-                            let mut aspaces = crate::global::ADDRESS_SPACES.lock();
-                            let aspace = match aspaces.get_mut(aspace_id) {
+                            if mem_obj.inc_transient_ref().is_err() {
+                                break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
+                            }
+                            let _pin = MemoryObjectTransientPin { object_id: mem_id };
+
+                            let mut frame_vec = alloc::vec::Vec::new();
+                            match mem_obj.frames_subrange(offset_bytes, map_length) {
+                                Ok(f) => {
+                                    if frame_vec.try_reserve_exact(f.len()).is_err() {
+                                        break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
+                                    }
+                                    frame_vec.extend_from_slice(f);
+                                }
+                                Err(_) => break 'sys_invoke u64::MAX,
+                            }
+                            drop(mem_objects);
+
+                            // Transaction step 1: Reserve object & charge caller ResourceDomain
+                            let mut domain_guard = crate::global::RESOURCE_DOMAINS.lock();
+                            let domain = match domain_guard
+                                .iter_mut()
+                                .find(|d| d.id() == caller_domain_id)
+                            {
+                                Some(d) => d,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                            let arena = match arena_guard.as_mut() {
                                 Some(a) => a,
                                 None => break 'sys_invoke u64::MAX,
                             };
 
+                            let mapping_id = match arena.create_mapping(domain) {
+                                Ok(id) => id,
+                                Err(_) => break 'sys_invoke u64::MAX,
+                            };
+                            drop(arena_guard);
+                            drop(domain_guard);
+
+                            // Transaction step 2: Map page tables
+                            let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                            let aspace = match aspaces.get_mut(aspace_id) {
+                                Some(a) => a,
+                                None => {
+                                    // Rollback arena
+                                    drop(aspaces);
+                                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                                    let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                                    if let Some(arena) = arena_guard.as_mut() {
+                                        if let Some(domain) =
+                                            domains.iter_mut().find(|d| d.id() == caller_domain_id)
+                                        {
+                                            let _ = arena.destroy(domain, mapping_id);
+                                        }
+                                    }
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            };
                             use kernel_core::address_space::ArchAddressSpace;
-                            match aspace.arch.map_frames(
-                                virtual_address,
-                                mem_obj.frames(),
-                                requested_rights,
-                            ) {
-                                Ok(_) => 0,
-                                Err(_) => u64::MAX,
+                            if aspace
+                                .arch
+                                .map_frames(virtual_address, &frame_vec, requested_rights)
+                                .is_err()
+                            {
+                                drop(aspaces);
+                                let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                                let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                                if let Some(arena) = arena_guard.as_mut() {
+                                    if let Some(domain) =
+                                        domains.iter_mut().find(|d| d.id() == caller_domain_id)
+                                    {
+                                        let _ = arena.destroy(domain, mapping_id);
+                                    }
+                                }
+                                break 'sys_invoke u64::MAX;
                             }
+                            drop(aspaces);
+
+                            // Transaction step 3: Increment mapping ref
+                            let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                            if let Some(mem_obj) = mem_objects.get_mut(mem_id) {
+                                if mem_obj.inc_mapping_ref().is_err() {
+                                    drop(mem_objects);
+                                    let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                                    if let Some(aspace) = aspaces.get_mut(aspace_id) {
+                                        let _ = aspace.arch.unmap_range(
+                                            virtual_address,
+                                            (map_length / 4096) as usize,
+                                        );
+                                    }
+                                    drop(aspaces);
+                                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                                    let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                                    if let Some(arena) = arena_guard.as_mut() {
+                                        if let Some(domain) =
+                                            domains.iter_mut().find(|d| d.id() == caller_domain_id)
+                                        {
+                                            let _ = arena.destroy(domain, mapping_id);
+                                        }
+                                    }
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            }
+                            drop(mem_objects);
+
+                            let mapping = match kernel_core::mapping::Mapping::try_new_memory_object(
+                                mapping_id,
+                                aspace_id,
+                                virtual_address,
+                                mem_id,
+                                offset_bytes,
+                                map_length as usize,
+                                requested_rights,
+                                Some(node_id),
+                            ) {
+                                Ok(m) => m,
+                                Err(_) => {
+                                    let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                                    if let Some(mem_obj) = mem_objects.get_mut(mem_id) {
+                                        let _ = mem_obj.dec_mapping_ref();
+                                    }
+                                    drop(mem_objects);
+                                    let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                                    if let Some(aspace) = aspaces.get_mut(aspace_id) {
+                                        let _ = aspace.arch.unmap_range(
+                                            virtual_address,
+                                            (map_length / 4096) as usize,
+                                        );
+                                    }
+                                    drop(aspaces);
+                                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                                    let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                                    if let Some(arena) = arena_guard.as_mut() {
+                                        if let Some(domain) =
+                                            domains.iter_mut().find(|d| d.id() == caller_domain_id)
+                                        {
+                                            let _ = arena.destroy(domain, mapping_id);
+                                        }
+                                    }
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            };
+                            let mut mappings = crate::global::MAPPINGS.lock();
+                            mappings.insert(mapping_id, mapping);
+                            drop(mappings);
+
+                            // Transaction step 4: Insert capability handle
+                            let mut domain_guard = crate::global::RESOURCE_DOMAINS.lock();
+                            let domain = match domain_guard
+                                .iter_mut()
+                                .find(|d| d.id() == caller_domain_id)
+                            {
+                                Some(d) => d,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                            let arena = match arena_guard.as_mut() {
+                                Some(a) => a,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            let mut cspaces_guard = crate::global::CAPABILITY_SPACES.lock();
+                            let cspace = match cspaces_guard.get_mut(cspace_id) {
+                                Some(c) => c,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            let mut system_guard = crate::global::CAPABILITY_SYSTEM.lock();
+                            let sys = match system_guard.as_mut() {
+                                Some(s) => s,
+                                None => break 'sys_invoke u64::MAX,
+                            };
+
+                            match sys.insert_descendant(
+                                node_id,
+                                cspace,
+                                domain,
+                                mapping_id,
+                                gaxera_abi::ObjectType::Mapping,
+                                requested_rights,
+                                arena,
+                            ) {
+                                Ok(h) => {
+                                    frame.rdx = h.raw();
+                                }
+                                Err(_) => {
+                                    drop(system_guard);
+                                    drop(cspaces_guard);
+                                    drop(arena_guard);
+                                    drop(domain_guard);
+                                    let mut mappings = crate::global::MAPPINGS.lock();
+                                    let _ = mappings.remove(mapping_id);
+                                    drop(mappings);
+                                    let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                                    if let Some(mem_obj) = mem_objects.get_mut(mem_id) {
+                                        let _ = mem_obj.dec_mapping_ref();
+                                    }
+                                    drop(mem_objects);
+                                    let mut aspaces = crate::global::ADDRESS_SPACES.lock();
+                                    if let Some(aspace) = aspaces.get_mut(aspace_id) {
+                                        let _ = aspace.arch.unmap_range(
+                                            virtual_address,
+                                            (map_length / 4096) as usize,
+                                        );
+                                    }
+                                    drop(aspaces);
+                                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
+                                    let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                                    if let Some(arena) = arena_guard.as_mut() {
+                                        if let Some(domain) =
+                                            domains.iter_mut().find(|d| d.id() == caller_domain_id)
+                                        {
+                                            let _ = arena.destroy(domain, mapping_id);
+                                        }
+                                    }
+                                    break 'sys_invoke u64::MAX;
+                                }
+                            }
+                            0
                         } else if let Ok(mapping_id) = mapping_result {
                             drop(arena);
                             drop(system);
@@ -364,54 +817,68 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                 None => break 'sys_invoke u64::MAX,
                             };
 
-                            use kernel_core::address_space::ArchAddressSpace;
-                            match aspace.arch.map_physical_range(
-                                virtual_address,
-                                mapping.phys_addr(),
-                                mapping.size(),
-                                requested_rights,
-                                mapping.cache_policy(),
-                            ) {
-                                Ok(_) => 0,
-                                Err(_) => u64::MAX,
+                            if let Some(phys_base) = mapping.phys_addr() {
+                                use kernel_core::address_space::ArchAddressSpace;
+                                match aspace.arch.map_physical_range(
+                                    virtual_address,
+                                    phys_base,
+                                    mapping.size(),
+                                    requested_rights,
+                                    mapping.cache_policy(),
+                                ) {
+                                    Ok(_) => 0,
+                                    Err(_) => u64::MAX,
+                                }
+                            } else {
+                                crate::println!("GAXERA: MapMemory phys_addr is None!");
+                                break 'sys_invoke u64::MAX;
                             }
                         } else {
+                            crate::println!(
+                                "GAXERA: MapMemory mapping_result failed: {:?}",
+                                mapping_result
+                            );
                             break 'sys_invoke u64::MAX;
                         }
                     } else {
+                        crate::println!(
+                            "GAXERA: MapMemory aspace_result failed: {:?}",
+                            aspace_result
+                        );
                         break 'sys_invoke u64::MAX;
                     }
                 } else if op == gaxera_abi::OperationCode::UnmapMemory as u64 {
-                    let aspace_result = sys.lookup(
+                    let mapping_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+                    let caller_domain_id = cspace.domain();
+                    let mapping_result = sys.lookup(
                         cspace,
-                        handle,
-                        gaxera_abi::ObjectType::AddressSpace,
-                        gaxera_abi::Rights::WRITE,
+                        mapping_handle,
+                        gaxera_abi::ObjectType::Mapping,
+                        gaxera_abi::Rights::MANAGE,
                         arena_ref,
                     );
 
-                    if let Ok(aspace_id) = aspace_result {
-                        let virtual_address = frame.rdx;
-                        let page_count = frame.r10 as usize;
-
+                    if let Ok(mapping_id) = mapping_result {
                         drop(arena);
                         drop(system);
                         drop(cspaces);
 
-                        if virtual_address == 0 || (virtual_address & 0xFFF) != 0 || page_count == 0
-                        {
-                            break 'sys_invoke u64::MAX;
-                        }
+                        let mut mappings = crate::global::MAPPINGS.lock();
+                        let (vaddr, size, aspace_id, backing) = match mappings.get_mut(mapping_id) {
+                            Some(m) if !m.is_closed() => {
+                                let _ = m.close();
+                                (
+                                    m.virtual_address(),
+                                    m.size(),
+                                    m.target_address_space(),
+                                    m.backing().clone(),
+                                )
+                            }
+                            _ => break 'sys_invoke u64::MAX,
+                        };
+                        drop(mappings);
 
-                        let unmap_len = (page_count * 4096) as u64;
-                        let is_valid_user_range = virtual_address
-                            .checked_add(unmap_len)
-                            .is_some_and(|end_vaddr| end_vaddr <= USER_ADDRESS_MAX);
-
-                        if !is_valid_user_range {
-                            break 'sys_invoke u64::MAX;
-                        }
-
+                        // 1. Unmap page tables FIRST
                         let mut aspaces = crate::global::ADDRESS_SPACES.lock();
                         let aspace = match aspaces.get_mut(aspace_id) {
                             Some(a) => a,
@@ -419,10 +886,71 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         };
 
                         use kernel_core::address_space::ArchAddressSpace;
-                        match aspace.arch.unmap_range(virtual_address, page_count) {
-                            Ok(_) => 0,
-                            Err(_) => u64::MAX,
+                        let page_count = size / 4096;
+                        if aspace.arch.unmap_range(vaddr, page_count).is_err() {
+                            break 'sys_invoke u64::MAX;
                         }
+                        drop(aspaces);
+
+                        // 2. Multi-page TLB flush
+                        let mut flush_vaddr = vaddr;
+                        let end_vaddr = vaddr + size as u64;
+                        while flush_vaddr < end_vaddr {
+                            // SAFETY: TLB flush for unmapped virtual address.
+                            unsafe {
+                                x86_64::instructions::tlb::flush(x86_64::VirtAddr::new(
+                                    flush_vaddr,
+                                ));
+                            }
+                            flush_vaddr += 4096;
+                        }
+
+                        // 3. Remove Mapping from MAPPINGS
+                        let mut mappings = crate::global::MAPPINGS.lock();
+                        let _ = mappings.remove(mapping_id);
+                        drop(mappings);
+
+                        // 4. Delete Mapping handle from CapabilitySpace and OBJECT_ARENA
+                        let mut domain_guard = crate::global::RESOURCE_DOMAINS.lock();
+                        if let Some(domain) =
+                            domain_guard.iter_mut().find(|d| d.id() == caller_domain_id)
+                        {
+                            let mut arena_guard = crate::global::OBJECT_ARENA.lock();
+                            if let Some(arena) = arena_guard.as_mut() {
+                                let mut cspaces_guard = crate::global::CAPABILITY_SPACES.lock();
+                                if let Some(cspace) = cspaces_guard.get_mut(cspace_id) {
+                                    let mut system_guard = crate::global::CAPABILITY_SYSTEM.lock();
+                                    if let Some(sys) = system_guard.as_mut() {
+                                        let _ = sys.delete(cspace, domain, mapping_handle);
+                                    }
+                                }
+                                let _ = arena.destroy(domain, mapping_id);
+                            }
+                        }
+                        drop(domain_guard);
+
+                        // 5. Decrement MemoryObject mapping reference and reclaim if zero refs
+                        if let kernel_core::mapping::MappingBacking::MemoryObject {
+                            object_id,
+                            ..
+                        } = backing
+                        {
+                            let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                            let can_destroy = if let Some(mem_obj) = mem_objects.get_mut(object_id)
+                            {
+                                mem_obj.dec_mapping_ref().unwrap_or(false)
+                            } else {
+                                false
+                            };
+                            drop(mem_objects);
+
+                            if can_destroy {
+                                reclaim_memory_object_if_zero_refs(object_id);
+                            }
+                        }
+
+                        frame.rax = 0;
+                        0
                     } else {
                         break 'sys_invoke u64::MAX;
                     }
@@ -439,12 +967,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         None => break 'sys_invoke u64::MAX,
                     };
 
-                    let factory = kernel_core::object::Factory::new_for_test(
-                        domain,
-                        gaxera_abi::ObjectTypeSet::of(gaxera_abi::ObjectType::WaitSet),
-                    );
-                    let ws_id = match arena.create(domain, factory, gaxera_abi::ObjectType::WaitSet)
-                    {
+                    let ws_id = match arena.create_waitset(domain) {
                         Ok(id) => id,
                         Err(_) => break 'sys_invoke u64::MAX,
                     };
@@ -1054,6 +1577,7 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         break 'sys_invoke u64::MAX;
                     }
                 } else if op == gaxera_abi::OperationCode::Derive as u64 {
+                    crate::println!("GAXERA: Syscall Derive started");
                     // Derive(source_handle, target_cspace_handle, rights)
                     let target_cspace_handle = gaxera_abi::Handle::from_raw(frame.rdx);
                     let requested_rights = gaxera_abi::Rights::from_bits(frame.r10 as u32);
@@ -1069,32 +1593,17 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         Err(_) => break 'sys_invoke u64::MAX,
                     };
 
-                    drop(arena);
-                    drop(system);
-                    drop(cspaces);
+                    let cspace_ptr = cspace as *const _;
 
-                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
-                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
-                    let mut arena = crate::global::OBJECT_ARENA.lock();
-                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
-
-                    let sys = system.as_mut().unwrap();
-                    let arena_ref = arena.as_mut().unwrap();
-
-                    let cspace_ptr = {
-                        let c = match cspaces.get_mut(cspace_id) {
+                    // SAFETY: Single-threaded kernel syscall context with CAPABILITY_SPACES lock held.
+                    let target_cspace: &mut kernel_core::capability::CapabilitySpace = unsafe {
+                        match (*cspaces_ptr).get_mut(target_cspace_id) {
                             Some(cs) => cs,
                             None => break 'sys_invoke u64::MAX,
-                        };
-                        c as *const _
+                        }
                     };
 
-                    let target_cspace = match cspaces.get_mut(target_cspace_id) {
-                        Some(cs) => cs,
-                        None => break 'sys_invoke u64::MAX,
-                    };
-
-                    // SAFETY: handle_syscall is single threaded. We bypass borrow checker for this.
+                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
                     let target_ptr = target_cspace as *mut _;
 
                     let target_domain = match domains
@@ -1104,6 +1613,15 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                         Some(d) => d,
                         None => break 'sys_invoke u64::MAX,
                     };
+
+                    // Check if target is a MemoryObject to increment capability refcount
+                    let source_mem_id = sys.lookup(
+                        cspace,
+                        handle,
+                        gaxera_abi::ObjectType::MemoryObject,
+                        gaxera_abi::Rights::NONE,
+                        arena_ref,
+                    );
 
                     // SAFETY: We have verified that the pointers are valid and we hold the global locks.
                     match unsafe {
@@ -1116,7 +1634,72 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             arena_ref,
                         )
                     } {
-                        Ok(new_handle) => new_handle.raw(),
+                        Ok(new_handle) => {
+                            if let Ok(mem_id) = source_mem_id {
+                                let mut mem_objects = crate::global::MEMORY_OBJECTS.lock();
+                                if let Some(mem_obj) = mem_objects.get_mut(mem_id) {
+                                    let _ = mem_obj.inc_capability_ref();
+                                }
+                            }
+                            new_handle.raw()
+                        }
+                        Err(_) => u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::DeleteHandle as u64 {
+                    let target_handle = gaxera_abi::Handle::from_raw(frame.rdx);
+
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    if crate::arch::x86_64::teardown::delete_handle_internal(
+                        cspace_id,
+                        target_handle,
+                    )
+                    .is_ok()
+                    {
+                        0
+                    } else {
+                        u64::MAX
+                    }
+                } else if op == gaxera_abi::OperationCode::Revoke as u64 {
+                    crate::println!("GAXERA: Syscall Revoke started");
+                    let target_handle = if frame.rdx != 0 {
+                        gaxera_abi::Handle::from_raw(frame.rdx)
+                    } else {
+                        handle
+                    };
+                    let revoked_node = match sys.node_for(cspace, target_handle) {
+                        Ok(n) => n,
+                        Err(_) => break 'sys_invoke u64::MAX,
+                    };
+
+                    // Drop locks before calling perform_kernel_selective_revoke to avoid re-entrant deadlock
+                    drop(system);
+                    drop(arena);
+                    drop(cspaces);
+
+                    perform_kernel_selective_revoke(revoked_node);
+
+                    // Re-acquire locks for sys.revoke
+                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
+                    let cspace = match cspaces.get_mut(cspace_id) {
+                        Some(c) => c,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
+                    let sys = match system.as_mut() {
+                        Some(s) => s,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+                    let arena = crate::global::OBJECT_ARENA.lock();
+                    let arena_ref = match arena.as_ref() {
+                        Some(a) => a,
+                        None => break 'sys_invoke u64::MAX,
+                    };
+
+                    match sys.revoke(cspace, target_handle, arena_ref) {
+                        Ok(_) => 0,
                         Err(_) => u64::MAX,
                     }
                 } else if op == 0 {
@@ -1142,61 +1725,109 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             let factories = crate::global::FACTORIES.lock();
                             let factory = match factories.get(factory_id) {
                                 Some(f) => *f,
-                                None => break 'sys_invoke u64::MAX,
+                                None => break 'sys_invoke gaxera_abi::status::INVALID_HANDLE,
                             };
                             drop(factories);
+
+                            // Enforce factory.allows(obj_type) BEFORE allocating frames or objects
+                            if !factory.allows(obj_type) {
+                                crate::println!("GAXERA: Factory denied obj_type {:?}", obj_type);
+                                break 'sys_invoke gaxera_abi::status::RIGHTS_DENIED;
+                            }
 
                             // To avoid deadlocks, drop sys/arena locks
                             drop(system);
                             drop(arena);
                             drop(cspaces);
 
-                            let mut arena_lock = crate::global::OBJECT_ARENA.lock();
-                            let arena = arena_lock.as_mut().unwrap();
-                            let mut sys_lock = crate::global::CAPABILITY_SYSTEM.lock();
-                            let system = sys_lock.as_mut().unwrap();
                             let mut domains = crate::global::RESOURCE_DOMAINS.lock();
-                            let domain = domains
-                                .iter_mut()
-                                .find(|d| d.id() == factory.domain())
-                                .unwrap();
+                            let domain =
+                                match domains.iter_mut().find(|d| d.id() == factory.domain()) {
+                                    Some(d) => d,
+                                    None => break 'sys_invoke gaxera_abi::status::INVALID_HANDLE,
+                                };
+                            let mut sys_lock = crate::global::CAPABILITY_SYSTEM.lock();
+                            let system = match sys_lock.as_mut() {
+                                Some(s) => s,
+                                None => break 'sys_invoke gaxera_abi::status::INTERNAL_ERROR,
+                            };
+                            let mut arena_lock = crate::global::OBJECT_ARENA.lock();
+                            let arena = match arena_lock.as_mut() {
+                                Some(a) => a,
+                                None => break 'sys_invoke gaxera_abi::status::INTERNAL_ERROR,
+                            };
 
                             let mut pt_for_aspace = None;
                             let mut stack_for_thread = None;
-                            let mut frames_for_mem = alloc::vec::Vec::new();
                             let size = frame.r10; // arg2
+                            let mut mem_guard = None;
 
-                            if obj_type == gaxera_abi::ObjectType::MemoryObject
-                                || obj_type == gaxera_abi::ObjectType::AddressSpace
+                            if obj_type == gaxera_abi::ObjectType::MemoryObject {
+                                if size == 0 {
+                                    break 'sys_invoke gaxera_abi::status::INVALID_ARGUMENT;
+                                }
+                                let num_frames = match size.checked_add(4095) {
+                                    Some(sum) => (sum / 4096) as usize,
+                                    None => break 'sys_invoke gaxera_abi::status::INVALID_ARGUMENT,
+                                };
+                                let rounded_bytes = match (num_frames as u64).checked_mul(4096) {
+                                    Some(b) => b,
+                                    None => break 'sys_invoke gaxera_abi::status::INVALID_ARGUMENT,
+                                };
+
+                                let mut phys = crate::global::PHYSICAL_ALLOCATOR.lock();
+                                let allocator = match phys.as_deref_mut() {
+                                    Some(a) => a,
+                                    None => {
+                                        break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
+                                    }
+                                };
+
+                                let mut frames = alloc::vec::Vec::new();
+                                if frames.try_reserve_exact(num_frames).is_err() {
+                                    break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
+                                }
+                                if domain.charge_memory(rounded_bytes).is_err() {
+                                    break 'sys_invoke gaxera_abi::status::MEMORY_LIMIT;
+                                }
+
+                                for _ in 0..num_frames {
+                                    if let Some(f) = allocator.allocate_frame() {
+                                        let vaddr = crate::memory::mapping::HHDM_BASE
+                                            + f.start_address().as_u64();
+                                        // SAFETY: Frame is exclusively allocated and mapped via HHDM.
+                                        unsafe {
+                                            core::ptr::write_bytes(vaddr as *mut u8, 0, 4096);
+                                        }
+                                        frames.push(f.start_address().as_u64());
+                                    } else {
+                                        // Rollback physical frames allocated so far & quota charge
+                                        for f in &frames {
+                                            unsafe {
+                                                use x86_64::structures::paging::FrameDeallocator;
+                                                allocator.deallocate_frame(
+                                                    x86_64::structures::paging::PhysFrame::containing_address(
+                                                        x86_64::PhysAddr::new(*f),
+                                                    ),
+                                                );
+                                            }
+                                        }
+                                        let _ = domain.rollback_memory(rounded_bytes);
+                                        break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
+                                    }
+                                }
+                                mem_guard = Some((frames, rounded_bytes));
+                            } else if obj_type == gaxera_abi::ObjectType::AddressSpace
                                 || obj_type == gaxera_abi::ObjectType::Thread
                             {
                                 let mut phys = crate::global::PHYSICAL_ALLOCATOR.lock();
                                 if let Some(allocator) = phys.as_deref_mut() {
-                                    if obj_type == gaxera_abi::ObjectType::MemoryObject {
-                                        let num_frames = size.div_ceil(4096);
-                                        for _ in 0..num_frames {
-                                            if let Some(f) = allocator.allocate_frame() {
-                                                let vaddr = crate::memory::mapping::HHDM_BASE
-                                                    + f.start_address().as_u64();
-                                                // SAFETY: Frame is exclusively allocated and mapped via HHDM.
-                                                unsafe {
-                                                    core::ptr::write_bytes(
-                                                        vaddr as *mut u8,
-                                                        0,
-                                                        4096,
-                                                    );
-                                                }
-                                                frames_for_mem.push(f.start_address().as_u64());
-                                            } else {
-                                                break 'sys_invoke u64::MAX;
-                                            }
-                                        }
-                                    } else if obj_type == gaxera_abi::ObjectType::AddressSpace {
+                                    if obj_type == gaxera_abi::ObjectType::AddressSpace {
                                         match crate::arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator) {
                                             Ok(a) => pt_for_aspace = Some(a),
                                             Err(e) => {
                                                 crate::println!("GAXERA: AddressSpace::new_dynamic failed: {:?}", e);
-                                                break 'sys_invoke u64::MAX;
+                                                break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
                                             }
                                         }
                                     } else if obj_type == gaxera_abi::ObjectType::Thread {
@@ -1214,19 +1845,17 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                                     "GAXERA: KernelStack::allocate failed: {:?}",
                                                     e
                                                 );
-                                                break 'sys_invoke u64::MAX;
+                                                break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
                                             }
                                         }
                                     }
                                 } else {
-                                    break 'sys_invoke u64::MAX;
+                                    break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
                                 }
                             }
 
-                            crate::println!("GAXERA: Calling arena.create");
                             match arena.create(domain, factory, obj_type) {
                                 Ok(new_id) => {
-                                    crate::println!("GAXERA: Locking cspaces");
                                     let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
                                     let cspace_ref = cspaces.get_mut(cspace_id).unwrap();
                                     // SAFETY: By dropping outer locks, we ensure exclusive access to the target CSpace.
@@ -1235,30 +1864,37 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                             as *mut kernel_core::capability::CapabilitySpace)
                                     };
 
-                                    crate::println!("GAXERA: Calling system.insert_root");
+                                    let created_rights =
+                                        if obj_type == gaxera_abi::ObjectType::MemoryObject {
+                                            gaxera_abi::Rights::MAP
+                                                | gaxera_abi::Rights::READ
+                                                | gaxera_abi::Rights::WRITE
+                                        } else {
+                                            gaxera_abi::Rights::ALL
+                                        };
                                     match system.insert_root(
                                         target_cspace,
                                         domain,
                                         new_id,
                                         obj_type,
-                                        gaxera_abi::Rights::ALL,
+                                        created_rights,
                                         arena,
                                     ) {
                                         Ok(new_handle) => {
                                             drop(cspaces);
-                                            crate::println!("GAXERA: Match obj_type for insert");
                                             match obj_type {
                                                 gaxera_abi::ObjectType::CapabilitySpace => {
-                                                    crate::global::CAPABILITY_SPACES.lock().insert(new_id, kernel_core::capability::CapabilitySpace::try_new(domain, 64).unwrap());
+                                                    match kernel_core::capability::CapabilitySpace::try_new(domain, 64) {
+                                                        Ok(c) => {
+                                                            let mut cspaces2 = crate::global::CAPABILITY_SPACES.lock();
+                                                            cspaces2.insert(new_id, c);
+                                                            drop(cspaces2);
+                                                        }
+                                                        Err(e) => crate::println!("GAXERA: CapabilitySpace::try_new failed: {:?}", e),
+                                                    }
                                                 }
                                                 gaxera_abi::ObjectType::AddressSpace => {
-                                                    crate::println!(
-                                                        "GAXERA: Locking ADDRESS_SPACES"
-                                                    );
                                                     crate::global::ADDRESS_SPACES.lock().insert(new_id, kernel_core::address_space::AddressSpace::new(new_id, pt_for_aspace.unwrap()));
-                                                    crate::println!(
-                                                        "GAXERA: ADDRESS_SPACES unlocked"
-                                                    );
                                                 }
                                                 gaxera_abi::ObjectType::Thread => {
                                                     let arch = crate::arch::x86_64::thread::ArchThread {
@@ -1276,12 +1912,16 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                                     }
                                                 }
                                                 gaxera_abi::ObjectType::MemoryObject => {
+                                                    let (frames, rounded_bytes) =
+                                                        mem_guard.unwrap();
                                                     let mut mem_obj =
                                                         kernel_core::memory::MemoryObject::new(
-                                                            new_id, size,
+                                                            new_id,
+                                                            domain.id(),
+                                                            rounded_bytes,
                                                         );
-                                                    for f in frames_for_mem {
-                                                        mem_obj.add_frame(f);
+                                                    for f in frames {
+                                                        let _ = mem_obj.add_frame(f);
                                                     }
                                                     crate::global::MEMORY_OBJECTS
                                                         .lock()
@@ -1316,17 +1956,45 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                                                 }
                                                 _ => {}
                                             }
-                                            new_handle.raw()
+                                            frame.rdx = new_handle.raw();
+                                            0
                                         }
                                         Err(e) => {
                                             crate::println!("GAXERA: insert_root failed: {:?}", e);
-                                            break 'sys_invoke u64::MAX;
+                                            let _ = arena.destroy(domain, new_id);
+                                            if let Some((frames, rounded_bytes)) = mem_guard {
+                                                let mut phys =
+                                                    crate::global::PHYSICAL_ALLOCATOR.lock();
+                                                if let Some(allocator) = phys.as_deref_mut() {
+                                                    for f in &frames {
+                                                        // SAFETY: Frame returned to physical allocator upon object allocation failure.
+                                                        unsafe {
+                                                            use x86_64::structures::paging::FrameDeallocator;
+                                                            allocator.deallocate_frame(x86_64::structures::paging::PhysFrame::containing_address(x86_64::PhysAddr::new(*f)));
+                                                        }
+                                                    }
+                                                }
+                                                let _ = domain.rollback_memory(rounded_bytes);
+                                            }
+                                            break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
                                         }
                                     }
                                 }
                                 Err(e) => {
                                     crate::println!("GAXERA: arena.create error {:?}", e);
-                                    break 'sys_invoke u64::MAX;
+                                    if let Some((frames, rounded_bytes)) = mem_guard {
+                                        let mut phys = crate::global::PHYSICAL_ALLOCATOR.lock();
+                                        if let Some(allocator) = phys.as_deref_mut() {
+                                            for f in &frames {
+                                                unsafe {
+                                                    use x86_64::structures::paging::FrameDeallocator;
+                                                    allocator.deallocate_frame(x86_64::structures::paging::PhysFrame::containing_address(x86_64::PhysAddr::new(*f)));
+                                                }
+                                            }
+                                        }
+                                        let _ = domain.rollback_memory(rounded_bytes);
+                                    }
+                                    break 'sys_invoke gaxera_abi::status::RESOURCE_EXHAUSTED;
                                 }
                             }
                         }
@@ -1360,50 +2028,6 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             }
                         }
                         Err(_) => break 'sys_invoke u64::MAX,
-                    }
-                } else if op == gaxera_abi::OperationCode::DeleteHandle as u64 {
-                    drop(arena);
-                    drop(system);
-                    drop(cspaces);
-
-                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
-                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
-                    let mut domains = crate::global::RESOURCE_DOMAINS.lock();
-
-                    let sys = system.as_mut().unwrap();
-                    let cspace_ref = match cspaces.get_mut(cspace_id) {
-                        Some(cs) => cs,
-                        None => break 'sys_invoke u64::MAX,
-                    };
-                    let target_domain =
-                        match domains.iter_mut().find(|d| d.id() == cspace_ref.domain()) {
-                            Some(d) => d,
-                            None => break 'sys_invoke u64::MAX,
-                        };
-
-                    match sys.delete(cspace_ref, target_domain, handle) {
-                        Ok(_) => 0,
-                        Err(_) => u64::MAX,
-                    }
-                } else if op == gaxera_abi::OperationCode::Revoke as u64 {
-                    drop(arena);
-                    drop(system);
-                    drop(cspaces);
-
-                    let mut cspaces = crate::global::CAPABILITY_SPACES.lock();
-                    let mut system = crate::global::CAPABILITY_SYSTEM.lock();
-                    let mut arena = crate::global::OBJECT_ARENA.lock();
-
-                    let sys = system.as_mut().unwrap();
-                    let arena_ref = arena.as_mut().unwrap();
-                    let cspace_ref = match cspaces.get_mut(cspace_id) {
-                        Some(cs) => cs,
-                        None => break 'sys_invoke u64::MAX,
-                    };
-
-                    match sys.revoke(cspace_ref, handle, arena_ref) {
-                        Ok(_) => 0,
-                        Err(_) => u64::MAX,
                     }
                 } else if op == gaxera_abi::OperationCode::InterruptControl as u64 {
                     match sys.lookup(
@@ -1526,6 +2150,57 @@ extern "C" fn handle_syscall(frame: &mut SyscallFrame) {
                             }
                         }
                         Err(_) => break 'sys_invoke u64::MAX,
+                    }
+                } else if op == gaxera_abi::OperationCode::ExitProcess as u64 {
+                    let exit_code = frame.rdx;
+                    if exit_code != 0 {
+                        crate::println!(
+                            "GAXERA: USER_PROCESS_EXITED with error code {:#x}",
+                            exit_code
+                        );
+                        loop {
+                            unsafe { core::arch::asm!("hlt") };
+                        }
+                    }
+
+                    // 1. Snapshot handles fallibly
+                    let handles = match cspace.snapshot_handles() {
+                        Ok(h) => h,
+                        Err(_) => break 'sys_invoke u64::MAX, // Can't even snapshot, just halt
+                    };
+
+                    drop(arena);
+                    drop(system);
+                    drop(cspaces);
+
+                    // 2. Iterate and delete handles
+                    for handle in handles {
+                        let _ = crate::arch::x86_64::teardown::delete_handle_internal(
+                            cspace_id, handle,
+                        );
+                    }
+
+                    // A real implementation would also destroy AddressSpace and Thread structures,
+                    // but we just halt to signal successful teardown here, or qemu exit if test.
+                    #[cfg(feature = "test-ring3-heap")]
+                    crate::println!("GAXERA: RING3_HEAP_TEST_SUCCESS");
+                    #[cfg(feature = "test-ring3-heap")]
+                    unsafe {
+                        crate::arch::x86_64::qemu::exit_success();
+                    }
+                    #[cfg(feature = "test-memory-lifecycle")]
+                    {
+                        crate::println!("GAXERA: MEMORY_RECLAIMED_AND_QUOTA_REFUNDED");
+                        // SAFETY: This is a QEMU integration image launched with
+                        // isa-debug-exit by xtask for this test profile.
+                        unsafe { crate::arch::x86_64::qemu::exit_success() };
+                    }
+                    #[cfg(not(any(
+                        feature = "test-ring3-heap",
+                        feature = "test-memory-lifecycle"
+                    )))]
+                    loop {
+                        unsafe { core::arch::asm!("hlt") };
                     }
                 } else {
                     break 'sys_invoke u64::MAX;

@@ -88,17 +88,22 @@ The primary goal of Initiative v0.9 is to transform Gaxera from a capability mic
 
 ---
 
-## 4. Production Release & Hardware Expansion Strategy
+## 4. Historical Production Release & Hardware Expansion Forecast
 
 ### **v1.0.0 — Production Architectural Stability & Platform Release**
 Gaxera `v1.0.0` represents **architectural completion and stability**, freezing the microkernel ABI, capability model, memory manager, IPC primitives, scheduler, driver framework, VFS, network stack, userspace runtime, and complete VirtIO reference platform.
 
-### **Post-v1.0 Bare-Metal Hardware Expansion Series**
+### **Historical Post-v1.0 Bare-Metal Hardware Expansion Forecast**
 Following the `v1.0.0` architectural freeze, bare-metal hardware support grows incrementally without delaying core OS releases:
 * **`v1.1.0` — Native Bare-Metal Storage:** Physical NVMe SSD (`nvme_server`) & AHCI SATA drivers.
 * **`v1.2.0` — Native Bare-Metal Networking:** Physical Intel e1000/e1000e & Realtek NIC drivers.
 * **`v1.3.0` — Native Bare-Metal USB & Input:** Physical xHCI USB 3.0 Host Controller & USB HID drivers.
 * **`v1.4.0` — Native Bare-Metal Graphics:** Physical Intel i915 / VESA linear framebuffer drivers.
+
+This forecast is preserved as historical planning context. It is superseded by the
+active v1.1.0 Ring-3 Memory Foundation roadmap in
+`docs/roadmap/roadmap_v11.md`; native bare-metal storage remains future work and
+is not the v1.1.0 release scope.
 
 ---
 

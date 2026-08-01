@@ -47,6 +47,9 @@ test-virtio-foundation = ["qemu-test"]
 test-virtio-block = ["qemu-test"]
 test-smp-schedule = ["qemu-test"]
 test-virtio-net = ["qemu-test"]
+test-factory-correctness = ["qemu-test"]
+test-memory-lifecycle = ["qemu-test"]
+test-ring3-heap = ["qemu-test"]
 
 [dependencies]
 limine = "=0.6.5"

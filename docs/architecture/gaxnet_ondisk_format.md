@@ -1,7 +1,7 @@
 # GaxNet State Persistence & Identity Storage Format
 
 > **Status:** Canonical | **Milestone Target:** v0.9.4 | **Version:** 1.0  
-> **Related Documents:** [ADR 0035](../adr/0035-gaxnet-first-principles-architecture.md), [GaxFS Master Architecture](gaxfs_master_architecture.md)
+> **Related Documents:** [ADR 0035](../adr/0035-gaxnet-first-principles-architecture.md), [GaxFS Architecture](gaxfs_specification.md)
 
 ---
 

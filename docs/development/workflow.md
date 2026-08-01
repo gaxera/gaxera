@@ -88,6 +88,9 @@ cargo xtask run -- --headless --test context-preservation
 cargo xtask run -- --headless --test ipc-test
 cargo xtask run -- --headless --test preemption
 cargo xtask run -- --headless --test init-scenario
+cargo xtask run -- --headless --test factory-correctness
+cargo xtask run -- --headless --test memory-lifecycle
+cargo xtask run -- --headless --test ring3-heap
 ```
 
 ### D. Running Verification Tests
@@ -140,7 +143,9 @@ This command runs:
 15. A preemption proof that spins in user mode until the calibrated APIC timer interrupts it, causing a preemptive context switch into a second user thread that signals success.
 16. UEFI breakpoint, divide error, invalid opcode, general protection fault,
     page fault, and double-fault probes.
-17. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
+17. Ring-3 Factory, memory-lifecycle, and fallible heap profiles, including
+    the `Box`/`Vec` fragmentation and post-OOM recovery proof.
+18. A normal kernel rebuild after the test-only images so `target/gaxera.iso`
     never remains an injected-fault image.
 
 The double-fault probe omits only its test-image page-fault gate, causes a real
@@ -148,7 +153,7 @@ page fault, and relies on processor escalation during exception delivery. The
 handler reports success only after it confirms that RSP lies inside the static
 IST stack; a stack mismatch exits QEMU with a failure status.
 
-Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, user-transition, syscall, scheduling, and exception matrix is part of CI rather than local-only checks.
+Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, user-transition, syscall, scheduling, Ring-3 memory, and exception matrix is part of CI rather than local-only checks. Hardware IRQ delivery remains outside this release because its architecture document is still Draft.
 
 The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
 After it copies and publishes `&'static BootContext`, later setup consumes only

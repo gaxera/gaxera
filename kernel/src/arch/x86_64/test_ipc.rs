@@ -22,12 +22,13 @@ pub fn run_ipc_test() -> ! {
         ResourceLimits {
             objects: 16,
             capabilities: 16,
+            memory_bytes: 65536,
         },
     );
     let mut source_space = CapabilitySpace::try_new(&owner, 8).unwrap();
 
     // Test 1: Endpoint call/receive/reply rendezvous
-    let ep_factory = Factory::new_for_test(&owner, ObjectTypeSet::of(ObjectType::Endpoint));
+    let ep_factory = Factory::new_root(&owner, ObjectTypeSet::of(ObjectType::Endpoint));
     let ep_id = arena
         .create(&mut owner, ep_factory, ObjectType::Endpoint)
         .unwrap();
@@ -62,6 +63,7 @@ pub fn run_ipc_test() -> ! {
         ResourceLimits {
             objects: 4,
             capabilities: 1, // Target space limit is 1
+            memory_bytes: 65536,
         },
     );
     let mut target_space = CapabilitySpace::try_new(&recipient, 1).unwrap();
@@ -137,4 +139,64 @@ pub fn run_ipc_test() -> ! {
 
     #[cfg(not(feature = "qemu-test"))]
     crate::serial::idle()
+}
+
+pub fn run_factory_correctness_test() -> ! {
+    use crate::println;
+    use gaxera_abi::{ObjectType, ObjectTypeSet, Rights};
+    use kernel_core::object::{Factory, ObjectArena};
+    use kernel_core::resource::{ResourceDomain, ResourceDomainId, ResourceLimits};
+
+    println!("GAXERA: Starting test-factory-correctness QEMU suite");
+
+    let mut arena = ObjectArena::try_new(16).unwrap();
+    let domain_id = ResourceDomainId::new_for_test(1);
+    let mut domain = ResourceDomain::new_for_test(
+        domain_id,
+        ResourceLimits {
+            objects: 16,
+            capabilities: 16,
+            memory_bytes: 4096, // Fixed 4 KiB (1 page) limit
+        },
+    );
+
+    // 1. Factory type denial: Endpoint-only Factory cannot create MemoryObject
+    let ep_factory = Factory::new_root(&domain, ObjectTypeSet::of(ObjectType::Endpoint));
+    assert!(!ep_factory.allows(ObjectType::MemoryObject));
+    assert_eq!(
+        arena.create(&mut domain, ep_factory, ObjectType::MemoryObject),
+        Err(kernel_core::object::ObjectError::FactoryDenied)
+    );
+    assert_eq!(domain.usage().objects, 0);
+
+    // 2. Byte quota & page rounding: charge 4096 bytes succeeds
+    assert!(domain.charge_memory(4096).is_ok());
+    assert_eq!(domain.usage().memory_bytes, 4096);
+
+    // Attempting to charge 1 more byte fails with MemoryLimit, leaving usage unchanged
+    assert_eq!(
+        domain.charge_memory(1),
+        Err(kernel_core::resource::ResourceError::MemoryLimit)
+    );
+    assert_eq!(domain.usage().memory_bytes, 4096);
+
+    // Rollback 4096 bytes
+    assert!(domain.rollback_memory(4096).is_ok());
+    assert_eq!(domain.usage().memory_bytes, 0);
+
+    // 3. Narrow rights verification
+    let mem_rights = Rights::MAP | Rights::READ | Rights::WRITE;
+    assert!(!mem_rights.contains(Rights::ALL));
+    assert!(!mem_rights.contains(Rights::EXECUTE));
+
+    println!("GAXERA: FACTORY_CORRECTNESS_TEST_OK");
+
+    #[cfg(feature = "qemu-test")]
+    // SAFETY: Exit QEMU success upon test completion.
+    unsafe {
+        crate::arch::x86_64::qemu::exit_success();
+    }
+
+    #[cfg(not(feature = "qemu-test"))]
+    crate::serial::halt();
 }

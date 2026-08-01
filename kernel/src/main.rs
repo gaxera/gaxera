@@ -490,6 +490,11 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         arch::x86_64::test_ipc::run_ipc_test();
     }
 
+    #[cfg(feature = "test-factory-correctness")]
+    {
+        arch::x86_64::test_ipc::run_factory_correctness_test();
+    }
+
     #[cfg(feature = "test-preemption")]
     {
         arch::x86_64::test_preemption::run_preemption_test(&mut page_tables, physical_frames);
@@ -553,6 +558,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
 
                 let mut mem_obj = kernel_core::memory::MemoryObject::new(
                     kernel_core::object::ObjectId::new_for_test(1, 1),
+                    kernel_core::resource::ResourceDomainId::new_for_test(1),
                     16384, // 4 frames
                 );
 
@@ -561,7 +567,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
                     let allocator = phys_alloc_guard.as_deref_mut().unwrap();
                     for _ in 0..4 {
                         let frame = allocator.allocate().unwrap();
-                        mem_obj.add_frame(frame.start_address().as_u64());
+                        let _ = mem_obj.add_frame(frame.start_address().as_u64());
                     }
                 }
 
@@ -696,11 +702,12 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
                     arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
                 let mut mem_obj = kernel_core::memory::MemoryObject::new(
                     kernel_core::object::ObjectId::new_for_test(1, 1),
+                    kernel_core::resource::ResourceDomainId::new_for_test(1),
                     16384, // 16 KiB (4 frames)
                 );
                 for _ in 0..4 {
                     let frame = allocator.allocate().unwrap();
-                    mem_obj.add_frame(frame.start_address().as_u64());
+                    let _ = mem_obj.add_frame(frame.start_address().as_u64());
                 }
                 (aspace, mem_obj)
             };
@@ -746,10 +753,11 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
                     arch::x86_64::address_space::X86AddressSpace::new_dynamic(allocator).unwrap();
                 let mut mem_obj = kernel_core::memory::MemoryObject::new(
                     kernel_core::object::ObjectId::new_for_test(1, 1),
+                    kernel_core::resource::ResourceDomainId::new_for_test(1),
                     4096, // 1 frame
                 );
                 let frame = allocator.allocate().unwrap();
-                mem_obj.add_frame(frame.start_address().as_u64());
+                let _ = mem_obj.add_frame(frame.start_address().as_u64());
                 (aspace_a, aspace_b, mem_obj)
             };
 
@@ -1023,7 +1031,7 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             aspace
                 .map_physical_range(
                     vaddr,
-                    mapping.phys_addr(),
+                    mapping.phys_addr().unwrap(),
                     mapping.size(),
                     Rights::READ | Rights::WRITE | Rights::MAP,
                     mapping.cache_policy(),
@@ -1146,6 +1154,16 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             unsafe {
                 arch::x86_64::qemu::exit_success();
             }
+        }
+
+        #[cfg(feature = "test-factory-correctness")]
+        {
+            arch::x86_64::test_ipc::run_factory_correctness_test();
+        }
+
+        #[cfg(feature = "test-memory-lifecycle")]
+        {
+            // Do not run kernel-mode lifecycle test, fall through to spawn init for Ring-3 test
         }
 
         match kernel::init::spawn_init(boot_context, &mut page_tables, _arena, _system) {

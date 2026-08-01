@@ -33,6 +33,10 @@ impl<T, const LEVEL: u8> RankedLock<T, LEVEL> {
         }
     }
 
+    pub fn is_locked(&self) -> bool {
+        self.inner.is_locked()
+    }
+
     pub fn lock(&self) -> RankedLockGuard<'_, T, LEVEL> {
         #[cfg(test)]
         let prev_rank = CURRENT_LOCK_RANK.with(|rank| {

@@ -23,6 +23,7 @@ members = [
     "crates/virtio_input_server",
     "kernel",
     "xtask",
+    "crates/test_ring3_heap", "crates/userspace-tests",
 ]
 
 [workspace.lints.clippy]

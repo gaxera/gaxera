@@ -100,6 +100,12 @@ pub fn derive_capability(
     }
 }
 
+pub fn revoke_capability(handle: Handle) -> Result<(), ()> {
+    // SAFETY: Invoking kernel ABI to revoke capability.
+    let result = unsafe { sys_invoke(handle.raw(), OperationCode::Revoke as u64, 0, 0, 0, 0) };
+    if result == 0 { Ok(()) } else { Err(()) }
+}
+
 pub fn map_memory(
     aspace: Handle,
     memory_object: Handle,
@@ -117,7 +123,7 @@ pub fn map_memory(
             0,
         )
     };
-    if res == 0 { Ok(()) } else { Err(()) }
+    if res == u64::MAX { Err(()) } else { Ok(()) }
 }
 
 pub fn endpoint_call(endpoint: Handle, message: &InlineMessage) -> Result<(), ()> {

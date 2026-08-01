@@ -52,6 +52,11 @@ impl Factory {
         }
     }
 
+    pub const fn new_root(domain: &ResourceDomain, allowed_types: ObjectTypeSet) -> Self {
+        Self::new(domain, allowed_types)
+    }
+
+    #[cfg(test)]
     pub const fn new_for_test(domain: &ResourceDomain, allowed_types: ObjectTypeSet) -> Self {
         Self::new(domain, allowed_types)
     }
@@ -150,6 +155,24 @@ impl ObjectArena {
         if !factory.allows(object_type) {
             return Err(ObjectError::FactoryDenied);
         }
+        self.create_internal_impl(domain, object_type)
+    }
+
+    pub fn create_mapping(&mut self, domain: &mut ResourceDomain) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::Mapping));
+        self.create(domain, factory, ObjectType::Mapping)
+    }
+
+    pub fn create_waitset(&mut self, domain: &mut ResourceDomain) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::WaitSet));
+        self.create(domain, factory, ObjectType::WaitSet)
+    }
+
+    fn create_internal_impl(
+        &mut self,
+        domain: &mut ResourceDomain,
+        object_type: ObjectType,
+    ) -> Result<ObjectId, ObjectError> {
         if self.free_head.is_none() && self.slots.len() == self.capacity {
             return Err(ObjectError::ArenaFull);
         }
@@ -230,6 +253,16 @@ impl ObjectArena {
 
     pub fn is_live(&self, object: ObjectId) -> bool {
         self.object_type(object).is_some()
+    }
+
+    pub fn owner(&self, object: ObjectId) -> Option<ResourceDomainId> {
+        let slot = self.slots.get(object.index as usize)?;
+        match slot.state {
+            ObjectSlotState::Live { owner, .. } if slot.generation == object.generation => {
+                Some(owner)
+            }
+            _ => None,
+        }
     }
 }
 
