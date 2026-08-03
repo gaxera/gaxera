@@ -1,8 +1,8 @@
 # Ring-3 Userspace Runtime & Memory Allocation Architecture
 
-> **Status:** Current  
-> **Initiative:** v1.1.0 — Device Event & Ring-3 Runtime Foundation  
-> **Scope:** Ring-3 User Heap Allocator, Memory Capabilities, Process Memory Lifecycle  
+> **Status:** Current
+> **Initiative:** v1.1.0 — Ring-3 Memory Foundation
+> **Scope:** Ring-3 User Heap Allocator, Memory Capabilities, Process Memory Lifecycle
 > **Related ADRs:** ADR 0008, ADR 0018, ADR 0019, ADR 0020, ADR 0024, ADR 0037, ADR 0038, ADR 0039
 
 ---
@@ -108,8 +108,11 @@ dedicated Ring-3 test covers recovery after a failed fallible reservation.
 
 This is a foundation, not the complete future allocator design. Size-class
 slabs, direct large allocations, guard-page insertion, page decommitment, and
-ASLR remain deferred. Production services also remain on their existing
-startup layouts until a generic capability bootstrap contract is accepted.
+ASLR remain deferred.
+
+### 3.1 v1.2.0 Process Bootstrap and Allocator Migration
+
+While v1.1 provides the memory mechanism, generic process bootstrap remains unresolved. Production service allocator adoption belongs to v1.2. Allocator initialization must receive explicit authority from a formalized capability handoff. Slot-number assumptions are not an acceptable long-term contract and must be replaced by structured startup metadata before production services can be safely migrated to the fallible Ring-3 heap.
 
 ## 4. Architecture & Design Corrections
 

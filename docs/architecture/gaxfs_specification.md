@@ -117,7 +117,7 @@ GaxFS employs a 100% Copy-on-Write (CoW) B+Tree engine for all metadata, extent 
 - Transaction commit sequence:
   1. Write all modified data extents and CoW tree nodes.
   2. Issue hardware flushing fence (`FLUSH_CACHE`).
-  3. Update inactive Superblock with new B+Tree root physical address, incremented generation `N+1`, 256-bit integrity checksum (currently a rolling mixing function in `integrity.rs`; BLAKE3 is the target for Initiative `v1.3`), and atomic commit timestamp.
+  3. Update inactive Superblock with new B+Tree root physical address, incremented generation `N+1`, 256-bit integrity checksum (currently a rolling mixing function in `integrity.rs`; BLAKE3 is the target for Initiative `v1.4`), and atomic commit timestamp.
   4. On reboot, the storage engine selects the superblock with the highest valid generation and matching checksum. Crash consistency is 100% guaranteed.
 
 ### 4.3 Extent Allocation & Free-Space Bitmap

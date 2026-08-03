@@ -1,9 +1,9 @@
 # Hardware Interrupt Delivery & Driver Notification Pipeline Architecture
 
 > **Status:** Draft — deferred from the v1.1.0 Ring-3 memory foundation
-> **Initiative:** v1.1.0 — Device Event & Ring-3 Runtime Foundation  
-> **Scope:** Hardware IRQs, IOAPIC/MSI Routing, InterruptObject Capabilities, Notification Signaling  
-> **Related ADRs:** ADR 0005, ADR 0013, ADR 0022  
+> **Initiative:** v1.2.0 — Device Event and Ring-3 Runtime Completion
+> **Scope:** Hardware IRQs, IOAPIC/MSI Routing, InterruptObject Capabilities, Notification Signaling
+> **Related ADRs:** ADR 0005, ADR 0013, ADR 0022
 
 ---
 
@@ -17,7 +17,7 @@ an end-to-end interrupt delivery pipeline that maps hardware IRQ vectors to
 kernel `InterruptObject` capabilities and signals Ring-3 driver `Notification`
 objects without admitting driver policy into Ring 0. This document is
 architecture research only; no v1.1.0 release claim or passing hardware-IRQ
-implementation is based on it.
+implementation is based on it. v1.1 did not implement end-to-end hardware IRQ delivery. v1.2 must resolve bootstrap dependencies before driver notification can become a real service contract.
 
 ### 1.2 Non-Goals
 * **Kernel Driver Execution:** Device drivers remain 100% in Ring 3. Zero driver policy or packet/event decoding logic is admitted into kernel ISRs.

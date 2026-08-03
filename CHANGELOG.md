@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Planning (v1.2.0 Initiative)
+
+- v1.2 will address the deferred process bootstrap architecture, enabling capability-authorized production-service allocator migration.
+- v1.2 will implement end-to-end hardware IRQ delivery and driver lifecycle, which requires bootstrap resolution before becoming a real service contract.
+
 ## [v1.1.0] - 2026-08-01
 
 ### Added

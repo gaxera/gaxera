@@ -62,3 +62,9 @@ Initiative v1.1.0
 | **M1.1.5** | Hardware IRQ LAPIC vector $\rightarrow$ `Notification` signal $\rightarrow$ driver wakeup. | **Deferred:** Draft `irq_delivery.md`; no v1.1.0 evidence |
 | **M1.1.6** | Production service allocator migration and untrusted-input audit. | **Deferred:** requires process bootstrap capability contract |
 | **M1.1.7** | Locked workspace and QEMU matrix, release documentation, and evidence record. | `cargo xtask test`, `docs/release/v1.1.0.md`, `docs/evidence/v1.1.0_release_evidence.md` |
+
+---
+
+## 5. Addendum: v1.1.0 Scope Correction (2026-08-03)
+
+The v1.1.0 release is complete exclusively for the Ring-3 Memory Foundation. The original IRQ and production-service milestones (including Phase 8) are explicitly deferred and transferred to `docs/roadmap/roadmap_v12.md`. Phase 8 is not silently counted as complete. This deferral boundary is governed by ADR 0039.

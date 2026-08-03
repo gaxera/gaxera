@@ -162,3 +162,18 @@ a Limine response pointer. ACPI parsing consumes copied physical metadata and
 uses only the fixed temporary firmware mapping; it retains no firmware-table
 pointer. The closeout tag also triggers this CI workflow, so tagged source
 revisions receive the same verification matrix.
+
+---
+
+## 3. Initiative v1.2 Workflow
+
+For the v1.2 Device Event and Ring-3 Runtime Completion initiative, the required workflow is:
+1. **Architecture Document First:** Draft and finalize the component architecture (e.g., process bootstrap, lifecycle) before implementation.
+2. **Research Gate:** Clear the required research gates for that architecture.
+3. **ADR Only After Decisions Mature:** Do not create final ADRs until the architecture is tested and accepted.
+4. **Private Execution Phase:** Draft a private execution plan bounding the implementation.
+5. **Implementation:** Write the code according to the execution plan.
+6. **Evidence:** Produce tests and verifiable evidence.
+7. **Release Closeout:** Finalize documentation and release records.
+
+*(Note: Do not add commands for unimplemented features until they are completed and verifiable.)*
