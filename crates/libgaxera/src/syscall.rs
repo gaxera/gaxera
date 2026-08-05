@@ -14,6 +14,7 @@ pub enum SyscallError {
     ObjectLimit,
     CapabilityLimit,
     MemoryLimit,
+    NotSupported,
     InternalError,
     Unknown(u64),
 }
@@ -30,6 +31,7 @@ impl SyscallError {
             gaxera_abi::status::OBJECT_LIMIT => Self::ObjectLimit,
             gaxera_abi::status::CAPABILITY_LIMIT => Self::CapabilityLimit,
             gaxera_abi::status::MEMORY_LIMIT => Self::MemoryLimit,
+            gaxera_abi::status::NOT_SUPPORTED => Self::NotSupported,
             gaxera_abi::status::INTERNAL_ERROR => Self::InternalError,
             other => Self::Unknown(other),
         }
@@ -46,6 +48,7 @@ impl SyscallError {
             Self::ObjectLimit => gaxera_abi::status::OBJECT_LIMIT,
             Self::CapabilityLimit => gaxera_abi::status::CAPABILITY_LIMIT,
             Self::MemoryLimit => gaxera_abi::status::MEMORY_LIMIT,
+            Self::NotSupported => gaxera_abi::status::NOT_SUPPORTED,
             Self::InternalError => gaxera_abi::status::INTERNAL_ERROR,
             Self::Unknown(code) => code,
         }
@@ -73,7 +76,7 @@ pub fn factory_create_memory_object(
     let (status, raw_handle) = unsafe {
         raw_syscall::raw_syscall6_ret2(
             factory.raw(),
-            0, // op = 0 for FactoryCreate
+            OperationCode::FactoryCreate as u64,
             gaxera_abi::ObjectType::MemoryObject as u64,
             size_bytes,
             0,
@@ -92,7 +95,7 @@ pub fn factory_create(
     let (status, raw_handle) = unsafe {
         raw_syscall::raw_syscall6_ret2(
             factory.raw(),
-            0, // FactoryCreate suboperation
+            OperationCode::FactoryCreate as u64,
             object_type as u64,
             0,
             0,
@@ -101,6 +104,131 @@ pub fn factory_create(
     };
     decode_status(status)?;
     Ok(Handle::from_raw(raw_handle))
+}
+
+/// Create a legacy IRQ capability through a Factory. The IRQ line is an
+/// explicit argument; callers cannot obtain a hardware interrupt authority
+/// from an ambient default.
+pub fn factory_create_interrupt(factory: Handle, irq: u8) -> Result<Handle, SyscallError> {
+    let (status, raw_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            factory.raw(),
+            OperationCode::FactoryCreate as u64,
+            gaxera_abi::ObjectType::InterruptObject as u64,
+            irq as u64,
+            0,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(raw_handle))
+}
+
+/// Create a physically contiguous DMA frame object through a Factory.  The
+/// requested byte count is rounded by the kernel to the object's page span.
+pub fn factory_create_contiguous_frame(
+    factory: Handle,
+    size_bytes: u64,
+) -> Result<Handle, SyscallError> {
+    let (status, raw_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            factory.raw(),
+            OperationCode::FactoryCreate as u64,
+            gaxera_abi::ObjectType::ContiguousFrame as u64,
+            size_bytes,
+            0,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(raw_handle))
+}
+
+/// Query the physical base and byte span of a DMA frame capability.  The
+/// kernel exposes only the explicitly authorized object and no arbitrary
+/// physical-address read primitive.
+pub fn contiguous_frame_info(frame: Handle) -> Result<(u64, u64), SyscallError> {
+    let (status, physical_base, size_bytes) = unsafe {
+        raw_syscall::raw_syscall6_ret3(frame.raw(), OperationCode::Call as u64, 0, 0, 0, 0)
+    };
+    decode_status(status)?;
+    Ok((physical_base, size_bytes))
+}
+
+/// Create a child Process through a Factory capability.
+///
+/// The kernel returns status in `RAX` and the Process handle in `RDX`. The
+/// quota arguments are intentionally explicit; no ambient process defaults
+/// are applied by this wrapper.
+pub fn create_process(
+    factory: Handle,
+    max_objects: u32,
+    max_capabilities: u32,
+    max_memory_bytes: u64,
+) -> Result<Handle, SyscallError> {
+    let (status, raw_handle) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            factory.raw(),
+            OperationCode::CreateProcess as u64,
+            max_objects as u64,
+            max_capabilities as u64,
+            max_memory_bytes,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok(Handle::from_raw(raw_handle))
+}
+
+/// Invoke a lifecycle operation on a Process capability.
+pub fn process_control(
+    process: Handle,
+    operation: gaxera_abi::ProcessControlOp,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+) -> Result<u64, SyscallError> {
+    let (status, value) = unsafe {
+        raw_syscall::raw_syscall6_ret2(
+            process.raw(),
+            OperationCode::ProcessControl as u64,
+            operation as u64,
+            arg1,
+            arg2,
+            arg3,
+        )
+    };
+    decode_status(status)?;
+    Ok(value)
+}
+
+/// Query a process and return both its lifecycle state and exit status.
+pub fn process_query(process: Handle) -> Result<(u64, u64), SyscallError> {
+    let (status, state, exit_status) = unsafe {
+        raw_syscall::raw_syscall6_ret3(
+            process.raw(),
+            OperationCode::ProcessControl as u64,
+            gaxera_abi::ProcessControlOp::Query as u64,
+            0,
+            0,
+            0,
+        )
+    };
+    decode_status(status)?;
+    Ok((state, exit_status))
+}
+
+/// Acquire the child capability space so a supervisor can install delegated
+/// capabilities without relying on an implementation-defined slot.
+pub fn process_capability_space(process: Handle) -> Result<Handle, SyscallError> {
+    let raw = process_control(
+        process,
+        gaxera_abi::ProcessControlOp::AcquireCapabilitySpace,
+        0,
+        0,
+        0,
+    )?;
+    Ok(Handle::from_raw(raw))
 }
 
 /// Write a bounded diagnostic string through a capability-backed DebugConsole.
@@ -148,6 +276,15 @@ pub fn map_memory(
     };
     decode_status(status)?;
     Ok(Handle::from_raw(new_handle))
+}
+
+/// Unmap a Mapping capability from an AddressSpace.
+pub fn unmap_memory(mapping: Handle) -> Result<(), SyscallError> {
+    let (status, _) = unsafe {
+        raw_syscall::raw_syscall6_ret2(mapping.raw(), OperationCode::UnmapMemory as u64, 0, 0, 0, 0)
+    };
+    decode_status(status)?;
+    Ok(())
 }
 
 /// Execute a generic raw syscall through architecture assembly trampolines.
@@ -248,11 +385,20 @@ pub fn wait_notification(notification: Handle) -> Result<u32, SyscallError> {
 
 /// Execute control operation on Interrupt capability object.
 pub fn interrupt_control(interrupt: Handle, op: InterruptOp) -> Result<(), SyscallError> {
+    interrupt_control_with_arg(interrupt, op, 0)
+}
+
+/// Execute control operation with argument on Interrupt capability object.
+pub fn interrupt_control_with_arg(
+    interrupt: Handle,
+    op: InterruptOp,
+    arg: u64,
+) -> Result<(), SyscallError> {
     let ret = raw_invoke(
         OperationCode::InterruptControl,
         interrupt,
         op as u64,
-        0,
+        arg,
         0,
         0,
     );

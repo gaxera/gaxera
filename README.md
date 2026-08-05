@@ -79,24 +79,26 @@ A 5-phase audit and microkernel verification program preparing the system for fo
 * **Phase 4 (IPC & Multi-Core Scheduler Audit):** Multi-client `WaitSet` event multiplexing, lock-rank ordering, and 64-core scheduler domain topology load balancing.
 * **Phase 5 (Full System Integration Audit):** Endpoint privilege enforcement, sequence-XOR reply tokens, zero-clippy workspace verification, and bootable UEFI ISO packaging.
 
-### Subsystem Readiness Classification (v1.0.0)
+### Current Subsystem Readiness Classification
 
-Gaxera `v1.0.0` explicitly classifies subsystem maturity levels:
+Gaxera classifies each subsystem by what is actually implemented and verified,
+rather than by the existence of an interface or prototype:
 
-* **Stable Architectural Baseline (Locked for v1.0.0):** Microkernel ABI, memory manager & PML4 reclamation, capability derivation/attenuation/revocation, direct-switch synchronous IPC, and 11 core kernel objects.
-* **Reference Platform (Verified in QEMU UEFI):** Single-core (BSP) VirtIO virtual hardware drivers (`virtio_block`, `virtio_net`, `virtio_gpu`, `virtio_input`) running in Ring 3 process isolation.
+* **Stable Architectural Baseline:** Microkernel ABI, memory manager and PML4 reclamation, capability derivation/attenuation/revocation, direct-switch synchronous IPC, process lifecycle mechanisms, manifest-based bootstrap, and bounded ResourceDomain accounting.
+* **Verified QEMU Reference Platform:** Ring-3 process creation and teardown, fallible userspace allocation in the tested services, capability-scoped legacy IOAPIC interrupt delivery, and a real VirtIO RNG driver path with notification, ACK/rearm, crash containment, and fresh-process restart.
+* **Reference Platform Components:** Single-core (BSP) VirtIO virtual hardware drivers (`virtio_block`, `virtio_net`, `virtio_gpu`, `virtio_input`) running in Ring 3 process isolation. Their broader production integration remains separate from the v1.2 driver-lifecycle proof.
 * **Prototypes (Active Architecture / Scheduled for Post-v1 Initiatives):**
   * *GaxFS Storage:* Copy-on-Write dual-superblock engine prototype using non-cryptographic rolling checksums in `integrity.rs` and scalar vector search. Durable root reconstruction, BLAKE3 cryptographic integrity, and SIMD optimization are scheduled for Initiative `v1.4`.
   * *GaxNet & Security:* Protocol engine and RFC 8439 ChaCha20-Poly1305 AEAD payload encryption. Transmit frames are queued on local `PacketRing` slots, DNS answers are synthesized locally, and full TLS 1.3 handshake negotiation is scheduled for Initiative `v1.6`.
   * *SMP & Execution:* 64-core scheduler domain model and work-stealing algorithms tested via host unit tests; AP bring-up and ICR IPI delivery are simulated (BSP execution). Physical AP bring-up is scheduled for Initiative `v1.3`.
   * *Driver Isolation:* Ring 3 drivers operate in process isolation; bus-mastering drivers function as trusted drivers. Hardware DMA isolation via IOMMU (VT-d/AMD-Vi) is scheduled for Initiative `v1.6`.
-  * *Userspace Heap & Locking:* The dedicated Ring-3 heap test service now uses the fallible `MemoryObject`-backed allocator and passes quota, fragmentation, and post-OOM recovery checks. Existing production service entrypoints still use static layouts or the legacy dummy allocator until a generic startup capability contract exists. `RankedLock` rank checking remains `#[cfg(test)]`-gated and is a later SMP hardening item.
+  * *Userspace Heap & Locking:* The dedicated Ring-3 heap and selected v1.2 service profiles use the fallible `MemoryObject`-backed allocator and pass quota, fragmentation, and post-OOM recovery checks. Broad migration of every historical service is not claimed. `RankedLock` rank checking remains `#[cfg(test)]`-gated and is a later SMP hardening item.
 * **Future Architecture:** Physical bare-metal drivers, GaxView native compositor, GaxCompat translation layers, and AI metadata infrastructure.
 
 ### Release Road
 
 - **v1.1.0 is complete** for the Ring-3 Memory Foundation.
-- **v1.2.0 is the next initiative**, completing process bootstrap, lifecycle, production allocator migration, IRQ delivery, and driver lifecycle.
+- **v1.2.0 — Device Event and Ring-3 Runtime Completion.** Delivers manifest-based process bootstrap, lifecycle teardown and reaping, delegated-memory preservation, tested fallible allocator integration, capability-scoped legacy IOAPIC notifications, real VirtIO RNG device interrupts, and supervisor-driven crash/restart with fresh process capabilities. MSI/MSI-X, physical hardware, AP execution, and IOMMU isolation remain later initiatives.
 - **v1.3.0** is Physical Execution and Reference Platform.
 
 Detailed milestones are tracked in [v0.1 Roadmap](docs/roadmap/roadmap_v01.md), [v0.5 Roadmap](docs/roadmap/roadmap_v05.md), [v0.6 Roadmap](docs/roadmap/roadmap_v06.md), [v0.7 Roadmap](docs/roadmap/roadmap_v07.md), [v0.8 Roadmap](docs/roadmap/roadmap_v08.md), [v0.9 Roadmap](docs/roadmap/roadmap_v09.md), [v1.1 Roadmap](docs/roadmap/roadmap_v11.md), and the [v1.2 Roadmap](docs/roadmap/roadmap_v12.md).

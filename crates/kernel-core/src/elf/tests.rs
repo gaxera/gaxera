@@ -237,6 +237,7 @@ fn test_elf_rejects_kernel_vaddr_segment() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: aligned.0 buffer is sufficiently large and aligned for Elf64_Ehdr and Elf64_Phdr.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(
@@ -258,6 +259,7 @@ fn test_elf_rejects_vaddr_overflow_into_kernel() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: aligned.0 buffer is sufficiently large and aligned for Elf64_Ehdr and Elf64_Phdr.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(
@@ -279,6 +281,7 @@ fn test_elf_accepts_max_user_vaddr_segment() {
 
     let total_size = size_of::<Elf64_Ehdr>() + size_of::<Elf64_Phdr>() + 0x1000;
     let mut aligned = AlignedBuffer::<10000>([0; 10000]);
+    // SAFETY: aligned.0 buffer is sufficiently large and aligned for Elf64_Ehdr and Elf64_Phdr.
     unsafe {
         core::ptr::write(aligned.0.as_mut_ptr() as *mut Elf64_Ehdr, ehdr);
         core::ptr::write(

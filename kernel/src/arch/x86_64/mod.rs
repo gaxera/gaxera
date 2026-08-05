@@ -8,6 +8,7 @@ pub mod descriptors;
 pub mod diagnostics;
 pub mod entry;
 pub mod exceptions;
+pub mod interrupts;
 pub mod ioapic;
 pub mod paging;
 pub mod pci;

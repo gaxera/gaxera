@@ -1,0 +1,14 @@
+=== Userspace Allocator Migration Verification Log ===
+Date: 2026-08-03T16:48:03Z
+Command: cargo test --lib -p libgaxera -- heap
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/libgaxera-21f212fa03adfda2)
+
+running 3 tests
+test heap::tests::test_allocator_alignment ... ok
+test heap::tests::test_allocator_oom_uninitialized ... ok
+test heap::tests::test_allocator_coalesce ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s

@@ -171,6 +171,7 @@ name = "libgaxera"
 version = "0.1.0"
 dependencies = [
  "gaxera-abi",
+ "kernel-core",
  "net_types",
 ]
 

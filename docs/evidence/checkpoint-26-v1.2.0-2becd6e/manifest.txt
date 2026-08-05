@@ -1,0 +1,17 @@
+=== Gaxera v1.2.0 Precommit Evidence Manifest ===
+Revision: 2becd6e6d460f47cafff447e2030d6f22a398942
+
+Evidence Artifacts:
+00_baseline.log
+00_versions.log
+01_architecture_gate.log
+02_host_abi_core.log
+03_bootstrap_manifest.log
+04_process_creation.log
+05_process_lifecycle.log
+06_allocator_migration.log
+07_irq_notification.log
+08_driver_lifecycle.log
+09_full_xtask_test.log
+10_clippy_fmt_check.log
+summary.md

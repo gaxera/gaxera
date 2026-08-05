@@ -112,7 +112,17 @@ ASLR remain deferred.
 
 ### 3.1 v1.2.0 Process Bootstrap and Allocator Migration
 
-While v1.1 provides the memory mechanism, generic process bootstrap remains unresolved. Production service allocator adoption belongs to v1.2. Allocator initialization must receive explicit authority from a formalized capability handoff. Slot-number assumptions are not an acceptable long-term contract and must be replaced by structured startup metadata before production services can be safely migrated to the fallible Ring-3 heap.
+The following records the v1.1 baseline that v1.2 was required to resolve; it
+is historical context, not the current implementation status.
+
+At the v1.1 baseline, generic process bootstrap remained unresolved. Production
+service allocator adoption therefore belonged to v1.2. Allocator initialization
+required explicit authority from a formalized capability handoff, and slot
+number assumptions had to be replaced by structured startup metadata before
+services could safely use the fallible Ring-3 heap. v1.2 now provides that
+manifest-backed handoff and verifies it in the current QEMU profiles; broad
+migration of every historical service remains explicitly outside the bounded
+v1.2 claim.
 
 ## 4. Architecture & Design Corrections
 
@@ -345,11 +355,13 @@ Research Gate RG-2 (Ring-3 Allocator) and Research Gate RG-1 (Interrupt Delivery
   tested via `cargo test --workspace --locked`, `factory-correctness`,
   `memory-lifecycle`, and `ring3-heap`.
 * **RG-1 (IRQ Delivery):** Governed by `docs/architecture/irq_delivery.md`.
-  It remains Draft and is not part of the v1.1.0 release evidence.
+  The legacy IOAPIC and VirtIO notification mechanism, including integrated
+  driver crash/restart, is verified in the v1.2 working-tree evidence.
+  MSI/MSI-X remain outside this initiative.
 
 The two initiatives maintain separate architecture and verification gates.
-RG-1 will receive its own implementation and release decision after the
-bootstrap and notification contracts are complete.
+The v1.2 evidence for the verified implementation is recorded in
+`docs/architecture/driver_lifecycle.md` and the checkpoint-28 evidence set.
 
 ---
 

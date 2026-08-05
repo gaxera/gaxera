@@ -10,4 +10,5 @@ alloc_error_handler = []
 
 [dependencies]
 gaxera-abi = { path = "../gaxera-abi" }
+kernel-core = { path = "../kernel-core" }
 net_types = { path = "../net_types" }

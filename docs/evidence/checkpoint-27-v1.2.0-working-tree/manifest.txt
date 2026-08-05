@@ -1,0 +1,22 @@
+Checkpoint: 27
+Initiative: v1.2.0
+Source state: working tree based on 2becd6e6d460f47cafff447e2030d6f22a398942; not committed or tagged
+Captured: 2026-08-05T05:14:32Z
+
+Files:
+- environment.txt: tool versions and capture timestamp
+- source_revision.txt: base HEAD revision
+- 02_host_tests.log: cargo test --workspace --locked
+- 05_delegated_memory_repeat_1.log: cargo xtask run --headless --test process-delegated-memory
+- 05_delegated_memory_repeat_2.log: cargo xtask run --headless --test process-delegated-memory
+- 05_delegated_memory_repeat_3.log: cargo xtask run --headless --test process-delegated-memory
+- 07_virtio_rng_repeat_1.log: cargo xtask run --headless --test virtio-rng
+- 07_virtio_rng_repeat_2.log: cargo xtask run --headless --test virtio-rng
+- 07_virtio_rng_repeat_3.log: cargo xtask run --headless --test virtio-rng
+- 09_full_xtask_test.log: strict fmt, Clippy, and cargo xtask test pipeline output
+- working_tree_status.txt: status captured with the evidence
+
+Interpretation:
+- The recorded host and QEMU verification commands passed.
+- The logs do not prove the integrated real VirtIO driver crash/restart gate.
+- Existing checkpoint-26 evidence is immutable and is not overwritten.

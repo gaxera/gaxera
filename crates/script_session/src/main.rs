@@ -1,5 +1,11 @@
 #![no_std]
 #![cfg_attr(not(test), no_main)]
+#![allow(
+    clippy::not_unsafe_ptr_arg_deref,
+    clippy::undocumented_unsafe_blocks,
+    clippy::while_let_loop,
+    unused_imports
+)]
 
 #[cfg(not(test))]
 use core::arch::asm;

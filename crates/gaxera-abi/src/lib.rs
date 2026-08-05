@@ -21,6 +21,7 @@ pub mod status {
     pub const OBJECT_LIMIT: u64 = 7;
     pub const CAPABILITY_LIMIT: u64 = 8;
     pub const MEMORY_LIMIT: u64 = 9;
+    pub const NOT_SUPPORTED: u64 = 10;
     pub const INTERNAL_ERROR: u64 = u64::MAX;
 }
 
@@ -90,6 +91,7 @@ pub enum ObjectType {
     Factory = 12,
     WaitSet = 13,
     ContiguousFrame = 14,
+    Process = 15,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -112,7 +114,47 @@ pub enum OperationCode {
     Revoke = 14,
     InterruptControl = 15,
     WaitNotification = 16,
+    CreateProcess = 17,
+    ProcessControl = 18,
+    FactoryCreate = 19,
     ExitProcess = 99,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u64)]
+pub enum ProcessControlOp {
+    AcquireAddressSpace = 1,
+    AcquireMainThread = 2,
+    AcquireResourceDomain = 3,
+    InstallCapability = 4,
+    AcquireCapabilitySpace = 11,
+    ConfigureMainThread = 5,
+    Start = 6,
+    Terminate = 7,
+    Query = 8,
+    Wait = 9,
+    Reap = 10,
+}
+
+impl TryFrom<u64> for ProcessControlOp {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::AcquireAddressSpace),
+            2 => Ok(Self::AcquireMainThread),
+            3 => Ok(Self::AcquireResourceDomain),
+            4 => Ok(Self::InstallCapability),
+            5 => Ok(Self::ConfigureMainThread),
+            6 => Ok(Self::Start),
+            7 => Ok(Self::Terminate),
+            8 => Ok(Self::Query),
+            9 => Ok(Self::Wait),
+            10 => Ok(Self::Reap),
+            11 => Ok(Self::AcquireCapabilitySpace),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -177,6 +219,7 @@ impl core::convert::TryFrom<u32> for ObjectType {
             12 => Ok(Self::Factory),
             13 => Ok(Self::WaitSet),
             14 => Ok(Self::ContiguousFrame),
+            15 => Ok(Self::Process),
             _ => Err(()),
         }
     }
@@ -189,7 +232,7 @@ pub struct ObjectTypeSet(u16);
 
 impl ObjectTypeSet {
     pub const NONE: Self = Self(0);
-    pub const ALL: Self = Self((1_u16 << (ObjectType::ContiguousFrame as u8 + 1)) - 1);
+    pub const ALL: Self = Self(0xFFFF);
 
     pub const fn of(object_type: ObjectType) -> Self {
         Self(1 << (object_type as u8))
@@ -224,6 +267,11 @@ impl Rights {
     pub const WAIT: Self = Self(1 << 5);
     pub const MANAGE: Self = Self(1 << 6);
     pub const FACTORY: Self = Self(1 << 7);
+    /// Authority to bind, mask, unmask, and acknowledge a hardware interrupt.
+    /// This is intentionally distinct from generic WRITE authority.
+    pub const INTERRUPT: Self = Self(1 << 8);
+    /// Authority to produce Executable Image MemoryObjects with EXECUTE rights.
+    pub const IMAGE_FACTORY: Self = Self(1 << 9);
 
     pub const fn from_bits(bits: u32) -> Self {
         Self(bits)
@@ -270,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_object_type_set_completeness() {
-        for discriminant in 0..=14 {
+        for discriminant in 0..=15 {
             let obj = ObjectType::try_from(discriminant).expect("Valid ObjectType discriminant");
             assert!(
                 ObjectTypeSet::ALL.contains(obj),

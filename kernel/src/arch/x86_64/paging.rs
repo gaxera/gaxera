@@ -12,7 +12,8 @@ use x86_64::{PhysAddr, VirtAddr};
 use crate::memory::boot::{BootContext, FramebufferInfo, MemoryKind};
 use crate::memory::mapping::{
     ACPI_TABLE_WINDOW, FRAMEBUFFER_BASE, HEAP_SIZE, HEAP_START, HHDM_BASE, HHDM_PHYSICAL_LIMIT,
-    KERNEL_VIRTUAL_BASE, LOCAL_APIC_WINDOW, USER_PROBE_CODE, USER_STACK_PAGE,
+    IOAPIC_WINDOW, KERNEL_VIRTUAL_BASE, LOCAL_APIC_WINDOW, PCI_ECAM_WINDOW, USER_PROBE_CODE,
+    USER_STACK_PAGE,
 };
 use crate::memory::physical::{
     BootstrapFrameAllocator, PAGE_SIZE, PhysicalAllocatorError, SegmentedBitmapFrameAllocator,
@@ -37,6 +38,9 @@ pub enum PagingError {
     LocalApicAddressUnaligned,
     LocalApicAddressAliasesRam,
     LocalApicAddressAliasesFramebuffer,
+    IoApicAddressUnaligned,
+    IoApicAddressAliasesRam,
+    IoApicAddressAliasesFramebuffer,
     PageUnmappingFailed {
         virtual_address: u64,
     },
@@ -89,6 +93,15 @@ impl fmt::Display for PagingError {
             }
             Self::LocalApicAddressAliasesFramebuffer => {
                 f.write_str("Local APIC physical address aliases the framebuffer")
+            }
+            Self::IoApicAddressUnaligned => {
+                f.write_str("IOAPIC physical address is not page aligned")
+            }
+            Self::IoApicAddressAliasesRam => {
+                f.write_str("IOAPIC physical address aliases Gaxera's RAM-only HHDM")
+            }
+            Self::IoApicAddressAliasesFramebuffer => {
+                f.write_str("IOAPIC physical address aliases the framebuffer")
             }
             Self::PageUnmappingFailed { virtual_address } => {
                 write!(f, "failed to unmap virtual page {virtual_address:#018x}")
@@ -818,6 +831,113 @@ impl KernelPageTables {
         }
     }
 
+    /// Permanently map the validated IOAPIC register page at a dedicated UC
+    /// kernel window.  The IOAPIC is controller state, never user memory.
+    ///
+    /// # Safety
+    /// Interrupts must remain disabled and the caller must prove that no
+    /// other mapping uses `IOAPIC_WINDOW`.
+    pub unsafe fn map_ioapic_page<A>(
+        &mut self,
+        context: &BootContext,
+        physical_address: u64,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        if !physical_address.is_multiple_of(PAGE_SIZE) {
+            return Err(PagingError::IoApicAddressUnaligned);
+        }
+        if physical_range_has_kind(context, physical_address, PAGE_SIZE, MemoryKind::Usable) {
+            return Err(PagingError::IoApicAddressAliasesRam);
+        }
+        if framebuffer_overlaps(context.framebuffer(), physical_address, PAGE_SIZE)? {
+            return Err(PagingError::IoApicAddressAliasesFramebuffer);
+        }
+        let frame = frame_from_physical(physical_address)?;
+        // SAFETY: the caller owns this unique controller mapping and has
+        // validated the UC cache policy before programming the device.
+        unsafe {
+            self.map_page(
+                IOAPIC_WINDOW,
+                frame,
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::WRITE_THROUGH
+                    | PageTableFlags::NO_CACHE,
+                allocator,
+            )
+        }
+    }
+
+    /// Map one firmware-described PCIe ECAM segment into a temporary kernel
+    /// window for passive discovery. The window is removed immediately after
+    /// discovery; no ECAM pointer is retained by the kernel or user space.
+    ///
+    /// # Safety
+    /// The range must come from a validated MCFG entry, be page aligned, and
+    /// not overlap an existing kernel window. Interrupts must be disabled.
+    pub unsafe fn map_pci_ecam_range<A>(
+        &mut self,
+        physical_base: u64,
+        size: u64,
+        allocator: &mut A,
+    ) -> Result<(), PagingError>
+    where
+        A: FrameAllocator<Size4KiB>,
+    {
+        if physical_base & (PAGE_SIZE - 1) != 0
+            || size == 0
+            || !size.is_multiple_of(PAGE_SIZE)
+            || size > 256 * 1024 * 1024
+        {
+            return Err(PagingError::AddressOverflow);
+        }
+        let page_count =
+            usize::try_from(size / PAGE_SIZE).map_err(|_| PagingError::AddressOverflow)?;
+        for index in 0..page_count {
+            let physical = physical_base
+                .checked_add((index as u64) * PAGE_SIZE)
+                .ok_or(PagingError::AddressOverflow)?;
+            // SAFETY: MCFG supplied the reserved ECAM range and this fixed
+            // window is exclusively owned by the bootstrap discovery pass.
+            unsafe {
+                self.map_page(
+                    PCI_ECAM_WINDOW + (index as u64) * PAGE_SIZE,
+                    frame_from_physical(physical)?,
+                    PageTableFlags::PRESENT
+                        | PageTableFlags::WRITABLE
+                        | PageTableFlags::NO_EXECUTE
+                        | PageTableFlags::NO_CACHE
+                        | PageTableFlags::WRITE_THROUGH,
+                    allocator,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Remove a temporary PCI ECAM mapping created by
+    /// [`KernelPageTables::map_pci_ecam_range`].
+    ///
+    /// # Safety
+    /// No ECAM pointer may remain live and interrupts must be disabled.
+    pub unsafe fn unmap_pci_ecam_range(&mut self, size: u64) -> Result<(), PagingError> {
+        if size == 0 || !size.is_multiple_of(PAGE_SIZE) {
+            return Err(PagingError::AddressOverflow);
+        }
+        let page_count =
+            usize::try_from(size / PAGE_SIZE).map_err(|_| PagingError::AddressOverflow)?;
+        for index in 0..page_count {
+            // SAFETY: the caller owns the temporary range and has stopped all
+            // access to it before unmapping.
+            unsafe { self.unmap_page(PCI_ECAM_WINDOW + (index as u64) * PAGE_SIZE)? };
+        }
+        Ok(())
+    }
+
     /// Map a kernel stack page.
     ///
     /// # Safety
@@ -841,6 +961,19 @@ impl KernelPageTables {
                 allocator,
             )
         }
+    }
+
+    /// Unmap one page from the dedicated kernel-stack virtual region.
+    ///
+    /// # Safety
+    /// The caller must provide a page previously mapped by
+    /// `map_kernel_stack_page` and must exclude concurrent page-table access.
+    pub unsafe fn unmap_kernel_stack_page(
+        &mut self,
+        virtual_address: u64,
+    ) -> Result<(), PagingError> {
+        // SAFETY: The caller establishes that this is a kernel-stack mapping.
+        unsafe { self.unmap_page(virtual_address) }
     }
 
     /// # Safety

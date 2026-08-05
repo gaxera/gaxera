@@ -153,7 +153,13 @@ page fault, and relies on processor escalation during exception delivery. The
 handler reports success only after it confirms that RSP lies inside the static
 IST stack; a stack mismatch exits QEMU with a failure status.
 
-Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not a required CI or release target. GitHub Actions invokes this same `cargo xtask test` command, so the entire normal, panic, memory, APIC, user-transition, syscall, scheduling, Ring-3 memory, and exception matrix is part of CI rather than local-only checks. Hardware IRQ delivery remains outside this release because its architecture document is still Draft.
+Legacy BIOS can be invoked manually as a packaging diagnostic, but it is not
+a required CI or release target. GitHub Actions invokes this same `cargo xtask
+test` command, so the normal, panic, memory, APIC, user-transition, syscall,
+scheduling, Ring-3 memory, exception, process, IRQ, and integrated driver
+matrix is part of CI rather than local-only checks. The v1.2 IRQ implementation
+is limited to the verified legacy IOAPIC path; MSI/MSI-X and physical hardware
+remain future work.
 
 The only production Limine boundary is `kernel/src/arch/x86_64/boot.rs`.
 After it copies and publishes `&'static BootContext`, later setup consumes only
@@ -175,5 +181,20 @@ For the v1.2 Device Event and Ring-3 Runtime Completion initiative, the required
 5. **Implementation:** Write the code according to the execution plan.
 6. **Evidence:** Produce tests and verifiable evidence.
 7. **Release Closeout:** Finalize documentation and release records.
+
+The v1.2 implementation and its integrated QEMU proof are now complete in the
+current worktree. The closeout commands are:
+
+```bash
+cargo fmt --all --check
+cargo test --workspace --locked
+cargo xtask run --headless --test irq-notification
+cargo xtask run --headless --test virtio-rng
+cargo xtask run --headless --test driver-crash-restart
+cargo xtask test
+```
+
+The device proof covers legacy VirtIO PCI INTx through the IOAPIC. MSI/MSI-X,
+physical hardware validation, and AP execution are not v1.2 claims.
 
 *(Note: Do not add commands for unimplemented features until they are completed and verifiable.)*

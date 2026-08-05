@@ -155,7 +155,7 @@ const fn is_canonical_lower_half(address: u64) -> bool {
 /// This function executes an unprotected hardware privilege transition. `entry_point`
 /// and `stack_pointer` must be valid canonical user addresses properly mapped in the
 /// current page table.
-pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64) -> ! {
+pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64, arg1: u64) -> ! {
     // SAFETY: Hardware invariant or verified by caller.
     unsafe {
         core::arch::asm!(
@@ -165,7 +165,9 @@ pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64) -
             "xor rax, rax",
             "xor rbx, rbx",
             "xor rdx, rdx",
-            "xor rsi, rsi",
+            // RSI carries the second System V entry argument. It is the
+            // validated bootstrap-manifest length and must survive the
+            // handoff just like RDI carries the manifest pointer.
             "xor r8, r8",
             "xor r9, r9",
             "xor r10, r10",
@@ -179,6 +181,7 @@ pub unsafe fn enter_user_mode(entry_point: u64, stack_pointer: u64, arg0: u64) -
             in("rcx") entry_point,
             in("r11") USER_INITIAL_RFLAGS,
             in("rdi") arg0,
+            in("rsi") arg1,
             options(noreturn)
         );
     }

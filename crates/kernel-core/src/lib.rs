@@ -8,6 +8,7 @@ pub mod affinity;
 pub mod capability;
 pub mod contiguous_frame;
 pub mod debug_console;
+pub mod driver_restart_tests;
 pub mod elf;
 pub mod interrupt;
 pub mod ipc;
@@ -15,6 +16,7 @@ pub mod mapping;
 pub mod memory;
 pub mod notification;
 pub mod object;
+pub mod process;
 pub mod registry;
 pub mod resource;
 pub mod scheduler;
@@ -33,8 +35,8 @@ mod tests {
     use crate::object::{Factory, ObjectArena, ObjectError};
     use crate::resource::{ResourceDomain, ResourceDomainId, ResourceError, ResourceLimits};
 
-    const DOMAIN_A: ResourceDomainId = ResourceDomainId::new(1);
-    const DOMAIN_B: ResourceDomainId = ResourceDomainId::new(2);
+    const DOMAIN_A: ResourceDomainId = ResourceDomainId::new_for_test(1);
+    const DOMAIN_B: ResourceDomainId = ResourceDomainId::new_for_test(2);
 
     fn domain(id: ResourceDomainId, objects: u32, capabilities: u32) -> ResourceDomain {
         ResourceDomain::new(
@@ -296,7 +298,7 @@ mod tests {
     fn three_tier_cascade_revocation_across_spaces() {
         let mut domain_a = domain(DOMAIN_A, 2, 8);
         let mut domain_b = domain(DOMAIN_B, 2, 8);
-        let mut domain_c = domain(ResourceDomainId::new(3), 2, 8);
+        let mut domain_c = domain(ResourceDomainId::new_for_test(3), 2, 8);
         let mut arena = ObjectArena::try_new(2).unwrap();
         let object = endpoint(&mut arena, &mut domain_a);
 
@@ -444,7 +446,7 @@ mod tests {
 
     use crate::object::ObjectId;
     use crate::scheduler::{Scheduler, SchedulerError};
-    use crate::thread::{Thread, ThreadState};
+    use crate::thread::{Thread, ThreadError, ThreadState};
 
     fn test_object_id(index: u32) -> ObjectId {
         ObjectId::new_for_test(index, 1)
@@ -480,9 +482,9 @@ mod tests {
         assert_eq!(thread.make_dead(), Ok(()));
         assert_eq!(thread.state(), ThreadState::Dead);
 
-        // Dead -> Runnable (used for supervisor restart)
-        assert_eq!(thread.make_runnable(), Ok(()));
-        assert_eq!(thread.state(), ThreadState::Runnable);
+        // Dead is terminal. Supervisor restart creates a fresh Thread object.
+        assert_eq!(thread.make_runnable(), Err(ThreadError::InvalidTransition));
+        assert_eq!(thread.state(), ThreadState::Dead);
     }
 
     #[test]
@@ -548,7 +550,7 @@ mod tests {
     fn two_independent_delegations_selective_revocation_test() {
         let mut owner = domain(DOMAIN_A, 10, 20);
         let mut process_b_dom = domain(DOMAIN_B, 10, 20);
-        let mut process_c_dom = domain(ResourceDomainId::new(3), 10, 20);
+        let mut process_c_dom = domain(ResourceDomainId::new_for_test(3), 10, 20);
 
         let mut arena = ObjectArena::try_new(10).unwrap();
         let factory = Factory::new(&owner, ObjectTypeSet::of(ObjectType::MemoryObject));

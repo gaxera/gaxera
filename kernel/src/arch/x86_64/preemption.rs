@@ -1,3 +1,5 @@
+#![allow(clippy::undocumented_unsafe_blocks)]
+
 use crate::arch::x86_64::trap_frame::TrapFrame;
 use crate::arch::x86_64::{apic, cpu};
 use kernel_core::object::ObjectId;
@@ -90,6 +92,10 @@ pub(crate) fn reschedule(
 
                 // SAFETY: queue and thread state are committed as one BSP-only
                 // transition; both contexts and the incoming stack are live.
+                // Keep CpuLocal kernel-stack state, TSS.RSP0, and CR3 in
+                // lockstep with the thread selected by the scheduler.  This
+                // path is used when a thread exits, so the next syscall from
+                // the resumed supervisor must enter on its own stack.
                 crate::arch::x86_64::context::switch_thread(
                     current_context,
                     next_context,
@@ -124,4 +130,28 @@ pub(crate) fn switch_to_next(current_id: ObjectId, next_id: ObjectId) -> Result<
             })
             .ok_or(())?
     }
+}
+
+/// Wake a thread from the bounded interrupt notification path.  This helper
+/// performs no allocation and never takes a global registry lock; it is valid
+/// only on the BSP while the interrupt gate has exclusive scheduler access.
+pub(crate) fn wake_from_interrupt(thread_id: ObjectId) {
+    // SAFETY: external interrupt delivery is currently BSP-only and masks
+    // nested interrupts while the scheduler is updated.
+    let cpu_local = unsafe { cpu::get_cpu_local() };
+    let scheduler_cell = unsafe { &mut *cpu_local.scheduler.get() };
+    let Some(scheduler) = scheduler_cell.as_mut() else {
+        return;
+    };
+    // SAFETY: the notification waiter is a scheduler-owned thread entry.
+    let Some(thread) = (unsafe { crate::arch::x86_64::thread::THREADS.get_mut(thread_id) }) else {
+        return;
+    };
+    #[cfg(feature = "test-irq-notification")]
+    crate::println!(
+        "GAXERA: IRQ_WAKE thread={:#x} state={:?}",
+        thread_id.raw(),
+        thread.state()
+    );
+    let _ = scheduler.apply_wake(thread);
 }

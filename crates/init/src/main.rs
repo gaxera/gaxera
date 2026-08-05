@@ -1,37 +1,54 @@
 #![no_std]
 #![cfg_attr(not(test), no_main)]
 #![allow(unused_imports)]
+extern crate alloc;
 
 #[cfg(not(test))]
 use core::arch::asm;
 #[cfg(not(test))]
 use core::panic::PanicInfo;
+use gaxera_abi::boot::{BootstrapManifest, BootstrapRole};
 use gaxera_abi::{Handle, ObjectType, Rights};
 use kernel_core::elf::parser::ElfParser;
 use libgaxera::prelude::EndpointHandle;
 use registry::ServiceRegistry;
 
-use core::alloc::{GlobalAlloc, Layout};
-struct DummyAllocator;
-// SAFETY: Dummy allocator fulfilling no_std requirement.
-unsafe impl GlobalAlloc for DummyAllocator {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        core::ptr::null_mut()
-    }
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
-}
+use libgaxera::allocator::UserspaceAllocator;
 
+#[cfg(not(test))]
 #[global_allocator]
-static ALLOCATOR: DummyAllocator = DummyAllocator;
+static ALLOCATOR: UserspaceAllocator = UserspaceAllocator;
 
+pub mod driver_supervisor;
 mod registry;
 mod syscall;
 use syscall::*;
 
 #[cfg(not(test))]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_boot_info: *const ()) -> ! {
-    if run_init().is_err() {
+pub extern "C" fn _start(manifest_pointer: *const BootstrapManifest, manifest_length: usize) -> ! {
+    // SAFETY: Kernel bootloader supplies valid manifest pointer and length.
+    if unsafe {
+        libgaxera::entry::initialize_userspace_allocator(
+            manifest_pointer,
+            manifest_length,
+            &ALLOCATOR,
+        )
+    }
+    .is_err()
+    {
+        libgaxera::syscall::exit(gaxera_abi::status::INVALID_ARGUMENT);
+    }
+
+    // SAFETY: Kernel bootloader supplies valid manifest pointer and length.
+    let manifest =
+        match unsafe { libgaxera::entry::bootstrap_manifest(manifest_pointer, manifest_length) } {
+            Ok(m) => m,
+            Err(_) => libgaxera::syscall::exit(gaxera_abi::status::INVALID_ARGUMENT),
+        };
+
+    if run_init(manifest).is_err() {
         panic!("Init failed");
     }
     loop {
@@ -41,11 +58,28 @@ pub extern "C" fn _start(_boot_info: *const ()) -> ! {
 }
 
 #[cfg(not(test))]
-fn run_init() -> Result<(), ()> {
-    let self_aspace = Handle::from_parts(0, 1);
-    let _self_cspace = Handle::from_parts(1, 1);
-    let _self_thread = Handle::from_parts(2, 1);
-    let factory = Handle::from_parts(3, 1);
+fn manifest_capability(
+    manifest: &BootstrapManifest,
+    role: BootstrapRole,
+    ordinal: usize,
+) -> Result<Handle, ()> {
+    let mut match_index = 0usize;
+    for entry in &manifest.entries[..usize::from(manifest.entry_count)] {
+        if entry.role == role as u16 {
+            if match_index == ordinal {
+                return Ok(entry.handle);
+            }
+            match_index += 1;
+        }
+    }
+    Err(())
+}
+
+#[cfg(not(test))]
+fn run_init(manifest: &BootstrapManifest) -> Result<(), ()> {
+    let self_aspace = manifest_capability(manifest, BootstrapRole::SelfAddressSpace, 0)?;
+    let _self_cspace = manifest_capability(manifest, BootstrapRole::SelfCapabilitySpace, 0)?;
+    let factory = manifest_capability(manifest, BootstrapRole::HeapFactory, 0)?;
 
     #[cfg(feature = "test-memory-lifecycle")]
     {
@@ -54,7 +88,7 @@ fn run_init() -> Result<(), ()> {
 
         // 2. Map it into our address space
         let test_vaddr = 0x0000_3000_0000_0000;
-        let mapping = map_memory(
+        let _mapping = map_memory(
             self_aspace,
             mem_obj,
             test_vaddr,
@@ -68,20 +102,12 @@ fn run_init() -> Result<(), ()> {
         // 4. Revoke it via the original handle to trigger selective cascading revocation
         let _ = revoke_capability(mem_obj)?;
 
-        // Note: we can't easily check serial markers from Ring-3, but QEMU host will check the log.
-        // We write to DebugConsole or just use an inline assembly OUT port to exit if we had one.
-        // However, printing the success marker to the serial port is sufficient for xtask to see it.
-        // Let's create a DebugConsole and print.
         let console = factory_create(factory, ObjectType::DebugConsole)?;
         let _ =
             syscall::debug_console_write(console, "GAXERA: MEMORY_RECLAIMED_AND_QUOTA_REFUNDED\n");
         let _ = syscall::debug_console_write(console, "GAXERA: IPC_LIFECYCLE_TEST_OK\n");
 
-        // Loop forever since the test passed
-        loop {
-            // SAFETY: Wait
-            unsafe { core::arch::asm!("pause") }
-        }
+        libgaxera::syscall::exit(0);
     }
 
     // 1. Create ramfs CSpace, ASpace, Thread
@@ -96,7 +122,7 @@ fn run_init() -> Result<(), ()> {
 
     // 3. Map ramfs image (Handle 7) into ramfs_aspace at RAMFS_BASE
     // ramfs.img module is Handle 7.
-    let ramfs_img = Handle::from_parts(7, 1);
+    let ramfs_img = manifest_capability(manifest, BootstrapRole::BootModule, 3)?;
     map_memory(
         ramfs_aspace,
         ramfs_img,
@@ -120,7 +146,7 @@ fn run_init() -> Result<(), ()> {
     derive_capability(console, script_cspace, Rights::WRITE)?;
 
     // 7. Load and start ramfs (Handle 5)
-    let ramfs_elf = Handle::from_parts(5, 1);
+    let ramfs_elf = manifest_capability(manifest, BootstrapRole::BootModule, 1)?;
     let ramfs_load = 0x0000_1000_0000_0000;
     let ramfs_stack = 0x0000_7FFF_FFFF_C000;
 
@@ -181,7 +207,7 @@ fn run_init() -> Result<(), ()> {
     )?;
 
     // 8. Load and start script_session (Handle 6)
-    let script_elf = Handle::from_parts(6, 1);
+    let script_elf = manifest_capability(manifest, BootstrapRole::BootModule, 2)?;
     let script_load = 0x0000_2000_0000_0000;
     let script_stack = 0x0000_7FFE_FFFF_C000;
 

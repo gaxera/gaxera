@@ -1,0 +1,22 @@
+=== Driver Lifecycle & Crash Containment Verification Log ===
+Date: 2026-08-03T16:48:04Z
+Command: cargo test --bin init && cargo test --lib -p kernel-core -- driver_restart
+   Compiling libgaxera v0.1.0 (/home/nyx/gaxera/crates/libgaxera)
+   Compiling init v0.1.0 (/home/nyx/gaxera/crates/init)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running unittests src/main.rs (target/debug/deps/init-8666f47f4bb8817e)
+
+running 2 tests
+test registry::tests::test_service_registry_registration_and_duplicate_rejection ... ok
+test driver_supervisor::tests::test_driver_supervisor_lifecycle_and_restart_limits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.42s
+     Running unittests src/lib.rs (target/debug/deps/kernel_core-d8a3e48bb5dcd5f7)
+
+running 1 test
+test driver_restart_tests::tests::test_driver_crash_and_teardown_reclaims_resources ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 96 filtered out; finished in 0.00s

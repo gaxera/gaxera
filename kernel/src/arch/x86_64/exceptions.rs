@@ -1,5 +1,6 @@
 use core::arch::asm;
 use core::sync::atomic::{AtomicBool, Ordering};
+use kernel_core::registry::ObjectRegistry;
 #[cfg(not(feature = "test-double-fault"))]
 use x86_64::registers::control::Cr2;
 #[cfg(not(feature = "test-double-fault"))]
@@ -7,7 +8,7 @@ use x86_64::structures::idt::PageFaultErrorCode;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 use crate::arch::x86_64::descriptors::{DOUBLE_FAULT_IST_INDEX, StaticCell};
-use crate::arch::x86_64::{apic, descriptors};
+use crate::arch::x86_64::{apic, descriptors, interrupts, ioapic};
 #[cfg(feature = "test-heap-guard")]
 use crate::memory::mapping::HEAP_LOWER_GUARD;
 use crate::println;
@@ -16,6 +17,31 @@ use crate::serial;
 
 static IDT: StaticCell<InterruptDescriptorTable> = StaticCell::new(InterruptDescriptorTable::new());
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+macro_rules! define_device_irq_handler {
+    ($name:ident, $vector:expr) => {
+        extern "x86-interrupt" fn $name(_frame: InterruptStackFrame) {
+            device_interrupt_handler($vector);
+        }
+    };
+}
+
+define_device_irq_handler!(device_irq_0, interrupts::DEVICE_VECTOR_FIRST);
+define_device_irq_handler!(device_irq_1, interrupts::DEVICE_VECTOR_FIRST + 1);
+define_device_irq_handler!(device_irq_2, interrupts::DEVICE_VECTOR_FIRST + 2);
+define_device_irq_handler!(device_irq_3, interrupts::DEVICE_VECTOR_FIRST + 3);
+define_device_irq_handler!(device_irq_4, interrupts::DEVICE_VECTOR_FIRST + 4);
+define_device_irq_handler!(device_irq_5, interrupts::DEVICE_VECTOR_FIRST + 5);
+define_device_irq_handler!(device_irq_6, interrupts::DEVICE_VECTOR_FIRST + 6);
+define_device_irq_handler!(device_irq_7, interrupts::DEVICE_VECTOR_FIRST + 7);
+define_device_irq_handler!(device_irq_8, interrupts::DEVICE_VECTOR_FIRST + 8);
+define_device_irq_handler!(device_irq_9, interrupts::DEVICE_VECTOR_FIRST + 9);
+define_device_irq_handler!(device_irq_10, interrupts::DEVICE_VECTOR_FIRST + 10);
+define_device_irq_handler!(device_irq_11, interrupts::DEVICE_VECTOR_FIRST + 11);
+define_device_irq_handler!(device_irq_12, interrupts::DEVICE_VECTOR_FIRST + 12);
+define_device_irq_handler!(device_irq_13, interrupts::DEVICE_VECTOR_FIRST + 13);
+define_device_irq_handler!(device_irq_14, interrupts::DEVICE_VECTOR_FIRST + 14);
+define_device_irq_handler!(device_irq_15, interrupts::DEVICE_VECTOR_FIRST + 15);
 
 /// Install the Phase 3 exception handlers.
 ///
@@ -61,6 +87,23 @@ pub unsafe fn init() {
     }
     idt[apic::SPURIOUS_VECTOR].set_handler_fn(local_apic_spurious_handler);
 
+    idt[interrupts::DEVICE_VECTOR_FIRST].set_handler_fn(device_irq_0);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 1].set_handler_fn(device_irq_1);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 2].set_handler_fn(device_irq_2);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 3].set_handler_fn(device_irq_3);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 4].set_handler_fn(device_irq_4);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 5].set_handler_fn(device_irq_5);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 6].set_handler_fn(device_irq_6);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 7].set_handler_fn(device_irq_7);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 8].set_handler_fn(device_irq_8);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 9].set_handler_fn(device_irq_9);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 10].set_handler_fn(device_irq_10);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 11].set_handler_fn(device_irq_11);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 12].set_handler_fn(device_irq_12);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 13].set_handler_fn(device_irq_13);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 14].set_handler_fn(device_irq_14);
+    idt[interrupts::DEVICE_VECTOR_FIRST + 15].set_handler_fn(device_irq_15);
+
     #[cfg(any(
         feature = "test-user-transition",
         feature = "test-syscall-round-trip",
@@ -89,6 +132,68 @@ pub unsafe fn init() {
     }
 }
 
+/// Handle a managed legacy IOAPIC vector.  The entry point is deliberately
+/// bounded: controller masking, an atomic pending bit, opportunistic
+/// notification delivery, and EOI only.  Protocol work remains in Ring 3.
+fn device_interrupt_handler(vector: u8) {
+    #[cfg(feature = "test-irq-notification")]
+    {
+        crate::println!("GAXERA: IRQ_ISR vector={:#x}", vector);
+        // The diagnostic IRQ profile uses the legacy PS/2 line. Reading its
+        // data port acknowledges the controller; the VirtIO driver will own
+        // its equivalent device-specific acknowledgement in the later gate.
+        if vector == interrupts::DEVICE_VECTOR_FIRST + 1 {
+            let mut data = x86_64::instructions::port::Port::<u8>::new(0x60);
+            // SAFETY: IRQ1 is the PS/2 controller and the port is valid for
+            // this explicitly selected diagnostic profile.
+            unsafe {
+                let _ = data.read();
+            }
+        }
+    }
+    let irq = interrupts::irq_for(vector);
+    if let Some(irq) = irq {
+        ioapic::ioapic_mask_irq(irq);
+    }
+
+    if let Some(record) = interrupts::dispatch(vector) {
+        let should_signal = {
+            let mut interrupt_objects = crate::global::INTERRUPTS.try_lock();
+            interrupt_objects
+                .as_deref_mut()
+                .and_then(|objects| objects.get_mut(record.interrupt))
+                .is_some_and(|object| {
+                    matches!(
+                        object.begin_delivery(),
+                        Ok(Some(notification)) if notification == record.notification
+                    )
+                })
+        };
+
+        if should_signal {
+            let wake = {
+                let mut notifications = crate::global::NOTIFICATIONS.try_lock();
+                notifications
+                    .as_deref_mut()
+                    .and_then(|registry| registry.get_mut(record.notification))
+                    .and_then(|notification| notification.signal(1))
+            };
+            if let Some(thread_id) = wake {
+                crate::arch::x86_64::preemption::wake_from_interrupt(thread_id);
+                let _ = interrupts::take_pending(record.lease);
+            } else if crate::global::NOTIFICATIONS.is_locked() {
+                interrupts::mark_pending(record.lease);
+            } else {
+                let _ = interrupts::take_pending(record.lease);
+            }
+        }
+    }
+
+    // SAFETY: this vector was delivered by the Local APIC after IOAPIC
+    // routing was installed; every path must acknowledge it exactly once.
+    unsafe { apic::end_of_interrupt() };
+}
+
 #[allow(dead_code)]
 extern "x86-interrupt" fn local_apic_timer_handler(_frame: InterruptStackFrame) {
     apic::on_timer_interrupt();
@@ -106,10 +211,17 @@ extern "x86-interrupt" fn breakpoint_handler(frame: InterruptStackFrame) {
         let stack_pointer = current_stack_pointer();
         let (start, end) = descriptors::user_transition_stack_bounds();
         if stack_pointer >= start && stack_pointer < end {
+            println!("GAXERA: USER_TRANSITION_OK");
             println!(
                 "GAXERA: EXCEPTION_BREAKPOINT_CAUGHT ip={:#018x} (user transition)",
                 frame.instruction_pointer.as_u64()
             );
+            #[cfg(feature = "qemu-test")]
+            // SAFETY: Single-core QEMU exit in test mode.
+            unsafe {
+                crate::arch::x86_64::qemu::exit_success()
+            };
+            #[cfg(not(feature = "qemu-test"))]
             return;
         }
     }

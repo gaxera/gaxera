@@ -120,8 +120,7 @@ impl<T> Thread<T> {
             ThreadState::New
             | ThreadState::Runnable
             | ThreadState::Running
-            | ThreadState::Blocked
-            | ThreadState::Dead => {
+            | ThreadState::Blocked => {
                 self.state = ThreadState::Runnable;
                 Ok(())
             }

@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 use x86_64::VirtAddr;
-use x86_64::structures::paging::{FrameAllocator, Size4KiB};
+use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, Size4KiB};
 
 use crate::arch::x86_64::paging::KernelPageTables;
 use crate::memory::physical::PAGE_SIZE;
@@ -36,11 +36,15 @@ impl KernelStack {
     #[allow(dead_code)]
     pub fn allocate(
         mapper: &mut KernelPageTables,
-        allocator: &mut impl FrameAllocator<Size4KiB>,
+        allocator: &mut (impl FrameAllocator<Size4KiB> + FrameDeallocator<Size4KiB>),
     ) -> Result<Self, StackError> {
         let index = NEXT_STACK_INDEX.fetch_add(1, Ordering::SeqCst);
+        let stride = index
+            .checked_mul(STRIDE_PAGES)
+            .and_then(|pages| pages.checked_mul(PAGE_SIZE))
+            .ok_or(StackError::AddressSpaceExhausted)?;
         let virt_base = KERNEL_STACK_BASE
-            .checked_add(index * STRIDE_PAGES * PAGE_SIZE)
+            .checked_add(stride)
             .ok_or(StackError::AddressSpaceExhausted)?;
 
         // Virtual base of the mapped stack (skipping the guard page)
@@ -57,18 +61,49 @@ impl KernelStack {
             .map_err(|_| StackError::AllocationFailed)?;
 
         for page_idx in 0..STACK_SIZE_PAGES {
-            let frame = allocator
-                .allocate_frame()
-                .ok_or(StackError::AllocationFailed)?;
+            let frame = match allocator.allocate_frame() {
+                Some(frame) => frame,
+                None => {
+                    for (mapped_idx, mapped_frame) in frames.iter().copied().enumerate() {
+                        let page_virt = stack_base + (mapped_idx as u64 * PAGE_SIZE);
+                        // SAFETY: Only pages successfully mapped by this allocation
+                        // attempt are being removed, while the mapper is exclusive.
+                        let _ = unsafe { mapper.unmap_kernel_stack_page(page_virt) };
+                        // SAFETY: Each frame was allocated by this allocator and is
+                        // no longer mapped after the unmap above.
+                        unsafe { allocator.deallocate_frame(mapped_frame) };
+                    }
+                    return Err(StackError::AllocationFailed);
+                }
+            };
             frames.push(frame);
 
             let page_virt = stack_base + (page_idx * PAGE_SIZE);
 
             // SAFETY: Hardware invariant or verified by caller.
             unsafe {
-                mapper
+                if mapper
                     .map_kernel_stack_page(page_virt, frame, allocator)
-                    .map_err(|_| StackError::MappingFailed)?;
+                    .is_err()
+                {
+                    // The current frame was allocated but not successfully mapped.
+                    // Return it and every earlier frame before reporting failure.
+                    // SAFETY: No successful mapping exists for `frame`.
+                    allocator.deallocate_frame(frame);
+                    for (mapped_idx, mapped_frame) in frames
+                        .iter()
+                        .copied()
+                        .take(frames.len().saturating_sub(1))
+                        .enumerate()
+                    {
+                        let mapped_page = stack_base + (mapped_idx as u64 * PAGE_SIZE);
+                        // SAFETY: These pages were mapped by this allocation attempt.
+                        let _ = mapper.unmap_kernel_stack_page(mapped_page);
+                        // SAFETY: The frame is no longer mapped.
+                        allocator.deallocate_frame(mapped_frame);
+                    }
+                    return Err(StackError::MappingFailed);
+                }
             }
         }
 
@@ -82,6 +117,22 @@ impl KernelStack {
     /// Returns the top of the kernel stack (highest address, initial RSP).
     pub fn top(&self) -> VirtAddr {
         self.top
+    }
+
+    /// Reclaims a stack whose owning thread has not entered execution.
+    pub fn reclaim(
+        self,
+        mapper: &mut KernelPageTables,
+        allocator: &mut impl FrameDeallocator<Size4KiB>,
+    ) {
+        for (page_idx, frame) in self.frames.iter().copied().enumerate() {
+            let page = self.base.as_u64() + (page_idx as u64 * PAGE_SIZE);
+            // SAFETY: The stack owns these mappings and no thread can execute on
+            // this stack while the owning Thread is unpublished.
+            let _ = unsafe { mapper.unmap_kernel_stack_page(page) };
+            // SAFETY: The frame is exclusively owned by this KernelStack.
+            unsafe { allocator.deallocate_frame(frame) };
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 pub mod boot;
-#[cfg(target_os = "none")]
+#[cfg(not(test))]
 pub mod heap;
 pub mod mapping;
 pub mod physical;

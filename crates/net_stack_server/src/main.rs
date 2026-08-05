@@ -1,32 +1,35 @@
 #![no_std]
 #![cfg_attr(not(test), no_main)]
+#![allow(
+    clippy::not_unsafe_ptr_arg_deref,
+    clippy::undocumented_unsafe_blocks,
+    clippy::while_let_loop,
+    unused_imports
+)]
 
 extern crate alloc;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
-use core::alloc::{GlobalAlloc, Layout};
 #[cfg(not(test))]
 use core::arch::asm;
-
-struct DummyAllocator;
-// SAFETY: Dummy allocator fulfilling no_std global_allocator requirement.
-unsafe impl GlobalAlloc for DummyAllocator {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        core::ptr::null_mut()
-    }
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
-}
+use gaxera_abi::boot::BootstrapManifest;
+use libgaxera::allocator::UserspaceAllocator;
 
 #[global_allocator]
-static ALLOCATOR: DummyAllocator = DummyAllocator;
+static ALLOCATOR: UserspaceAllocator = UserspaceAllocator;
 
 #[cfg(not(test))]
 use core::panic::PanicInfo;
 
 #[cfg(not(test))]
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(manifest: *const BootstrapManifest, length: usize) -> ! {
+    if unsafe { libgaxera::entry::initialize_userspace_allocator(manifest, length, &ALLOCATOR) }
+        .is_err()
+    {
+        libgaxera::syscall::exit(gaxera_abi::status::INVALID_ARGUMENT);
+    }
     let tcp_engine = net_stack_server::tcp::TcpTransportEngine::new();
     let udp_engine = net_stack_server::udp::UdpTransportEngine::new();
     let router = net_stack_server::ip_router::IpRouter::new();

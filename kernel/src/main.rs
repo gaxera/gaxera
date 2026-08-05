@@ -410,6 +410,101 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
         arch::x86_64::apic::TIMER_VECTOR
     );
 
+    let ioapic_info = match local_apic_info.ioapic {
+        Some(info) => info,
+        None => {
+            println!("GAXERA ERROR: ACPI MADT did not describe an IOAPIC");
+            serial::halt();
+        }
+    };
+    // SAFETY: the IOAPIC page is firmware-described controller MMIO, the
+    // mapping is unique, and interrupts remain disabled during setup.
+    if let Err(error) = unsafe {
+        page_tables.map_ioapic_page(boot_context, ioapic_info.physical_address, physical_frames)
+    } {
+        println!("GAXERA ERROR: IOAPIC mapping failed: {error}");
+        serial::halt();
+    }
+    if let Err(error) = arch::x86_64::ioapic::initialize(
+        kernel::memory::mapping::IOAPIC_WINDOW,
+        ioapic_info.global_system_interrupt_base,
+        &local_apic_info.isa_irq_overrides,
+    ) {
+        println!("GAXERA ERROR: IOAPIC initialization failed: {:?}", error);
+        serial::halt();
+    }
+    println!(
+        "GAXERA: IOAPIC_READY phys={:#018x} gsi_base={}",
+        ioapic_info.physical_address, ioapic_info.global_system_interrupt_base
+    );
+
+    #[cfg(feature = "test-virtio-rng")]
+    let virtio_rng_info = {
+        let segments = match unsafe {
+            arch::x86_64::acpi::discover_mcfg_from_boot_context(
+                boot_context,
+                &mut page_tables,
+                physical_frames,
+            )
+        } {
+            Ok(segments) => segments,
+            Err(error) => {
+                println!("GAXERA ERROR: PCI MCFG discovery failed: {error}");
+                serial::halt();
+            }
+        };
+        let segment = match segments.first().copied() {
+            Some(segment) => segment,
+            None => {
+                println!("GAXERA ERROR: PCI MCFG has no segments");
+                serial::halt();
+            }
+        };
+        let ecam_size = (u64::from(segment.end_bus_number) - u64::from(segment.start_bus_number)
+            + 1)
+            * 1024
+            * 1024;
+        if unsafe {
+            page_tables.map_pci_ecam_range(segment.base_address, ecam_size, physical_frames)
+        }
+        .is_err()
+        {
+            println!("GAXERA ERROR: PCI ECAM mapping failed");
+            serial::halt();
+        }
+        let discovery = unsafe {
+            arch::x86_64::pci::discover_virtio_rng(
+                core::slice::from_ref(&segment),
+                kernel::memory::mapping::PCI_ECAM_WINDOW,
+            )
+        };
+        let _ = unsafe { page_tables.unmap_pci_ecam_range(ecam_size) };
+        match discovery {
+            Ok(info) => {
+                println!(
+                    "GAXERA: VIRTIO_RNG_PCI_FOUND {:04x}:{:02x}:{:02x}.{} irq={} common={:#x} notify={:#x} isr={:#x} multiplier={}",
+                    info.segment,
+                    info.bus,
+                    info.device,
+                    info.function,
+                    info.interrupt_line,
+                    info.common.window.physical_base,
+                    info.notify.window.physical_base,
+                    info.isr.window.physical_base,
+                    info.notify.notify_off_multiplier,
+                );
+                Some(info)
+            }
+            Err(error) => {
+                println!("GAXERA ERROR: VirtIO RNG discovery failed: {:?}", error);
+                serial::halt();
+            }
+        }
+    };
+    #[cfg(not(feature = "test-virtio-rng"))]
+    #[allow(unused_variables)]
+    let virtio_rng_info: Option<arch::x86_64::pci::VirtioRngPciInfo> = None;
+
     #[cfg(not(feature = "test-apic-timer"))]
     {
         let cal = match arch::x86_64::apic::calibrate_timer() {
@@ -1166,12 +1261,16 @@ pub unsafe extern "C" fn gaxera_rust_entry() -> ! {
             // Do not run kernel-mode lifecycle test, fall through to spawn init for Ring-3 test
         }
 
-        match kernel::init::spawn_init(boot_context, &mut page_tables, _arena, _system) {
-            Err(e) => {
-                println!("GAXERA ERROR: Failed to spawn init: {:?}", e);
-                serial::halt();
-            }
-        }
+        let e = kernel::init::spawn_init(
+            boot_context,
+            &mut page_tables,
+            _arena,
+            _system,
+            virtio_rng_info,
+        )
+        .unwrap_err();
+        println!("GAXERA ERROR: Failed to spawn init: {:?}", e);
+        serial::halt();
     }
 }
 

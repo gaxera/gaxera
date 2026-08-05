@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
 #[cfg(test)]
 use core::sync::atomic::Ordering;
@@ -64,6 +63,18 @@ impl<T, const LEVEL: u8> RankedLock<T, LEVEL> {
             _prev_rank: prev_rank,
         }
     }
+
+    /// Attempt a non-blocking acquisition.  Interrupt-context code may use
+    /// this only as an opportunistic fast path; callers must provide an
+    /// allocation-free fallback when it returns `None`.
+    pub fn try_lock(&self) -> Option<RankedLockGuard<'_, T, LEVEL>> {
+        let guard = self.inner.try_lock()?;
+        Some(RankedLockGuard {
+            guard,
+            #[cfg(test)]
+            _prev_rank: 255,
+        })
+    }
 }
 
 pub struct RankedLockGuard<'a, T, const LEVEL: u8> {
@@ -101,8 +112,9 @@ impl<'a, T, const LEVEL: u8> Drop for RankedLockGuard<'a, T, LEVEL> {
 /// Level 3: PHYSICAL_ALLOCATOR (Physical frame allocator)
 /// Level 4: Typed Object Registries (ENDPOINTS, ADDRESS_SPACES, CAPABILITY_SPACES,
 ///          MEMORY_OBJECTS, DEBUG_CONSOLES, FACTORIES, WAIT_SETS, NOTIFICATIONS,
-///          INTERRUPTS, MAPPINGS, CONTIGUOUS_FRAMES)
-pub static RESOURCE_DOMAINS: RankedLock<Vec<ResourceDomain>, 0> = RankedLock::new(Vec::new());
+///          INTERRUPTS, MAPPINGS, CONTIGUOUS_FRAMES, PROCESSES)
+pub static RESOURCE_DOMAINS: RankedLock<BTreeRegistry<ResourceDomain>, 0> =
+    RankedLock::new(BTreeRegistry::new());
 pub static CAPABILITY_SYSTEM: RankedLock<Option<CapabilitySystem>, 1> = RankedLock::new(None);
 pub static OBJECT_ARENA: RankedLock<Option<ObjectArena>, 2> = RankedLock::new(None);
 pub static PHYSICAL_ALLOCATOR: RankedLock<
@@ -136,6 +148,8 @@ pub static CONTIGUOUS_FRAMES: RankedLock<
     BTreeRegistry<kernel_core::contiguous_frame::ContiguousFrameObject>,
     4,
 > = RankedLock::new(BTreeRegistry::new());
+pub static PROCESSES: RankedLock<BTreeRegistry<kernel_core::process::Process>, 4> =
+    RankedLock::new(BTreeRegistry::new());
 
 // Note: `THREADS` registry is currently maintained in `arch::x86_64::thread::THREADS`
 // due to specialized context-switching borrowing requirements.

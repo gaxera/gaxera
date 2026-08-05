@@ -91,6 +91,10 @@ impl<'a> ElfParser<'a> {
         self.header
     }
 
+    pub fn entry_point(&self) -> u64 {
+        self.header.e_entry
+    }
+
     pub fn data(&self) -> &'a [u8] {
         self.data
     }

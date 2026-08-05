@@ -21,6 +21,12 @@ pub enum MappingBacking {
         physical_base: u64,
         cache_policy: CachePolicy,
     },
+    ContiguousFrame {
+        object_id: ObjectId,
+        physical_base: u64,
+        offset_bytes: u64,
+        cache_policy: CachePolicy,
+    },
 }
 
 /// Pure Explicit Bridge Mapping Capability (`ObjectType::Mapping = 6`).
@@ -33,6 +39,7 @@ pub struct Mapping {
     permissions: gaxera_abi::Rights,
     backing: MappingBacking,
     lineage_parent_node: Option<CapabilityNodeId>,
+    capability_refs: u32,
     closed: bool,
 }
 
@@ -66,6 +73,7 @@ impl Mapping {
                 offset_bytes,
             },
             lineage_parent_node,
+            capability_refs: 1,
             closed: false,
         })
     }
@@ -114,6 +122,47 @@ impl Mapping {
                 cache_policy,
             },
             lineage_parent_node: None,
+            capability_refs: 1,
+            closed: false,
+        })
+    }
+
+    // The constructor keeps the physical frame, offset, virtual range, and
+    // permission contract explicit at this kernel-object boundary.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new_contiguous_frame(
+        id: ObjectId,
+        target_address_space: ObjectId,
+        virtual_address: u64,
+        frame_object: ObjectId,
+        physical_base: u64,
+        offset_bytes: u64,
+        size: usize,
+        permissions: gaxera_abi::Rights,
+    ) -> Result<Self, MappingError> {
+        if (virtual_address & 0xFFF != 0)
+            || (physical_base & 0xFFF != 0)
+            || (offset_bytes & 0xFFF != 0)
+        {
+            return Err(MappingError::InvalidAlignment);
+        }
+        if size == 0 || (size & 0xFFF) != 0 {
+            return Err(MappingError::ZeroSize);
+        }
+        Ok(Self {
+            id,
+            target_address_space,
+            virtual_address,
+            size,
+            permissions,
+            backing: MappingBacking::ContiguousFrame {
+                object_id: frame_object,
+                physical_base,
+                offset_bytes,
+                cache_policy: CachePolicy::Cached,
+            },
+            lineage_parent_node: None,
+            capability_refs: 1,
             closed: false,
         })
     }
@@ -145,6 +194,11 @@ impl Mapping {
     pub fn phys_addr(&self) -> Option<u64> {
         match self.backing {
             MappingBacking::PhysicalRange { physical_base, .. } => Some(physical_base),
+            MappingBacking::ContiguousFrame {
+                physical_base,
+                offset_bytes,
+                ..
+            } => Some(physical_base + offset_bytes),
             MappingBacking::MemoryObject { .. } => None,
         }
     }
@@ -152,6 +206,7 @@ impl Mapping {
     pub fn cache_policy(&self) -> CachePolicy {
         match self.backing {
             MappingBacking::PhysicalRange { cache_policy, .. } => cache_policy,
+            MappingBacking::ContiguousFrame { cache_policy, .. } => cache_policy,
             MappingBacking::MemoryObject { .. } => CachePolicy::Cached,
         }
     }
@@ -162,6 +217,26 @@ impl Mapping {
 
     pub fn is_closed(&self) -> bool {
         self.closed
+    }
+
+    pub fn inc_capability_ref(&mut self) -> Result<(), MappingError> {
+        self.capability_refs = self
+            .capability_refs
+            .checked_add(1)
+            .ok_or(MappingError::Closed)?;
+        Ok(())
+    }
+
+    pub fn dec_capability_ref(&mut self) -> Result<bool, MappingError> {
+        self.capability_refs = self
+            .capability_refs
+            .checked_sub(1)
+            .ok_or(MappingError::Closed)?;
+        Ok(self.capability_refs == 0)
+    }
+
+    pub fn capability_refs(&self) -> u32 {
+        self.capability_refs
     }
 
     pub fn close(&mut self) -> Result<(), MappingError> {

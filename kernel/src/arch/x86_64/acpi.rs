@@ -6,16 +6,22 @@ use x86_64::structures::paging::{FrameAllocator, Size4KiB};
 use crate::arch::x86_64::paging::KernelPageTables;
 use crate::memory::boot::BootContext;
 use crate::memory::mapping::ACPI_TABLE_WINDOW;
+use gaxera_abi::pci::PciSegmentGroup;
 
 const RSDP_SIGNATURE: &[u8; 8] = b"RSD PTR ";
 const XSDT_SIGNATURE: &[u8; 4] = b"XSDT";
 const MADT_SIGNATURE: &[u8; 4] = b"APIC";
+const MCFG_SIGNATURE: &[u8; 4] = b"MCFG";
 const RSDP_V1_LENGTH: usize = 20;
 const RSDP_V2_MIN_LENGTH: usize = 36;
 const SDT_HEADER_LENGTH: usize = 36;
 const MADT_FIXED_LENGTH: usize = 44;
 const LOCAL_APIC_OVERRIDE_TYPE: u8 = 5;
 const LOCAL_APIC_OVERRIDE_LENGTH: usize = 12;
+const IO_APIC_TYPE: u8 = 1;
+const IO_APIC_LENGTH: usize = 12;
+const INTERRUPT_SOURCE_OVERRIDE_TYPE: u8 = 2;
+const INTERRUPT_SOURCE_OVERRIDE_LENGTH: usize = 10;
 const PAGE_SIZE: u64 = 4096;
 const MAX_ACPI_TABLE_LENGTH: usize = 1024 * 1024;
 
@@ -23,6 +29,15 @@ const MAX_ACPI_TABLE_LENGTH: usize = 1024 * 1024;
 pub struct LocalApicInfo {
     pub physical_address: u64,
     pub used_address_override: bool,
+    pub ioapic: Option<IoApicInfo>,
+    pub isa_irq_overrides: [u32; 16],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IoApicInfo {
+    pub id: u8,
+    pub physical_address: u64,
+    pub global_system_interrupt_base: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,10 +56,17 @@ pub enum AcpiError {
     InvalidXsdtSignature,
     InvalidXsdtEntries,
     MissingMadt,
+    MissingMcfg,
+    InvalidMcfgSignature,
+    InvalidMcfgEntries,
     InvalidMadtSignature,
     MalformedMadtEntry,
     DuplicateLocalApicOverride,
     InvalidLocalApicAddress,
+    InvalidIoApicAddress,
+    DuplicateIoApic,
+    DuplicateInterruptSourceOverride,
+    InvalidInterruptSourceOverride,
 }
 
 impl fmt::Display for AcpiError {
@@ -68,12 +90,23 @@ impl fmt::Display for AcpiError {
             Self::InvalidXsdtSignature => f.write_str("ACPI root table is not an XSDT"),
             Self::InvalidXsdtEntries => f.write_str("ACPI XSDT entry array is malformed"),
             Self::MissingMadt => f.write_str("ACPI XSDT does not contain a MADT"),
+            Self::MissingMcfg => f.write_str("ACPI XSDT does not contain an MCFG"),
+            Self::InvalidMcfgSignature => f.write_str("ACPI MCFG signature is invalid"),
+            Self::InvalidMcfgEntries => f.write_str("ACPI MCFG entry array is malformed"),
             Self::InvalidMadtSignature => f.write_str("ACPI MADT signature is invalid"),
             Self::MalformedMadtEntry => f.write_str("ACPI MADT subtable is malformed"),
             Self::DuplicateLocalApicOverride => {
                 f.write_str("ACPI MADT contains multiple Local APIC address overrides")
             }
             Self::InvalidLocalApicAddress => f.write_str("ACPI Local APIC address is invalid"),
+            Self::InvalidIoApicAddress => f.write_str("ACPI IOAPIC address is invalid"),
+            Self::DuplicateIoApic => f.write_str("ACPI MADT contains multiple IOAPIC records"),
+            Self::DuplicateInterruptSourceOverride => {
+                f.write_str("ACPI MADT contains multiple overrides for one ISA IRQ")
+            }
+            Self::InvalidInterruptSourceOverride => {
+                f.write_str("ACPI MADT interrupt source override is invalid")
+            }
         }
     }
 }
@@ -109,6 +142,31 @@ where
         allocator,
     };
     discover_local_apic(&mut reader, rsdp.physical_address)
+}
+
+/// Discover PCIe ECAM segment groups from the firmware MCFG table without
+/// retaining any firmware mapping.  The caller owns the temporary ACPI window
+/// and must keep interrupts disabled for the duration of the operation.
+///
+/// # Safety
+/// `context` must contain a validated physical RSDP address, `page_tables`
+/// must be the active kernel page-table owner, and `allocator` must allocate
+/// frames that are safe to use for temporary ACPI mappings.
+pub unsafe fn discover_mcfg_from_boot_context<A>(
+    context: &BootContext,
+    page_tables: &mut KernelPageTables,
+    allocator: &mut A,
+) -> Result<Vec<PciSegmentGroup>, AcpiError>
+where
+    A: FrameAllocator<Size4KiB>,
+{
+    let rsdp = context.rsdp().ok_or(AcpiError::InvalidPhysicalAddress)?;
+    let mut reader = PagingReader {
+        context,
+        page_tables,
+        allocator,
+    };
+    discover_mcfg(&mut reader, rsdp.physical_address)
 }
 
 struct PagingReader<'a, A> {
@@ -241,6 +299,12 @@ fn parse_madt(madt: &[u8]) -> Result<LocalApicInfo, AcpiError> {
     let header_address = u64::from(read_u32(madt, SDT_HEADER_LENGTH)?);
     let mut selected_address = header_address;
     let mut used_address_override = false;
+    let mut ioapic = None;
+    let mut isa_irq_overrides = [0_u32; 16];
+    for (irq, gsi) in isa_irq_overrides.iter_mut().enumerate() {
+        *gsi = irq as u32;
+    }
+    let mut override_seen = [false; 16];
     let mut offset = MADT_FIXED_LENGTH;
     while offset < madt.len() {
         let remaining = madt.len() - offset;
@@ -264,6 +328,33 @@ fn parse_madt(madt: &[u8]) -> Result<LocalApicInfo, AcpiError> {
             }
             selected_address = read_u64(madt, offset + 4)?;
             used_address_override = true;
+        } else if entry_type == IO_APIC_TYPE {
+            if entry_length != IO_APIC_LENGTH {
+                return Err(AcpiError::MalformedMadtEntry);
+            }
+            let physical_address = u64::from(read_u32(madt, offset + 4)?);
+            if physical_address == 0 || !physical_address.is_multiple_of(PAGE_SIZE) {
+                return Err(AcpiError::InvalidIoApicAddress);
+            }
+            if ioapic.is_some() {
+                return Err(AcpiError::DuplicateIoApic);
+            }
+            ioapic = Some(IoApicInfo {
+                id: madt[offset + 2],
+                physical_address,
+                global_system_interrupt_base: read_u32(madt, offset + 8)?,
+            });
+        } else if entry_type == INTERRUPT_SOURCE_OVERRIDE_TYPE {
+            if entry_length != INTERRUPT_SOURCE_OVERRIDE_LENGTH || madt[offset + 2] != 0 {
+                return Err(AcpiError::InvalidInterruptSourceOverride);
+            }
+            let source_irq = usize::from(madt[offset + 3]);
+            if source_irq >= isa_irq_overrides.len() || override_seen[source_irq] {
+                return Err(AcpiError::DuplicateInterruptSourceOverride);
+            }
+            let gsi = read_u32(madt, offset + 4)?;
+            isa_irq_overrides[source_irq] = gsi;
+            override_seen[source_irq] = true;
         }
         offset = end;
     }
@@ -274,7 +365,83 @@ fn parse_madt(madt: &[u8]) -> Result<LocalApicInfo, AcpiError> {
     Ok(LocalApicInfo {
         physical_address: selected_address,
         used_address_override,
+        ioapic,
+        isa_irq_overrides,
     })
+}
+
+fn discover_mcfg<R>(
+    reader: &mut R,
+    rsdp_physical_address: u64,
+) -> Result<Vec<PciSegmentGroup>, AcpiError>
+where
+    R: PhysicalMemoryReader,
+{
+    let rsdp_v1 = read_exact(reader, rsdp_physical_address, RSDP_V1_LENGTH)?;
+    if rsdp_v1[..8] != *RSDP_SIGNATURE {
+        return Err(AcpiError::InvalidRsdpSignature);
+    }
+    validate_checksum(&rsdp_v1, "RSDP")?;
+    if rsdp_v1[15] < 2 {
+        return Err(AcpiError::UnsupportedRsdpRevision);
+    }
+    let rsdp_prefix = read_exact(reader, rsdp_physical_address, RSDP_V2_MIN_LENGTH)?;
+    let rsdp_length =
+        usize::try_from(read_u32(&rsdp_prefix, 20)?).map_err(|_| AcpiError::TableTooLarge)?;
+    if !(RSDP_V2_MIN_LENGTH..=MAX_ACPI_TABLE_LENGTH).contains(&rsdp_length) {
+        return Err(AcpiError::InvalidRsdpLength);
+    }
+    let rsdp = read_exact(reader, rsdp_physical_address, rsdp_length)?;
+    validate_checksum(&rsdp, "extended RSDP")?;
+    let xsdt_physical_address = read_u64(&rsdp, 24)?;
+    let xsdt = read_sdt(reader, xsdt_physical_address)?;
+    if xsdt[..4] != *XSDT_SIGNATURE {
+        return Err(AcpiError::InvalidXsdtSignature);
+    }
+    let entries = xsdt
+        .len()
+        .checked_sub(SDT_HEADER_LENGTH)
+        .ok_or(AcpiError::InvalidSdtLength)?;
+    if !entries.is_multiple_of(8) {
+        return Err(AcpiError::InvalidXsdtEntries);
+    }
+    for offset in (SDT_HEADER_LENGTH..xsdt.len()).step_by(8) {
+        let table_physical_address = read_u64(&xsdt, offset)?;
+        let table = read_sdt(reader, table_physical_address)?;
+        if table[..4] != *MCFG_SIGNATURE {
+            continue;
+        }
+        if table.len() < 44 || !(table.len() - 44).is_multiple_of(16) {
+            return Err(AcpiError::InvalidMcfgEntries);
+        }
+        let mut segments = Vec::with_capacity((table.len() - 44) / 16);
+        #[allow(clippy::chunks_exact_to_as_chunks)]
+        for entry in table[44..].chunks_exact(16) {
+            let base_address = u64::from_le_bytes(
+                entry[0..8]
+                    .try_into()
+                    .map_err(|_| AcpiError::InvalidMcfgEntries)?,
+            );
+            let start_bus_number = entry[10];
+            let end_bus_number = entry[11];
+            if base_address == 0 || start_bus_number > end_bus_number {
+                return Err(AcpiError::InvalidMcfgEntries);
+            }
+            segments.push(PciSegmentGroup {
+                base_address,
+                segment_group_number: u16::from_le_bytes([entry[8], entry[9]]),
+                start_bus_number,
+                end_bus_number,
+                reserved: 0,
+            });
+        }
+        return if segments.is_empty() {
+            Err(AcpiError::InvalidMcfgEntries)
+        } else {
+            Ok(segments)
+        };
+    }
+    Err(AcpiError::MissingMcfg)
 }
 
 fn read_sdt<R>(reader: &mut R, physical_address: u64) -> Result<Vec<u8>, AcpiError>
@@ -406,6 +573,8 @@ mod tests {
             LocalApicInfo {
                 physical_address: 0xfee0_0000,
                 used_address_override: false,
+                ioapic: None,
+                isa_irq_overrides: identity_overrides(),
             }
         );
     }
@@ -421,7 +590,35 @@ mod tests {
             LocalApicInfo {
                 physical_address: override_address,
                 used_address_override: true,
+                ioapic: None,
+                isa_irq_overrides: identity_overrides(),
             }
+        );
+    }
+
+    #[test]
+    fn interrupt_source_override_resolves_isa_irq_to_gsi() {
+        let mut entry = vec![2, 10, 0, 0];
+        entry.extend_from_slice(&2_u32.to_le_bytes());
+        entry.extend_from_slice(&0_u16.to_le_bytes());
+        let mut reader = valid_reader(0xfee0_0000, &entry);
+        let info = discover_local_apic(&mut reader, RSDP).unwrap();
+        assert_eq!(info.isa_irq_overrides[0], 2);
+        assert_eq!(info.isa_irq_overrides[1], 1);
+    }
+
+    #[test]
+    fn duplicate_interrupt_source_override_is_rejected() {
+        let mut entry = vec![2, 10, 0, 0];
+        entry.extend_from_slice(&2_u32.to_le_bytes());
+        entry.extend_from_slice(&0_u16.to_le_bytes());
+        entry.extend_from_slice(&[2, 10, 0, 0]);
+        entry.extend_from_slice(&3_u32.to_le_bytes());
+        entry.extend_from_slice(&0_u16.to_le_bytes());
+        let mut reader = valid_reader(0xfee0_0000, &entry);
+        assert_eq!(
+            discover_local_apic(&mut reader, RSDP),
+            Err(AcpiError::DuplicateInterruptSourceOverride)
         );
     }
 
@@ -462,6 +659,10 @@ mod tests {
             (XSDT, sdt(*b"XSDT", &MADT.to_le_bytes())),
             (MADT, madt(local_apic_address, entries)),
         ])
+    }
+
+    fn identity_overrides() -> [u32; 16] {
+        core::array::from_fn(|irq| irq as u32)
     }
 
     fn rsdp(xsdt_address: u64) -> Vec<u8> {

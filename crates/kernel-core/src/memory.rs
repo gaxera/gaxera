@@ -2,6 +2,12 @@ use crate::object::ObjectId;
 use crate::resource::ResourceDomainId;
 use alloc::vec::Vec;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MemoryObjectKind {
+    Anonymous,
+    ExecutableImage,
+}
+
 /// A MemoryObject owns a collection of physical frames.
 ///
 /// Physical frames are released only when all three reference classes reach zero:
@@ -12,6 +18,7 @@ use alloc::vec::Vec;
 pub struct MemoryObject {
     id: ObjectId,
     charging_domain: ResourceDomainId,
+    kind: MemoryObjectKind,
     frames: Vec<u64>,
     size_bytes: u64,
     capability_refs: u32,
@@ -28,7 +35,23 @@ pub enum MemoryError {
 
 impl MemoryObject {
     pub fn new(id: ObjectId, charging_domain: ResourceDomainId, size_bytes: u64) -> Self {
-        Self::with_frames(id, charging_domain, size_bytes, Vec::new())
+        Self::with_frames_and_kind(
+            id,
+            charging_domain,
+            size_bytes,
+            Vec::new(),
+            MemoryObjectKind::Anonymous,
+        )
+    }
+
+    pub fn new_image(id: ObjectId, charging_domain: ResourceDomainId, size_bytes: u64) -> Self {
+        Self::with_frames_and_kind(
+            id,
+            charging_domain,
+            size_bytes,
+            Vec::new(),
+            MemoryObjectKind::ExecutableImage,
+        )
     }
 
     pub fn with_frames(
@@ -37,15 +60,36 @@ impl MemoryObject {
         size_bytes: u64,
         frames: Vec<u64>,
     ) -> Self {
+        Self::with_frames_and_kind(
+            id,
+            charging_domain,
+            size_bytes,
+            frames,
+            MemoryObjectKind::Anonymous,
+        )
+    }
+
+    pub fn with_frames_and_kind(
+        id: ObjectId,
+        charging_domain: ResourceDomainId,
+        size_bytes: u64,
+        frames: Vec<u64>,
+        kind: MemoryObjectKind,
+    ) -> Self {
         Self {
             id,
             charging_domain,
+            kind,
             size_bytes,
             frames,
             capability_refs: 1,
             mapping_refs: 0,
             transient_refs: 0,
         }
+    }
+
+    pub fn kind(&self) -> MemoryObjectKind {
+        self.kind
     }
 
     pub fn id(&self) -> ObjectId {

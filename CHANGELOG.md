@@ -5,12 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.2.0] - 2026-08-05
 
-### Planning (v1.2.0 Initiative)
+### Added
+- **First-Class Process Object (`ADR 0040`):** `ObjectType::Process = 15` in ABI and kernel-core object registry with 8-stage state machine (`New` through `Reaped`).
+- **Versioned Bootstrap Manifest (`ADR 0041`):** `BootstrapManifest` wire format for role capability discovery without fixed-slot assumptions.
+- **ResourceDomain Hierarchy & Quota Accounting (`ADR 0042`):** Generational ownership and child quota reservations with automatic refund on process teardown.
+- **Executable Image Loading & W^X Enforcement (`ADR 0043`):** `ProcessBuilder` image loader with ELF validation and strict W^X separation.
+- **Hardware IRQ Delivery & VirtIO Integration (`ADR 0044`):** `InterruptObject` IOAPIC vector allocation, `Notification` binding, and a real notification-driven VirtIO RNG driver path with ACK/rearm semantics.
+- **Userspace Driver Supervisor:** `DriverSupervisor` in `init` for driver crash containment, process reaping (`ProcessControlOp::Reap`), restart backoff, and fresh process instantiation.
 
-- v1.2 will address the deferred process bootstrap architecture, enabling capability-authorized production-service allocator migration.
-- v1.2 will implement end-to-end hardware IRQ delivery and driver lifecycle, which requires bootstrap resolution before becoming a real service contract.
+The full host and QEMU matrix passes, including the integrated proof that a
+real Ring-3 VirtIO RNG driver image receives a device notification, exits, is
+reaped, and is replaced with fresh device capabilities. MSI/MSI-X and
+physical-hardware driver support remain future initiatives.
 
 ## [v1.1.0] - 2026-08-01
 

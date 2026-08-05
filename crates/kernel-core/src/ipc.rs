@@ -686,8 +686,8 @@ mod tests {
 
     #[test]
     fn capability_transfer_transaction_all_or_nothing() {
-        let mut owner = domain(ResourceDomainId::new(1), 2, 8);
-        let mut recipient = domain(ResourceDomainId::new(2), 2, 2); // Recipient has cap limit of 2
+        let mut owner = domain(ResourceDomainId::new_for_test(1), 2, 8);
+        let mut recipient = domain(ResourceDomainId::new_for_test(2), 2, 2); // Recipient has cap limit of 2
         let mut arena = ObjectArena::try_new(2).unwrap();
 
         let factory = crate::object::Factory::new(&owner, ObjectTypeSet::of(ObjectType::Endpoint));
@@ -816,21 +816,18 @@ mod tests {
 
         // First call & receive cycle
         assert_eq!(ep.receive(receiver), Ok(Err(IpcEffect::Block)));
-        let call_res1 = ep.call(caller1, empty_msg.clone()).unwrap();
+        let call_res1 = ep.call(caller1, empty_msg).unwrap();
         assert_eq!(call_res1, IpcEffect::Wake(receiver));
 
         let received1 = ep.take_received_call().unwrap();
         let token1 = received1.reply_token;
 
         // Reply successfully with token1
-        assert_eq!(
-            ep.reply(token1, empty_msg.clone()),
-            Ok(IpcEffect::Wake(caller1))
-        );
+        assert_eq!(ep.reply(token1, empty_msg), Ok(IpcEffect::Wake(caller1)));
 
         // Second call & receive cycle with SAME caller ID
         assert_eq!(ep.receive(receiver), Ok(Err(IpcEffect::Block)));
-        let call_res2 = ep.call(caller1, empty_msg.clone()).unwrap();
+        let call_res2 = ep.call(caller1, empty_msg).unwrap();
         assert_eq!(call_res2, IpcEffect::Wake(receiver));
 
         let received2 = ep.take_received_call().unwrap();
@@ -841,15 +838,12 @@ mod tests {
 
         // Replaying stale token1 MUST fail with InvalidReplyToken
         assert_eq!(
-            ep.reply(token1, empty_msg.clone()),
+            ep.reply(token1, empty_msg),
             Err(EndpointError::InvalidReplyToken)
         );
 
         // Replying with valid token2 MUST succeed
-        assert_eq!(
-            ep.reply(token2, empty_msg.clone()),
-            Ok(IpcEffect::Wake(caller1))
-        );
+        assert_eq!(ep.reply(token2, empty_msg), Ok(IpcEffect::Wake(caller1)));
     }
 
     #[test]

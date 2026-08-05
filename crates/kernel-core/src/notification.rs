@@ -14,6 +14,7 @@ pub struct Notification {
     id: ObjectId,
     signals: u32,
     waiting_thread: Option<ObjectId>,
+    capability_refs: u32,
     closed: bool,
 }
 
@@ -23,6 +24,7 @@ impl Notification {
             id,
             signals: 0,
             waiting_thread: None,
+            capability_refs: 1,
             closed: false,
         }
     }
@@ -37,6 +39,22 @@ impl Notification {
 
     pub fn waiting_thread(&self) -> Option<ObjectId> {
         self.waiting_thread
+    }
+
+    pub fn inc_capability_ref(&mut self) -> Result<(), NotificationError> {
+        self.capability_refs = self
+            .capability_refs
+            .checked_add(1)
+            .ok_or(NotificationError::Closed)?;
+        Ok(())
+    }
+
+    pub fn dec_capability_ref(&mut self) -> Result<bool, NotificationError> {
+        self.capability_refs = self
+            .capability_refs
+            .checked_sub(1)
+            .ok_or(NotificationError::Closed)?;
+        Ok(self.capability_refs == 0)
     }
 
     /// Atomically performs bitwise OR to post signal bits. Returns waiting thread to wake if present.

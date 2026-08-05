@@ -1,9 +1,16 @@
 use std::env;
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::Command;
 use std::sync::mpsc;
+#[cfg(unix)]
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy)]
@@ -55,6 +62,21 @@ enum KernelProfile {
     InitTest,
     MemoryLifecycle,
     Ring3Heap,
+    BootstrapManifest,
+    BootstrapNoSlotAssumptions,
+    ProcessCreateStartExit,
+    ProcessSupervisorTerminate,
+    ProcessReap,
+    ProcessDelegatedMemory,
+    ProcessRestart,
+    InitUserspaceHeap,
+    ServiceAllocatorMigration,
+    IrqNotification,
+    IrqUnauthorized,
+    IrqDriverTeardown,
+    IrqVectorReuse,
+    DriverCrashRestart,
+    VirtioRng,
 }
 
 impl KernelProfile {
@@ -96,6 +118,21 @@ impl KernelProfile {
             Self::InitTest => Some("qemu-test"),
             Self::MemoryLifecycle => Some("test-memory-lifecycle"),
             Self::Ring3Heap => Some("test-ring3-heap"),
+            Self::BootstrapManifest => Some("test-bootstrap-manifest"),
+            Self::BootstrapNoSlotAssumptions => Some("test-bootstrap-no-slot-assumptions"),
+            Self::ProcessCreateStartExit => Some("test-process-create-start-exit"),
+            Self::ProcessSupervisorTerminate => Some("test-process-supervisor-terminate"),
+            Self::ProcessReap => Some("test-process-reap"),
+            Self::ProcessDelegatedMemory => Some("test-process-delegated-memory"),
+            Self::ProcessRestart => Some("test-process-restart"),
+            Self::InitUserspaceHeap => Some("test-init-userspace-heap"),
+            Self::ServiceAllocatorMigration => Some("test-service-allocator-migration"),
+            Self::IrqNotification => Some("test-irq-notification"),
+            Self::IrqUnauthorized => Some("test-irq-unauthorized"),
+            Self::IrqDriverTeardown => Some("test-irq-driver-teardown"),
+            Self::IrqVectorReuse => Some("test-irq-vector-reuse"),
+            Self::DriverCrashRestart => Some("test-driver-crash-restart,test-virtio-rng"),
+            Self::VirtioRng => Some("test-virtio-rng"),
         }
     }
 
@@ -155,11 +192,29 @@ impl KernelProfile {
             ],
             Self::MemoryLifecycle => &["GAXERA: MEMORY_RECLAIMED_AND_QUOTA_REFUNDED"],
             Self::Ring3Heap => &["GAXERA: RING3_HEAP_TEST_SUCCESS"],
+            Self::BootstrapManifest => &["GAXERA: BOOTSTRAP_MANIFEST_SUCCESS"],
+            Self::BootstrapNoSlotAssumptions => &["GAXERA: BOOTSTRAP_NO_SLOT_ASSUMPTIONS_SUCCESS"],
+            Self::ProcessCreateStartExit => &["GAXERA: PROCESS_CREATE_TERMINATE_REAP_SUCCESS"],
+            Self::ProcessSupervisorTerminate => &["GAXERA: PROCESS_SUPERVISOR_TERMINATE_SUCCESS"],
+            Self::ProcessReap => &["GAXERA: PROCESS_REAP_SUCCESS"],
+            Self::ProcessDelegatedMemory => &["GAXERA: DELEGATED_MEMORY_OK"],
+            Self::ProcessRestart => &["GAXERA: PROCESS_CREATE_REAP_REPEAT_SUCCESS"],
+            Self::InitUserspaceHeap => &["GAXERA: INIT_USERSPACE_HEAP_SUCCESS"],
+            Self::ServiceAllocatorMigration => &["GAXERA: SERVICE_ALLOCATOR_MIGRATION_SUCCESS"],
+            Self::IrqNotification => &["GAXERA: IRQ_NOTIFICATION_SUCCESS"],
+            Self::IrqUnauthorized => &["GAXERA: IRQ_UNAUTHORIZED_REJECTED"],
+            Self::IrqDriverTeardown => &["GAXERA: IRQ_DRIVER_TEARDOWN_SUCCESS"],
+            Self::IrqVectorReuse => &["GAXERA: IRQ_VECTOR_REUSE_SUCCESS"],
+            Self::DriverCrashRestart => &["GAXERA: DRIVER_CRASH_RESTART_SUCCESS"],
+            Self::VirtioRng => &["GAXERA: VIRTIO_RNG_IRQ_SUCCESS"],
         }
     }
 
     fn requires_guest_exit(self) -> bool {
-        !matches!(self, Self::Normal | Self::InitTest)
+        !matches!(
+            self,
+            Self::Normal | Self::InitTest | Self::DriverCrashRestart
+        )
     }
 
     fn log_name(self) -> &'static str {
@@ -200,6 +255,21 @@ impl KernelProfile {
             Self::InitTest => "init-scenario",
             Self::MemoryLifecycle => "memory-lifecycle",
             Self::Ring3Heap => "ring3-heap",
+            Self::BootstrapManifest => "bootstrap-manifest",
+            Self::BootstrapNoSlotAssumptions => "bootstrap-no-slot-assumptions",
+            Self::ProcessCreateStartExit => "process-create-start-exit",
+            Self::ProcessSupervisorTerminate => "process-supervisor-terminate",
+            Self::ProcessReap => "process-reap",
+            Self::ProcessDelegatedMemory => "process-delegated-memory",
+            Self::ProcessRestart => "process-restart",
+            Self::InitUserspaceHeap => "init-userspace-heap",
+            Self::ServiceAllocatorMigration => "service-allocator-migration",
+            Self::IrqNotification => "irq-notification",
+            Self::IrqUnauthorized => "irq-unauthorized",
+            Self::IrqDriverTeardown => "irq-driver-teardown",
+            Self::IrqVectorReuse => "irq-vector-reuse",
+            Self::DriverCrashRestart => "driver-crash-restart",
+            Self::VirtioRng => "virtio-rng",
         }
     }
 }
@@ -297,6 +367,21 @@ fn parse_profile(args: &[String]) -> Result<KernelProfile, &'static str> {
         "init-scenario" => Ok(KernelProfile::InitTest),
         "memory-lifecycle" => Ok(KernelProfile::MemoryLifecycle),
         "ring3-heap" => Ok(KernelProfile::Ring3Heap),
+        "bootstrap-manifest" => Ok(KernelProfile::BootstrapManifest),
+        "bootstrap-no-slot-assumptions" => Ok(KernelProfile::BootstrapNoSlotAssumptions),
+        "process-create-start-exit" => Ok(KernelProfile::ProcessCreateStartExit),
+        "process-supervisor-terminate" => Ok(KernelProfile::ProcessSupervisorTerminate),
+        "process-reap" => Ok(KernelProfile::ProcessReap),
+        "process-delegated-memory" => Ok(KernelProfile::ProcessDelegatedMemory),
+        "process-restart" => Ok(KernelProfile::ProcessRestart),
+        "init-userspace-heap" => Ok(KernelProfile::InitUserspaceHeap),
+        "service-allocator-migration" => Ok(KernelProfile::ServiceAllocatorMigration),
+        "irq-notification" => Ok(KernelProfile::IrqNotification),
+        "irq-unauthorized" => Ok(KernelProfile::IrqUnauthorized),
+        "irq-driver-teardown" => Ok(KernelProfile::IrqDriverTeardown),
+        "irq-vector-reuse" => Ok(KernelProfile::IrqVectorReuse),
+        "driver-crash-restart" => Ok(KernelProfile::DriverCrashRestart),
+        "virtio-rng" => Ok(KernelProfile::VirtioRng),
         _ => Err("unknown deterministic test name"),
     }
 }
@@ -446,7 +531,96 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         return Err("Limine stubs missing. Run 'cargo xtask bootstrap' first.");
     }
 
-    // Step 1: Compile the kernel
+    // Step 1: Determine guest binary and package
+    let mut guest_pkg = "init";
+    let mut guest_path = "crates/init";
+    let mut guest_bin = "init";
+    if let KernelProfile::Ring3Heap = profile {
+        guest_pkg = "test_ring3_heap";
+        guest_path = "crates/test_ring3_heap";
+        guest_bin = "test_ring3_heap";
+    } else if let KernelProfile::MemoryLifecycle = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_memory_lifecycle";
+    } else if let KernelProfile::BootstrapManifest = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_bootstrap_manifest";
+    } else if let KernelProfile::BootstrapNoSlotAssumptions = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_bootstrap_no_slot_assumptions";
+    } else if let KernelProfile::ProcessCreateStartExit = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_process_create_start_exit";
+    } else if let KernelProfile::ProcessSupervisorTerminate = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_process_supervisor_terminate";
+    } else if let KernelProfile::ProcessReap = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_process_reap";
+    } else if let KernelProfile::ProcessDelegatedMemory = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_process_delegated_memory";
+    } else if let KernelProfile::ProcessRestart = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_process_restart";
+    } else if let KernelProfile::InitUserspaceHeap = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_init_userspace_heap";
+    } else if let KernelProfile::ServiceAllocatorMigration = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_service_allocator_migration";
+    } else if let KernelProfile::IrqNotification = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_irq_notification";
+    } else if let KernelProfile::IrqUnauthorized = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_irq_unauthorized";
+    } else if let KernelProfile::IrqDriverTeardown = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_irq_driver_teardown";
+    } else if let KernelProfile::IrqVectorReuse = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_irq_vector_reuse";
+    } else if let KernelProfile::DriverCrashRestart = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_driver_crash_restart";
+    } else if let KernelProfile::VirtioRng = profile {
+        guest_pkg = "userspace-tests";
+        guest_path = "crates/userspace-tests";
+        guest_bin = "test_virtio_rng";
+    }
+
+    let _ = Command::new("cargo")
+        .args([
+            "clean",
+            "--package",
+            "kernel",
+            "--target",
+            "x86_64-unknown-none",
+        ])
+        .status();
+
+    let kernel_bin = Path::new("target/x86_64-unknown-none/debug/kernel");
+    if kernel_bin.exists() {
+        let _ = fs::remove_file(kernel_bin);
+    }
+
+    // Step 2: Compile the kernel
     println!("Compiling kernel binary...");
     let mut build_args = vec![
         "build",
@@ -461,6 +635,9 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         "build-std-features=compiler-builtins-mem",
     ];
     if let Some(features) = profile.features() {
+        // The kernel must receive the profile feature even when the test
+        // entrypoint is supplied by userspace-tests.  These features enable
+        // the qemu-test exit path and any kernel-side test instrumentation.
         build_args.extend(["--features", features]);
     }
     let status = Command::new("cargo")
@@ -470,20 +647,6 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
 
     if !status.success() {
         return Err("kernel compilation failed");
-    }
-
-    // Step 1.5: Compile init (or swapped test) binary
-    let mut guest_pkg = "init";
-    let mut guest_path = "crates/init";
-    let mut guest_bin = "init";
-    if let KernelProfile::Ring3Heap = profile {
-        guest_pkg = "test_ring3_heap";
-        guest_path = "crates/test_ring3_heap";
-        guest_bin = "test_ring3_heap";
-    } else if let KernelProfile::MemoryLifecycle = profile {
-        guest_pkg = "userspace-tests";
-        guest_path = "crates/userspace-tests";
-        guest_bin = "test_memory_lifecycle";
     }
 
     if Path::new(guest_path).exists() {
@@ -500,8 +663,10 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
             "-Z",
             "build-std-features=compiler-builtins-mem",
         ];
-        if profile.features() == Some("test-memory-lifecycle") {
-            init_args.extend(["--features", "test-memory-lifecycle"]);
+        if let Some(f) = profile.features()
+            && guest_pkg == "userspace-tests"
+        {
+            init_args.extend(["--features", f]);
         }
         let status = Command::new("cargo")
             .args(init_args)
@@ -570,13 +735,15 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
     println!("Packaging GaxFS ramfs.img...");
     pack_gaxfs(&boot_dir.join("ramfs.img"))?;
 
-    // Copy limine configuration
-    fs::copy("kernel/limine.conf", boot_dir.join("limine.conf"))
-        .map_err(|_| "failed to copy limine.conf configuration")?;
-
-    // Copy fallback limine configuration to ISO root
-    fs::copy("kernel/limine.conf", iso_root.join("limine.conf"))
-        .map_err(|_| "failed to copy limine.conf root configuration")?;
+    // Stage a profile-specific module list without modifying the canonical
+    // source configuration. The child image is present only for process
+    // lifecycle profiles.
+    let limine_config =
+        fs::read_to_string("kernel/limine.conf").map_err(|_| "failed to read limine.conf")?;
+    fs::write(boot_dir.join("limine.conf"), &limine_config)
+        .map_err(|_| "failed to stage limine.conf configuration")?;
+    fs::write(iso_root.join("limine.conf"), &limine_config)
+        .map_err(|_| "failed to stage root limine.conf configuration")?;
 
     // Copy bootloader files
     let boot_files = [
@@ -604,7 +771,7 @@ fn handle_build_with_features(profile: KernelProfile) -> Result<(), &'static str
         efi_boot_dir.join("BOOTX64.EFI"),
     )
     .map_err(|_| "failed to stage BOOTX64.EFI to EFI/BOOT")?;
-    fs::copy("kernel/limine.conf", efi_boot_dir.join("limine.conf"))
+    fs::write(efi_boot_dir.join("limine.conf"), &limine_config)
         .map_err(|_| "failed to stage UEFI Limine configuration")?;
 
     // Step 3: Run xorriso to create the ISO
@@ -673,6 +840,15 @@ fn handle_run(
     };
 
     let mut args = vec![];
+    if matches!(
+        profile,
+        KernelProfile::VirtioRng | KernelProfile::DriverCrashRestart
+    ) {
+        // Q35 supplies a firmware MCFG table for capability-scoped PCIe ECAM
+        // discovery. Other profiles retain the existing reference platform.
+        args.push("-machine");
+        args.push("q35");
+    }
     if matches!(firmware, Firmware::Uefi) {
         println!("OVMF UEFI firmware detected. Booting in UEFI mode.");
         args.push("-bios");
@@ -700,6 +876,45 @@ fn handle_run(
     args.push("512M");
     args.push("-cpu");
     args.push("max");
+    if matches!(
+        profile,
+        KernelProfile::VirtioRng | KernelProfile::DriverCrashRestart
+    ) {
+        // The guest discovers and authorizes this real hardware device; QEMU
+        // only supplies the PCI function.  Use an explicit host entropy
+        // backend so device completion does not depend on QEMU's implicit
+        // backend startup or host entropy-device availability.
+        args.push("-object");
+        args.push("rng-random,filename=/dev/urandom,id=gaxera_rng_backend");
+        args.push("-device");
+        args.push("virtio-rng-pci,id=gaxera_rng,rng=gaxera_rng_backend,max-bytes=64,period=1");
+        // These profiles are single-vCPU integration tests.  A single TCG
+        // thread makes the device completion and guest interrupt ordering
+        // reproducible across host runs.
+        args.push("-accel");
+        args.push("tcg,thread=single");
+    }
+
+    // The IRQ plumbing profile uses QEMU's real PS/2 controller as a
+    // deterministic lower-layer source while the VirtIO profile is assembled.
+    // QMP injects key events into hardware; it does not signal Gaxera or
+    // bypass the interrupt controller.
+    #[cfg(unix)]
+    let irq_ready = Arc::new(AtomicBool::new(false));
+    #[cfg(unix)]
+    let qmp_path = if matches!(profile, KernelProfile::IrqNotification) {
+        let path = format!("/tmp/gaxera-qmp-{}.sock", std::process::id());
+        let _ = fs::remove_file(&path);
+        args.push("-qmp");
+        args.push("unix:");
+        // Replace the placeholder with the complete QMP endpoint below.
+        let endpoint = Box::leak(format!("unix:{path},server=on,wait=off").into_boxed_str());
+        let _ = args.pop();
+        args.push(endpoint);
+        Some(path)
+    } else {
+        None
+    };
 
     if profile.requires_guest_exit() {
         // A triple fault must terminate the process rather than rebooting into
@@ -722,6 +937,54 @@ fn handle_run(
         .stdout(std::process::Stdio::piped())
         .spawn()
         .map_err(|_| "failed to spawn QEMU process. Is QEMU installed?")?;
+
+    #[cfg(unix)]
+    if let Some(path) = qmp_path {
+        let irq_ready = Arc::clone(&irq_ready);
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut stream = loop {
+                match UnixStream::connect(&path) {
+                    Ok(stream) => break stream,
+                    Err(_) if Instant::now() < deadline => {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                    Err(_) => return,
+                }
+            };
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+            let mut response = [0_u8; 4096];
+            let _ = stream.read(&mut response);
+            if stream
+                .write_all(b"{\"execute\":\"qmp_capabilities\"}\r\n")
+                .is_err()
+            {
+                return;
+            }
+            let _ = stream.read(&mut response);
+            // Wait for the guest to report that the IRQ is actually unmasked.
+            // Events injected before that point are legitimately lost and do
+            // not test the delivery path. The serial loop below publishes
+            // this state only after the guest has completed the bind and
+            // unmask syscalls.
+            let ready_deadline = Instant::now() + TEST_TIMEOUT;
+            while !irq_ready.load(Ordering::Acquire) {
+                if Instant::now() >= ready_deadline {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            for key in ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"] {
+                let command = format!(
+                    "{{\"execute\":\"human-monitor-command\",\"arguments\":{{\"command-line\":\"sendkey {key}\"}}}}\r\n"
+                );
+                if stream.write_all(command.as_bytes()).is_err() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        });
+    }
 
     // Send a newline to console input periodically to satisfy the UEFI "Press any key to boot" prompt
     if let Some(mut stdin) = child.stdin.take() {
@@ -769,23 +1032,19 @@ fn handle_run(
     let mut markers_seen = vec![false; expected_markers.len()];
     let started = Instant::now();
     loop {
-        let line = if profile.requires_guest_exit() {
-            let Some(remaining) = TEST_TIMEOUT.checked_sub(started.elapsed()) else {
+        let Some(remaining) = TEST_TIMEOUT.checked_sub(started.elapsed()) else {
+            child.kill().ok();
+            child.wait().ok();
+            return Err("QEMU test timed out before producing the expected result");
+        };
+        let line = match line_receiver.recv_timeout(remaining) {
+            Ok(line) => Some(line),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
                 child.kill().ok();
                 child.wait().ok();
                 return Err("QEMU test timed out before producing the expected result");
-            };
-            match line_receiver.recv_timeout(remaining) {
-                Ok(line) => Some(line),
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    child.kill().ok();
-                    child.wait().ok();
-                    return Err("QEMU test timed out before producing the expected result");
-                }
-                Err(mpsc::RecvTimeoutError::Disconnected) => None,
             }
-        } else {
-            line_receiver.recv().ok()
+            Err(mpsc::RecvTimeoutError::Disconnected) => None,
         };
 
         let Some(line) = line else {
@@ -797,6 +1056,13 @@ fn handle_run(
         if let Some(ref mut file) = log_file {
             writeln!(file, "{}", line).ok();
             file.flush().ok();
+        }
+
+        #[cfg(unix)]
+        if matches!(profile, KernelProfile::IrqNotification)
+            && line.contains("GAXERA: IRQ_TEST_UNMASKED")
+        {
+            irq_ready.store(true, Ordering::Release);
         }
 
         for (index, marker) in expected_markers.iter().enumerate() {
@@ -859,11 +1125,33 @@ fn handle_clean() -> Result<(), &'static str> {
 }
 
 fn lint_kernel_profile(profile: KernelProfile) -> Result<(), &'static str> {
+    let mut pkg = "kernel";
+    match profile {
+        KernelProfile::Ring3Heap => pkg = "test_ring3_heap",
+        KernelProfile::MemoryLifecycle
+        | KernelProfile::BootstrapManifest
+        | KernelProfile::BootstrapNoSlotAssumptions
+        | KernelProfile::ProcessCreateStartExit
+        | KernelProfile::ProcessSupervisorTerminate
+        | KernelProfile::ProcessReap
+        | KernelProfile::ProcessDelegatedMemory
+        | KernelProfile::ProcessRestart
+        | KernelProfile::InitUserspaceHeap
+        | KernelProfile::ServiceAllocatorMigration
+        | KernelProfile::IrqNotification
+        | KernelProfile::IrqUnauthorized
+        | KernelProfile::IrqDriverTeardown
+        | KernelProfile::IrqVectorReuse
+        | KernelProfile::DriverCrashRestart => pkg = "userspace-tests",
+        KernelProfile::VirtioRng => pkg = "userspace-tests",
+        _ => {}
+    }
+
     let mut lint_args = vec![
         "clippy",
         "--locked",
         "--package",
-        "kernel",
+        pkg,
         "--target",
         "x86_64-unknown-none",
         "-Z",
@@ -880,9 +1168,9 @@ fn lint_kernel_profile(profile: KernelProfile) -> Result<(), &'static str> {
     let status = Command::new("cargo")
         .args(lint_args)
         .status()
-        .map_err(|_| "failed to execute kernel clippy validation")?;
+        .map_err(|_| "failed to execute clippy validation")?;
     if !status.success() {
-        return Err("kernel clippy validation failed");
+        return Err("clippy validation failed");
     }
 
     Ok(())
@@ -1003,6 +1291,21 @@ fn handle_test() -> Result<(), &'static str> {
         KernelProfile::UserspaceRuntime,
         KernelProfile::Ring3Heap,
         KernelProfile::ServiceRegistry,
+        KernelProfile::BootstrapManifest,
+        KernelProfile::BootstrapNoSlotAssumptions,
+        KernelProfile::ProcessCreateStartExit,
+        KernelProfile::ProcessSupervisorTerminate,
+        KernelProfile::ProcessReap,
+        KernelProfile::ProcessDelegatedMemory,
+        KernelProfile::ProcessRestart,
+        KernelProfile::InitUserspaceHeap,
+        KernelProfile::ServiceAllocatorMigration,
+        KernelProfile::IrqNotification,
+        KernelProfile::IrqUnauthorized,
+        KernelProfile::IrqDriverTeardown,
+        KernelProfile::IrqVectorReuse,
+        KernelProfile::DriverCrashRestart,
+        KernelProfile::VirtioRng,
         KernelProfile::IpcBenchmark,
         KernelProfile::Exception(ExceptionTest::Breakpoint),
         KernelProfile::Exception(ExceptionTest::DivideError),
@@ -1083,6 +1386,61 @@ fn handle_test() -> Result<(), &'static str> {
 
     println!("\n--- Service Registry Test ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::ServiceRegistry)?;
+
+    println!("\n--- Bootstrap Manifest Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::BootstrapManifest)?;
+    println!("\n--- Bootstrap No Slot Assumptions Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::BootstrapNoSlotAssumptions,
+    )?;
+    println!("\n--- Process Create Start Exit Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::ProcessCreateStartExit,
+    )?;
+    println!("\n--- Process Supervisor Terminate Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::ProcessSupervisorTerminate,
+    )?;
+    println!("\n--- Process Reap Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::ProcessReap)?;
+    println!("\n--- Process Delegated Memory Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::ProcessDelegatedMemory,
+    )?;
+    println!("\n--- Process Restart Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::ProcessRestart)?;
+    println!("\n--- Init Userspace Heap Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::InitUserspaceHeap)?;
+    println!("\n--- Service Allocator Migration Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::ServiceAllocatorMigration,
+    )?;
+    println!("\n--- IRQ Notification Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IrqNotification)?;
+    println!("\n--- IRQ Unauthorized Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IrqUnauthorized)?;
+    println!("\n--- IRQ Driver Teardown Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IrqDriverTeardown)?;
+    println!("\n--- IRQ Vector Reuse Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::IrqVectorReuse)?;
+    println!("\n--- Driver Crash Restart Test ---");
+    handle_run(
+        true,
+        Some(Firmware::Uefi),
+        KernelProfile::DriverCrashRestart,
+    )?;
+    println!("\n--- VirtIO RNG IRQ Driver Test ---");
+    handle_run(true, Some(Firmware::Uefi), KernelProfile::VirtioRng)?;
 
     println!("\n--- IPC Fast-Path Benchmark ---");
     handle_run(true, Some(Firmware::Uefi), KernelProfile::IpcBenchmark)?;

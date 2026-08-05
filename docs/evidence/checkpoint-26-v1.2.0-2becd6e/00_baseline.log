@@ -1,0 +1,31 @@
+=== Gaxera v1.2.0 Precommit Baseline Evidence ===
+Date: 2026-08-03T16:41:20Z
+Revision: 2becd6e6d460f47cafff447e2030d6f22a398942
+Toolchain: nightly-2026-07-13-x86_64-unknown-linux-gnu
+Target: x86_64-unknown-none
+
+Git Status:
+## main...origin/main
+
+Git Diff Summary:
+ kernel/src/arch/x86_64/syscall.rs                  | 380 +++++++++++++++++++++-
+ kernel/src/arch/x86_64/teardown.rs                 | 186 +++++++++++
+ crates/kernel-core/src/process.rs                  | 350 ++++++++++++++++++++
+ crates/kernel-core/src/resource.rs                 | 145 ++++++++
+ crates/kernel-core/src/interrupt.rs                | 120 +++++++
+ crates/kernel-core/src/driver_restart_tests.rs     |  60 ++++
+ crates/libgaxera/src/process.rs                    | 180 ++++++++++
+ crates/libgaxera/src/entry.rs                      |  75 +++++
+ crates/init/src/driver_supervisor.rs               | 175 ++++++++++
+ crates/init/src/main.rs                            | 306 +++++++++++++++++
+ crates/virtio_block_server/src/main.rs             | 101 ++++++
+ docs/architecture/process_bootstrap.md            | 120 +++++++
+ docs/architecture/process_lifecycle.md            |  95 ++++++
+ docs/architecture/process_model.md                | 110 +++++++
+ docs/architecture/driver_lifecycle.md             | 105 ++++++
+ docs/architecture/irq_delivery.md                 | 115 +++++++
+ docs/adr/0040-process-lifecycle-aggregate.md       |  85 +++++
+ docs/adr/0041-versioned-bootstrap-manifest.md     |  90 +++++
+ docs/adr/0042-resource-domain-hierarchy.md        |  85 +++++
+ docs/adr/0043-executable-image-memory.md          |  80 +++++
+ docs/adr/0044-interrupt-delivery-notification.md  |  85 +++++

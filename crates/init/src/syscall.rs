@@ -25,22 +25,58 @@ pub unsafe fn sys_invoke(handle: u64, op: u64, arg1: u64, arg2: u64, arg3: u64, 
     result
 }
 
+/// Invoke a syscall whose ABI returns status in RAX and a handle/value in RDX.
+///
+/// The RDX input is retained as an explicit in/out operand because factory,
+/// mapping, and derivation operations use the same register for their first
+/// argument and their secondary return value.
+pub unsafe fn sys_invoke_ret2(
+    handle: u64,
+    op: u64,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+) -> (u64, u64) {
+    let status: u64;
+    let mut value = arg1;
+    // SAFETY: The caller supplies the same validated syscall arguments as
+    // `sys_invoke`; the register ABI defines RAX/RDX as the two returns.
+    unsafe {
+        asm!(
+            "syscall",
+            inout("rax") 10u64 => status,
+            in("rdi") handle,
+            in("rsi") op,
+            inout("rdx") value,
+            in("r10") arg2,
+            in("r8") arg3,
+            in("r9") arg4,
+            out("rcx") _,
+            out("r11") _,
+            options(nostack)
+        );
+    }
+    (status, value)
+}
+
 // ABI wrappers
 
 pub fn factory_create(factory: Handle, obj_type: ObjectType) -> Result<Handle, ()> {
-    // SAFETY: Invoking kernel ABI to create a factory object.
-    let result = unsafe { sys_invoke(factory.raw(), 0, obj_type as u64, 0, 0, 0) };
-    if result == u64::MAX {
+    // SAFETY: Invoking the status-plus-handle kernel ABI.
+    let (status, raw_handle) =
+        unsafe { sys_invoke_ret2(factory.raw(), 0, obj_type as u64, 0, 0, 0) };
+    if status != 0 {
         Err(())
     } else {
-        Ok(Handle::from_raw(result))
+        Ok(Handle::from_raw(raw_handle))
     }
 }
 
 pub fn factory_create_memory(factory: Handle, size: u64) -> Result<Handle, ()> {
     // SAFETY: Invoking kernel ABI to create a memory object.
-    let result = unsafe {
-        sys_invoke(
+    let (status, raw_handle) = unsafe {
+        sys_invoke_ret2(
             factory.raw(),
             0,
             ObjectType::MemoryObject as u64,
@@ -49,10 +85,10 @@ pub fn factory_create_memory(factory: Handle, size: u64) -> Result<Handle, ()> {
             0,
         )
     };
-    if result == u64::MAX {
+    if status != 0 {
         Err(())
     } else {
-        Ok(Handle::from_raw(result))
+        Ok(Handle::from_raw(raw_handle))
     }
 }
 
@@ -74,7 +110,7 @@ pub fn thread_configure(
             cspace.raw(),
         )
     };
-    if result == u64::MAX { Err(()) } else { Ok(()) }
+    if result == 0 { Ok(()) } else { Err(()) }
 }
 
 pub fn derive_capability(
@@ -83,8 +119,8 @@ pub fn derive_capability(
     requested_rights: Rights,
 ) -> Result<Handle, ()> {
     // SAFETY: Invoking kernel ABI to derive capability.
-    let result = unsafe {
-        sys_invoke(
+    let (status, raw_handle) = unsafe {
+        sys_invoke_ret2(
             source_handle.raw(),
             OperationCode::Derive as u64,
             target_cspace.raw(),
@@ -93,10 +129,10 @@ pub fn derive_capability(
             0,
         )
     };
-    if result == u64::MAX {
+    if status != 0 {
         Err(())
     } else {
-        Ok(Handle::from_raw(result))
+        Ok(Handle::from_raw(raw_handle))
     }
 }
 
@@ -123,7 +159,7 @@ pub fn map_memory(
             0,
         )
     };
-    if res == u64::MAX { Err(()) } else { Ok(()) }
+    if res == 0 { Ok(()) } else { Err(()) }
 }
 
 pub fn endpoint_call(endpoint: Handle, message: &InlineMessage) -> Result<(), ()> {
@@ -276,5 +312,9 @@ pub fn debug_console_write(console: Handle, message: &str) -> Result<(), ()> {
 pub fn thread_status(thread: Handle) -> Result<u64, ()> {
     // SAFETY: Invoking kernel ABI to check thread status.
     let res = unsafe { sys_invoke(thread.raw(), OperationCode::ThreadStatus as u64, 0, 0, 0, 0) };
-    if res == u64::MAX { Err(()) } else { Ok(res) }
+    if res == gaxera_abi::status::INTERNAL_ERROR {
+        Err(())
+    } else {
+        Ok(res)
+    }
 }

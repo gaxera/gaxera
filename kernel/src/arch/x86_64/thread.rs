@@ -8,6 +8,7 @@ use crate::arch::x86_64::context::Context;
 use crate::arch::x86_64::stack::KernelStack;
 use crate::arch::x86_64::user::UserTransitionFrame;
 use core::arch::global_asm;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 global_asm!(
     r#"
@@ -164,6 +165,52 @@ impl ThreadTable {
 }
 
 pub static THREADS: ThreadTable = ThreadTable::new();
+
+static IDLE_THREAD_RAW: AtomicU64 = AtomicU64::new(0);
+
+pub fn set_idle_thread(id: ObjectId) {
+    IDLE_THREAD_RAW.store(id.raw(), Ordering::Release);
+}
+
+pub fn idle_thread() -> Option<ObjectId> {
+    let raw = IDLE_THREAD_RAW.load(Ordering::Acquire);
+    (raw != 0).then(|| ObjectId::from_raw(raw))
+}
+
+/// Entry point for the BSP's kernel-owned idle thread.  It never owns user
+/// authority or a process; it only waits for interrupts and dispatches a
+/// runnable thread selected by the scheduler.
+pub extern "C" fn idle_thread_entry() -> ! {
+    loop {
+        x86_64::instructions::interrupts::enable();
+        x86_64::instructions::hlt();
+        x86_64::instructions::interrupts::disable();
+
+        // SAFETY: the idle thread runs on the BSP and interrupts are disabled
+        // while scheduler state is inspected and committed.
+        let cpu_local = unsafe { crate::arch::x86_64::cpu::get_cpu_local() };
+        // SAFETY: only the BSP mutates this scheduler while interrupts are off.
+        let scheduler = unsafe { &mut *cpu_local.scheduler.get() };
+        let Some(scheduler) = scheduler.as_mut() else {
+            continue;
+        };
+        if scheduler.current_thread() != idle_thread() {
+            continue;
+        }
+        let Some(next) = scheduler.dequeue_next() else {
+            continue;
+        };
+        let Some(idle) = idle_thread() else {
+            continue;
+        };
+        #[cfg(feature = "test-irq-notification")]
+        crate::println!("GAXERA: IDLE_SWITCH next={:#x}", next.raw());
+        scheduler.set_current_thread(Some(next));
+        if crate::arch::x86_64::preemption::switch_to_next(idle, next).is_err() {
+            scheduler.set_current_thread(Some(idle));
+        }
+    }
+}
 
 pub fn spawn_user_thread(
     stack: KernelStack,

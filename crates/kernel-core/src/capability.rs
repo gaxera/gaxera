@@ -306,6 +306,19 @@ impl CapabilitySystem {
         Ok(info)
     }
 
+    /// Inspect an opaque handle after the caller has already established the
+    /// relevant capability-space authority.  This is intentionally read-only;
+    /// mutation still goes through derive/delete/revoke APIs.
+    pub fn inspect(
+        &self,
+        space: &CapabilitySpace,
+        handle: Handle,
+        objects: &ObjectArena,
+    ) -> Result<CapabilityInfo, CapabilityError> {
+        let node = space.node_for(handle)?;
+        self.validate_node(node, objects)
+    }
+
     pub fn node_for(
         &self,
         space: &CapabilitySpace,

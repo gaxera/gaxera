@@ -1,0 +1,95 @@
+ M CHANGELOG.md
+ M Cargo.lock
+ M README.md
+ M crates/crypto_server/src/main.rs
+ M crates/gaxera-abi/src/boot.rs
+ M crates/gaxera-abi/src/lib.rs
+ M crates/init/src/main.rs
+ M crates/init/src/syscall.rs
+ M crates/kernel-core/src/capability.rs
+ M crates/kernel-core/src/contiguous_frame.rs
+ M crates/kernel-core/src/elf/parser.rs
+ M crates/kernel-core/src/elf/tests.rs
+ M crates/kernel-core/src/interrupt.rs
+ M crates/kernel-core/src/ipc.rs
+ M crates/kernel-core/src/lib.rs
+ M crates/kernel-core/src/mapping.rs
+ M crates/kernel-core/src/memory.rs
+ M crates/kernel-core/src/object.rs
+ M crates/kernel-core/src/resource.rs
+ M crates/kernel-core/src/thread.rs
+ M crates/libgaxera/Cargo.toml
+ M crates/libgaxera/src/arch/x86_64/raw_syscall.rs
+ M crates/libgaxera/src/entry.rs
+ M crates/libgaxera/src/lib.rs
+ M crates/libgaxera/src/syscall.rs
+ M crates/net_stack_server/src/main.rs
+ M crates/pci_bus_server/src/lib.rs
+ M crates/pci_bus_server/src/main.rs
+ M crates/ramfs/src/main.rs
+ M crates/resolver_server/src/main.rs
+ M crates/script_session/src/main.rs
+ M crates/test_ring3_heap/Cargo.toml
+ M crates/test_ring3_heap/src/main.rs
+ M crates/userspace-tests/Cargo.toml
+ M crates/userspace-tests/src/bin/test_memory_lifecycle.rs
+ M crates/virtio_block_server/src/main.rs
+ M crates/virtio_gpu_server/src/main.rs
+ M crates/virtio_input_server/src/main.rs
+ M crates/virtio_net_server/src/main.rs
+ M docs/architecture/irq_delivery.md
+ M docs/architecture/process_bootstrap.md
+ M docs/architecture/process_lifecycle.md
+ M docs/architecture/userspace_runtime.md
+ M docs/evidence/EVIDENCE_LOG.md
+ M docs/roadmap/roadmap_v12.md
+ M kernel/Cargo.toml
+ M kernel/src/arch/x86_64/acpi.rs
+ M kernel/src/arch/x86_64/exceptions.rs
+ M kernel/src/arch/x86_64/ioapic.rs
+ M kernel/src/arch/x86_64/mod.rs
+ M kernel/src/arch/x86_64/paging.rs
+ M kernel/src/arch/x86_64/pci.rs
+ M kernel/src/arch/x86_64/preemption.rs
+ M kernel/src/arch/x86_64/qemu.rs
+ M kernel/src/arch/x86_64/stack.rs
+ M kernel/src/arch/x86_64/syscall.rs
+ M kernel/src/arch/x86_64/teardown.rs
+ M kernel/src/arch/x86_64/thread.rs
+ M kernel/src/arch/x86_64/user.rs
+ M kernel/src/global.rs
+ M kernel/src/init.rs
+ M kernel/src/main.rs
+ M kernel/src/memory/mapping.rs
+ M kernel/src/memory/mod.rs
+ M xtask/src/main.rs
+?? crates/init/src/driver_supervisor.rs
+?? crates/kernel-core/src/driver_restart_tests.rs
+?? crates/kernel-core/src/process.rs
+?? crates/libgaxera/src/process.rs
+?? crates/userspace-tests/src/bin/test_bootstrap_manifest.rs
+?? crates/userspace-tests/src/bin/test_bootstrap_no_slot_assumptions.rs
+?? crates/userspace-tests/src/bin/test_driver_crash_restart.rs
+?? crates/userspace-tests/src/bin/test_init_userspace_heap.rs
+?? crates/userspace-tests/src/bin/test_irq_driver_teardown.rs
+?? crates/userspace-tests/src/bin/test_irq_notification.rs
+?? crates/userspace-tests/src/bin/test_irq_unauthorized.rs
+?? crates/userspace-tests/src/bin/test_irq_vector_reuse.rs
+?? crates/userspace-tests/src/bin/test_process_create_start_exit.rs
+?? crates/userspace-tests/src/bin/test_process_delegated_memory.rs
+?? crates/userspace-tests/src/bin/test_process_reap.rs
+?? crates/userspace-tests/src/bin/test_process_restart.rs
+?? crates/userspace-tests/src/bin/test_process_supervisor_terminate.rs
+?? crates/userspace-tests/src/bin/test_service_allocator_migration.rs
+?? crates/userspace-tests/src/bin/test_virtio_rng.rs
+?? crates/userspace-tests/src/process_support.rs
+?? docs/adr/0040-process-lifecycle-aggregate-and-supervisor-authority.md
+?? docs/adr/0041-versioned-bootstrap-capability-manifest.md
+?? docs/adr/0042-resourcedomain-hierarchy-and-process-resource-lifetime.md
+?? docs/adr/0043-executable-image-memory-and-process-loading-boundary.md
+?? docs/adr/0044-interrupt-delivery-and-notification-semantics.md
+?? docs/architecture/driver_lifecycle.md
+?? docs/architecture/process_model.md
+?? docs/evidence/checkpoint-26-v1.2.0-2becd6e/
+?? docs/evidence/checkpoint-27-v1.2.0-working-tree/
+?? kernel/src/arch/x86_64/interrupts.rs

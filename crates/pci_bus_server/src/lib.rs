@@ -218,6 +218,10 @@ mod tests {
 
         let mut server = PciBusServer::new();
         // SAFETY: mock_ecam is allocated and valid for 1 MB.
+        // SAFETY: The test buffer is a valid, exclusively borrowed PCI
+        // configuration-space image for the duration of the scan.
+        // SAFETY: The test buffer is a valid, exclusively borrowed PCI
+        // configuration-space image for this scan.
         unsafe {
             server.scan_segment(&segment, mock_ecam.as_ptr());
         }
@@ -266,6 +270,8 @@ mod tests {
         mock_ecam[0x51] = 0x00;
 
         let mut server = PciBusServer::new();
+        // SAFETY: The test buffer is a valid, exclusively borrowed PCI
+        // configuration-space image for the duration of the scan.
         unsafe {
             server.scan_segment(&segment, mock_ecam.as_ptr());
         }
@@ -311,6 +317,8 @@ mod tests {
         mock_ecam[0x3002..0x3004].copy_from_slice(&0x1010u16.to_le_bytes());
 
         let mut server = PciBusServer::new();
+        // SAFETY: The test buffer is a valid, exclusively borrowed PCI
+        // configuration-space image for this scan.
         unsafe {
             server.scan_segment(&segment, mock_ecam.as_ptr());
         }

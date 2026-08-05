@@ -7,12 +7,86 @@ edition = "2024"
 name = "test_memory_lifecycle"
 test = false
 
+[[bin]]
+name = "test_irq_notification"
+test = false
+
+[[bin]]
+name = "test_bootstrap_manifest"
+test = false
+
+[[bin]]
+name = "test_bootstrap_no_slot_assumptions"
+test = false
+
+[[bin]]
+name = "test_process_create_start_exit"
+test = false
+
+[[bin]]
+name = "test_process_supervisor_terminate"
+test = false
+
+[[bin]]
+name = "test_process_reap"
+test = false
+
+[[bin]]
+name = "test_process_delegated_memory"
+test = false
+
+[[bin]]
+name = "test_process_restart"
+test = false
+
+[[bin]]
+name = "test_init_userspace_heap"
+test = false
+
+[[bin]]
+name = "test_service_allocator_migration"
+test = false
+
+[[bin]]
+name = "test_irq_unauthorized"
+test = false
+
+[[bin]]
+name = "test_irq_driver_teardown"
+test = false
+
+[[bin]]
+name = "test_irq_vector_reuse"
+test = false
+
+[[bin]]
+name = "test_driver_crash_restart"
+test = false
+
+[[bin]]
+name = "test_virtio_rng"
+test = false
+
 [dependencies]
 gaxera-abi = { path = "../gaxera-abi" }
 libgaxera = { path = "../libgaxera", features = ["alloc_error_handler"] }
 
 [features]
 test-memory-lifecycle = []
-
+test-irq-notification = []
+test-bootstrap-manifest = []
+test-bootstrap-no-slot-assumptions = []
+test-process-create-start-exit = []
+test-process-supervisor-terminate = []
+test-process-reap = []
+test-process-delegated-memory = []
+test-process-restart = []
+test-init-userspace-heap = []
+test-service-allocator-migration = []
+test-irq-unauthorized = []
+test-irq-driver-teardown = []
+test-irq-vector-reuse = []
+test-driver-crash-restart = []
+test-virtio-rng = []
 [lints]
 workspace = true

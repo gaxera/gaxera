@@ -1,8 +1,15 @@
 # Initiative v1.2.0 Roadmap — Device Event and Ring-3 Runtime Completion
 
-> **Status:** Proposed
+> **Status:** Complete
 > **Epoch:** v1.2
 > **Target Release:** v1.2.0
+
+> **Implementation status note (2026-08-05):** The current worktree proves
+> versioned bootstrap manifests, genuine Ring-3 process creation and delegated
+> memory, fallible allocator use in the tested services, real IOAPIC VirtIO
+> notification delivery, IRQ authorization, teardown, vector reuse, and an
+> integrated supervisor-driven crash/restart of a real Ring-3 VirtIO RNG image.
+> The complete `cargo xtask test` matrix is green.
 
 ## 1. Initiative Charter
 
@@ -53,7 +60,10 @@ Migrate services individually. Required sequence:
 **Each migration must include:** explicit allocator initialization, fallible allocation behavior, untrusted-input audit, quota failure behavior, crash/restart behavior, and evidence. (Do not remove dummy allocators globally in one change).
 
 ### M5 — IRQ Delivery
-Complete IOAPIC/MSI/MSI-X routing, vector ownership, `InterruptObject` capabilities, Notification binding, WaitNotification/WaitSet wakeup, ACK/mask/unmask/rearm semantics, spurious vectors, teardown after driver exit, and vector reuse protection.
+Complete the implemented legacy IOAPIC path: vector ownership,
+`InterruptObject` capabilities, Notification binding, WaitNotification/WaitSet
+wakeup, ACK/mask/unmask/rearm semantics, spurious vectors, teardown after
+driver exit, and vector reuse protection. MSI/MSI-X remain future work.
 
 ### M6 — Driver Lifecycle
 Define discovery grant, startup, notification loop, crash containment, resource reclamation, reset, rebind, and service restart policy.

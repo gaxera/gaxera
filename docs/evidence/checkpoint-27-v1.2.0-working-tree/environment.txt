@@ -1,0 +1,6 @@
+rustc 1.99.0-nightly (77cf889bc 2026-07-12)
+cargo 1.99.0-nightly (59800466c 2026-07-07)
+QEMU emulator version 10.2.1 (Debian 1:10.2.1+ds-1ubuntu3.1)
+xorriso 1.5.6
+2026-08-05T05:14:32Z
+2026-08-05T05:35:06Z

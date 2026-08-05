@@ -38,6 +38,10 @@ pub unsafe fn exit_failure() -> ! {
 
 #[cfg(feature = "qemu-test")]
 unsafe fn exit(code: u32) -> ! {
+    // Spin briefly to allow serial FIFO to drain to host
+    for _ in 0..10_000 {
+        core::hint::spin_loop();
+    }
     let mut port = PortWriteOnly::<u32>::new(ISA_DEBUG_EXIT_PORT);
     // SAFETY: `xtask` attaches `isa-debug-exit` at this port for every
     // qemu-test image. QEMU terminates the guest process immediately.

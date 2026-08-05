@@ -168,6 +168,61 @@ impl ObjectArena {
         self.create(domain, factory, ObjectType::WaitSet)
     }
 
+    pub fn create_process(&mut self, domain: &mut ResourceDomain) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::Process));
+        self.create(domain, factory, ObjectType::Process)
+    }
+
+    pub fn create_address_space(
+        &mut self,
+        domain: &mut ResourceDomain,
+    ) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::AddressSpace));
+        self.create(domain, factory, ObjectType::AddressSpace)
+    }
+
+    pub fn create_capability_space(
+        &mut self,
+        domain: &mut ResourceDomain,
+    ) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::CapabilitySpace));
+        self.create(domain, factory, ObjectType::CapabilitySpace)
+    }
+
+    pub fn create_thread(&mut self, domain: &mut ResourceDomain) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::Thread));
+        self.create(domain, factory, ObjectType::Thread)
+    }
+
+    pub fn create_notification(
+        &mut self,
+        domain: &mut ResourceDomain,
+    ) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::Notification));
+        self.create(domain, factory, ObjectType::Notification)
+    }
+
+    pub fn create_factory(&mut self, domain: &mut ResourceDomain) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::Factory));
+        self.create(domain, factory, ObjectType::Factory)
+    }
+
+    pub fn create_root_factory(
+        &mut self,
+        domain: &mut ResourceDomain,
+    ) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::ALL);
+        self.create(domain, factory, ObjectType::Factory)
+    }
+
+    pub fn create_resource_domain(
+        &mut self,
+        domain: &mut ResourceDomain,
+    ) -> Result<ObjectId, ObjectError> {
+        let factory = Factory::new(domain, ObjectTypeSet::of(ObjectType::ResourceDomain));
+        self.create(domain, factory, ObjectType::ResourceDomain)
+    }
+
     fn create_internal_impl(
         &mut self,
         domain: &mut ResourceDomain,

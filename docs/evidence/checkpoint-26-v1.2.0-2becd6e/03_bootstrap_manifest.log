@@ -1,0 +1,19 @@
+=== Bootstrap Manifest Verification Log ===
+Date: 2026-08-03T16:48:02Z
+Command: cargo test --lib -p kernel-core -p libgaxera -- abi_tests
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running unittests src/lib.rs (target/debug/deps/kernel_core-d8a3e48bb5dcd5f7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 97 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/libgaxera-21f212fa03adfda2)
+
+running 3 tests
+test abi_tests::abi_layout_and_size_invariants ... ok
+test abi_tests::operation_code_coverage_assertion ... ok
+test abi_tests::status_code_encoding_and_decoding_invariants ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s

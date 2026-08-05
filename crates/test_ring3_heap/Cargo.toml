@@ -14,3 +14,6 @@ libgaxera = { path = "../libgaxera", features = ["alloc_error_handler"] }
 
 [lints]
 workspace = true
+
+[features]
+test-ring3-heap = []
